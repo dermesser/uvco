@@ -160,11 +160,31 @@ public:
   Stream(Stream &&) = default;
   ~Stream() = default;
 
+  static Stream tty(uv_loop_t *loop, int fd) {
+    auto *tty = new uv_tty_t{};
+    uv_tty_init(loop, tty, fd, 0);
+    auto *stream = (uv_stream_t *)tty;
+    return Stream(stream);
+  }
+  static Stream stdin(uv_loop_t *loop) { return tty(loop, 0); }
+  static Stream stdout(uv_loop_t *loop) { return tty(loop, 1); }
+  static Stream stderr(uv_loop_t *loop) { return tty(loop, 2); }
+
+  Promise<std::optional<std::string>> read() {
+    // This is a promise root function, i.e. origin of a promise.
+    InStreamAwaiter awaiter{*this};
+    std::optional<std::string> buf = co_await awaiter;
+    co_return buf;
+  }
+
+  Promise<void> write(std::string buf) {
+    OutStreamAwaiter awaiter{*this, std::move(buf)};
+    co_await awaiter;
+    co_return;
+  }
+
 private:
   std::unique_ptr<uv_stream_t> stream_;
-};
-
-class InStream {
 
   struct InStreamAwaiter {
     struct InStreamAwaitState {
@@ -172,7 +192,7 @@ class InStream {
       InStreamAwaiter *awaiter;
     };
 
-    InStreamAwaiter(InStream &stream) : stream_{stream}, slot_{} {}
+    InStreamAwaiter(Stream &stream) : stream_{stream}, slot_{} {}
 
     bool await_ready() {
       int state = uv_is_readable(stream_.stream_.get());
@@ -218,34 +238,46 @@ class InStream {
       delete[] buf->base;
     }
 
-    InStream &stream_;
+    Stream &stream_;
     std::optional<std::optional<std::string>> slot_;
   };
 
-public:
-  // InStream takes ownership of the stream.
-  explicit InStream(uv_stream_t *stream) : stream_{stream} {}
+  struct OutStreamAwaiter {
+    struct OutStreamAwaitState {
+      std::coroutine_handle<> handle;
+      OutStreamAwaiter *awaiter;
+    };
+    OutStreamAwaiter(Stream &stream, std::string &&buffer)
+        : stream_{stream}, buffer_{std::move(buffer)} {}
 
-  ~InStream() = default;
+    bool await_ready() const { return false; }
+    bool await_suspend(std::coroutine_handle<> handle) {
+      auto *state = new OutStreamAwaitState{handle, this};
+      write_.data = state;
+      stream_.stream_->data = state;
 
-  static InStream stdin(uv_loop_t *loop) {
-    static constexpr const int STDIN_FD = 0;
-    auto *stdin = new uv_tty_t{};
-    uv_tty_init(loop, stdin, STDIN_FD, 0);
-    auto *stream = (uv_stream_t *)stdin;
-    return InStream(stream);
-  }
+      std::array<uv_buf_t, 1> bufs;
+      bufs[0].base = const_cast<char *>(buffer_.c_str());
+      bufs[0].len = buffer_.size();
 
-  Promise<std::optional<std::string>> readLine() {
-    // This is a promise root function, i.e. origin of a promise.
-    InStreamAwaiter awaiter{*this};
-    std::optional<std::string> line = co_await awaiter;
-    co_return line;
+      uv_write(&write_, stream_.stream_.get(), bufs.data(), bufs.size(),
+               onOutStreamWrite);
+
+      return true;
+    }
+    void await_resume() {}
+
+    static void onOutStreamWrite(uv_write_t *write, int status) {
+      auto *state = (OutStreamAwaitState *)write->data;
+      state->handle.resume();
+
+      delete state;
+    }
+
+    Stream &stream_;
+    std::string buffer_;
+    uv_write_t write_;
   };
-
-private:
-  // The stream is owned by this class.
-  std::unique_ptr<uv_stream_t> stream_;
 };
 
 class Data {
@@ -253,15 +285,16 @@ public:
   Data() = default;
 };
 
-Promise<void> uppercasing(InStream &s) {
+Promise<void> uppercasing(Stream &in, Stream &out) {
   while (true) {
-    auto maybeLine = co_await s.readLine();
+    auto maybeLine = co_await in.read();
     if (!maybeLine)
       break;
     auto line = maybeLine.value();
     std::ranges::transform(line, line.begin(),
                            [](char c) -> char { return std::toupper(c); });
-    fmt::print(">> {}", line);
+    std::string to_output = fmt::format(">> {}", line);
+    co_await out.write(std::move(to_output));
   }
   co_return;
 }
@@ -273,8 +306,9 @@ void run_loop() {
   uv_loop_init(&loop);
   uv_loop_set_data(&loop, &data);
 
-  InStream s = InStream::stdin(&loop);
-  Promise<void> p = uppercasing(s);
+  Stream in = Stream::stdin(&loop);
+  Stream out = Stream::stdout(&loop);
+  Promise<void> p = uppercasing(in, out);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
