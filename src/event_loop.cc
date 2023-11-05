@@ -155,6 +155,8 @@ private:
 class Stream {
 
 public:
+  using uv_status = int;
+
   // Takes ownership of stream.
   explicit Stream(uv_stream_t *stream) : stream_{stream} {}
   Stream(Stream &&) = default;
@@ -177,10 +179,10 @@ public:
     co_return buf;
   }
 
-  Promise<void> write(std::string buf) {
+  Promise<uv_status> write(std::string buf) {
     OutStreamAwaiter awaiter{*this, std::move(buf)};
-    co_await awaiter;
-    co_return;
+    uv_status status = co_await awaiter;
+    co_return status;
   }
 
 private:
@@ -246,40 +248,54 @@ private:
   };
 
   struct OutStreamAwaiter {
-    struct OutStreamAwaitState {
-      std::coroutine_handle<> handle;
-      OutStreamAwaiter *awaiter;
-    };
     OutStreamAwaiter(Stream &stream, std::string &&buffer)
         : stream_{stream}, buffer_{std::move(buffer)} {}
 
-    bool await_ready() const { return false; }
-    bool await_suspend(std::coroutine_handle<> handle) {
-      auto *state = new OutStreamAwaitState{handle, this};
-      write_.data = state;
-      stream_.stream_->data = state;
-
+    std::array<uv_buf_t, 1> prepare_buffers() const {
       std::array<uv_buf_t, 1> bufs;
       bufs[0].base = const_cast<char *>(buffer_.c_str());
       bufs[0].len = buffer_.size();
+      return bufs;
+    }
 
+    bool await_ready() {
+      // Attempt early write:
+      auto bufs = prepare_buffers();
+      int result =
+          uv_try_write(stream_.stream_.get(), bufs.data(), bufs.size());
+      if (result > 0)
+        status_ = result;
+      return result > 0;
+    }
+
+    bool await_suspend(std::coroutine_handle<> handle) {
+      write_.data = this;
+      handle_ = handle;
+      auto bufs = prepare_buffers();
       uv_write(&write_, stream_.stream_.get(), bufs.data(), bufs.size(),
                onOutStreamWrite);
 
       return true;
     }
-    void await_resume() {}
+
+    uv_status await_resume() {
+      assert(status_);
+      return *status_;
+    }
 
     static void onOutStreamWrite(uv_write_t *write, int status) {
-      auto *state = (OutStreamAwaitState *)write->data;
-      state->handle.resume();
-
-      delete state;
+      auto *state = (OutStreamAwaiter *)write->data;
+      assert(state->handle_);
+      state->status_ = status;
+      state->handle_->resume();
     }
 
     Stream &stream_;
+    std::optional<std::coroutine_handle<>> handle_;
+
     std::string buffer_;
     uv_write_t write_;
+    std::optional<uv_status> status_;
   };
 };
 
