@@ -306,10 +306,8 @@ public:
   Promise<struct addrinfo *> gai(std::string_view host, std::string_view port) {
     AddrinfoAwaiter awaiter;
     awaiter.req_.data = &awaiter;
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof(struct addrinfo));
-    // Restrictions for testing:
-    hints.ai_family = AF_INET;
+    struct addrinfo hints {};
+    hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
     uv_getaddrinfo(loop_, &awaiter.req_, onAddrinfo, host.data(), port.data(),
@@ -368,7 +366,9 @@ public:
   Data() = default;
 };
 
-Promise<void> uppercasing(Stream &in, Stream &out) {
+// Some demo and test functions.
+
+Promise<void> uppercasing(Stream in, Stream out) {
   while (true) {
     auto maybeLine = co_await in.read();
     if (!maybeLine)
@@ -385,7 +385,7 @@ Promise<void> uppercasing(Stream &in, Stream &out) {
 Promise<void> setupUppercasing(uv_loop_t *loop) {
   Stream in = Stream::stdin(loop);
   Stream out = Stream::stdout(loop);
-  Promise<void> p = uppercasing(in, out);
+  Promise<void> p = uppercasing(std::move(in), std::move(out));
   return p;
 }
 
@@ -393,6 +393,7 @@ Promise<void> resolveName(uv_loop_t *loop, std::string_view name) {
   Resolver resolver{loop};
   log(loop, "Before GAI");
   struct addrinfo *ai = co_await resolver.gai(name, "443");
+  log(loop, "After GAI");
   uv_freeaddrinfo(ai);
   co_return;
 }
@@ -404,7 +405,9 @@ void run_loop() {
   uv_loop_init(&loop);
   uv_loop_set_data(&loop, &data);
 
+  // Promises are run even if they are not waited on or checked.
   Promise<void> p = resolveName(&loop, "borgac.net");
+  Promise<void> p2 = setupUppercasing(&loop);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
