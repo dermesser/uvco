@@ -25,9 +25,8 @@ void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
 } // namespace
 
 namespace uvco {
-using std::coroutine_handle;
 
-struct Void {};
+using std::coroutine_handle;
 
 template <typename T> struct PromiseCore {
   std::optional<std::coroutine_handle<>> resume;
@@ -40,7 +39,8 @@ template <> struct PromiseCore<void> {
 };
 
 template <typename T> class Promise {
-  struct PromiseAwaiter;
+  struct PromiseAwaiter_;
+  using SharedCore_ = std::shared_ptr<PromiseCore<T>>;
 
 public:
   using promise_type = Promise<T>;
@@ -65,14 +65,20 @@ public:
   }
   void unhandled_exception() {}
 
-  PromiseAwaiter operator co_await() { return PromiseAwaiter{core_}; }
+  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
 
   bool ready() { return core_->slot.has_value(); }
   T result() { return std::move(*core_->slot); }
 
 private:
-  struct PromiseAwaiter {
-    bool await_ready() const { return false; }
+  struct PromiseAwaiter_ {
+    explicit PromiseAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
+    PromiseAwaiter_(PromiseAwaiter_ &&) = delete;
+    PromiseAwaiter_(const PromiseAwaiter_ &) = delete;
+    PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
+    PromiseAwaiter_ &operator=(const PromiseAwaiter_ &) = delete;
+
+    bool await_ready() const { return core_->slot.has_value(); }
     bool await_suspend(std::coroutine_handle<> handle) {
       if (core_->resume) {
         fmt::print("promise is already being waited on!\n");
@@ -83,14 +89,15 @@ private:
     }
     T await_resume() { return std::move(core_->slot.value()); }
 
-    std::shared_ptr<PromiseCore<T>> core_;
+    SharedCore_ core_;
   };
 
   std::shared_ptr<PromiseCore<T>> core_;
 };
 
 template <> class Promise<void> {
-  struct PromiseAwaiter;
+  struct PromiseAwaiter_;
+  using SharedCore_ = std::shared_ptr<PromiseCore<void>>;
 
 public:
   using promise_type = Promise<void>;
@@ -115,14 +122,21 @@ public:
   }
   void unhandled_exception() {}
 
-  PromiseAwaiter operator co_await() { return PromiseAwaiter{core_}; }
+  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
 
   bool ready() { return core_->ready; }
   void result() {}
 
 private:
-  struct PromiseAwaiter {
-    bool await_ready() const { return false; }
+  struct PromiseAwaiter_ {
+    explicit PromiseAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
+    PromiseAwaiter_(PromiseAwaiter_ &&) = delete;
+    PromiseAwaiter_(const PromiseAwaiter_ &) = delete;
+    PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
+    PromiseAwaiter_ &operator=(const PromiseAwaiter_ &) = delete;
+
+    bool await_ready() const { return core_->ready; }
+
     bool await_suspend(std::coroutine_handle<> handle) {
       if (core_->resume) {
         fmt::print("promise is already being waited on!\n");
@@ -143,7 +157,7 @@ class Stream {
 public:
   // Takes ownership of stream.
   explicit Stream(uv_stream_t *stream) : stream_{stream} {}
-
+  Stream(Stream &&) = default;
   ~Stream() = default;
 
 private:
@@ -160,11 +174,19 @@ class InStream {
 
     InStreamAwaiter(InStream &stream) : stream_{stream}, slot_{} {}
 
-    bool await_ready() const { return uv_is_readable(stream_.stream_) == 1234; }
+    bool await_ready() {
+      int state = uv_is_readable(stream_.stream_.get());
+      if (state == 1) {
+        // Read available data and return immediately.
+        start_read();
+        stop_read();
+      }
+      return slot_.has_value();
+    }
     bool await_suspend(std::coroutine_handle<> handle) {
       auto *state = new InStreamAwaitState{handle, this};
       stream_.stream_->data = state;
-      uv_read_start(stream_.stream_, allocator, onInStreamRead);
+      start_read();
       return true;
     }
     std::optional<std::string> await_resume() {
@@ -172,16 +194,21 @@ class InStream {
       return std::move(*slot_);
     }
 
+    void start_read() {
+      uv_read_start(stream_.stream_.get(), allocator, onInStreamRead);
+    }
+    void stop_read() { uv_read_stop(stream_.stream_.get()); }
+
     static void onInStreamRead(uv_stream_t *stream, ssize_t nread,
                                const uv_buf_t *buf) {
-      uv_read_stop(stream);
-
       auto *state = (InStreamAwaitState *)stream->data;
+      state->awaiter->stop_read();
 
-      if (nread > 0) {
+      if (nread >= 0) {
         std::string line{buf->base, static_cast<size_t>(nread)};
         state->awaiter->slot_ = std::move(line);
       } else {
+        // Some error; assume EOF.
         state->awaiter->slot_ = std::optional<std::string>{};
       }
 
@@ -199,7 +226,7 @@ public:
   // InStream takes ownership of the stream.
   explicit InStream(uv_stream_t *stream) : stream_{stream} {}
 
-  ~InStream() { delete stream_; }
+  ~InStream() = default;
 
   static InStream stdin(uv_loop_t *loop) {
     static constexpr const int STDIN_FD = 0;
@@ -218,7 +245,7 @@ public:
 
 private:
   // The stream is owned by this class.
-  uv_stream_t *stream_;
+  std::unique_ptr<uv_stream_t> stream_;
 };
 
 class Data {
