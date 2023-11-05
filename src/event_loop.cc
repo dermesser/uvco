@@ -204,8 +204,8 @@ private:
       return slot_.has_value();
     }
     bool await_suspend(std::coroutine_handle<> handle) {
-      auto *state = new InStreamAwaitState{handle, this};
-      stream_.stream_->data = state;
+      stream_.stream_->data = this;
+      handle_ = handle;
       start_read();
       return true;
     }
@@ -221,25 +221,28 @@ private:
 
     static void onInStreamRead(uv_stream_t *stream, ssize_t nread,
                                const uv_buf_t *buf) {
-      auto *state = (InStreamAwaitState *)stream->data;
-      state->awaiter->stop_read();
+      auto *awaiter = (InStreamAwaiter *)stream->data;
+      awaiter->stop_read();
 
       if (nread >= 0) {
         std::string line{buf->base, static_cast<size_t>(nread)};
-        state->awaiter->slot_ = std::move(line);
+        awaiter->slot_ = std::move(line);
       } else {
         // Some error; assume EOF.
-        state->awaiter->slot_ = std::optional<std::string>{};
+        awaiter->slot_ = std::optional<std::string>{};
       }
 
-      state->handle.resume();
+      awaiter->handle_.and_then([](auto h) -> std::optional<int> {
+        h.resume();
+        return {};
+      });
 
-      delete state;
       delete[] buf->base;
     }
 
     Stream &stream_;
     std::optional<std::optional<std::string>> slot_;
+    std::optional<std::coroutine_handle<>> handle_;
   };
 
   struct OutStreamAwaiter {
