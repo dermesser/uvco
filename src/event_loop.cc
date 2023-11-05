@@ -1,20 +1,22 @@
-#include <functional>
 #include <uv.h>
 
+#include <algorithm>
 #include <cassert>
 #include <coroutine>
 #include <fmt/format.h>
+#include <functional>
 #include <optional>
 #include <string_view>
 #include <variant>
 
 namespace {
+
 void log(uv_loop_t *loop, std::string_view message) {
   static unsigned long count = 0;
   fmt::print("[{}] {}: {}\n", count++, uv_now(loop), message);
 }
 
-static void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
+void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
   char *underlying = new char[sugg];
   buf->base = underlying;
   buf->len = sugg;
@@ -23,46 +25,62 @@ static void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
 } // namespace
 
 namespace uvco {
+using std::coroutine_handle;
 
-template <typename T> class Promise;
+struct Void {};
 
-template <typename T> class Uvco : public std::coroutine_handle<Promise<T>> {
-public:
-  using promise_type = Promise<T>;
-
-private:
+template <typename T> struct PromiseCore {
+  std::optional<T> slot;
+  std::optional<std::coroutine_handle<>> resume;
 };
 
 template <typename T> class Promise {
+  struct PromiseAwaiter;
+
 public:
   using promise_type = Promise<T>;
 
-  Promise() : handle_{}, slot_{std::make_shared<std::optional<T>>()} {}
-  Promise(Promise &&) = default;
+  Promise() : core_{std::make_shared<PromiseCore<T>>()} {}
+  Promise(Promise &&) noexcept = default;
   Promise &operator=(const Promise &) = default;
-  Promise &operator=(Promise &&) = default;
+  Promise &operator=(Promise &&) noexcept = default;
   Promise(const Promise<T> &other) = default;
+  ~Promise() = default;
 
-  Promise<T> get_return_object() {
-    std::coroutine_handle ch = Uvco<T>::from_promise(*this);
-    handle_ = ch;
-    return *this;
-  }
+  Promise<T> get_return_object() { return *this; }
 
   std::suspend_never initial_suspend() noexcept { return {}; }
   std::suspend_never final_suspend() noexcept { return {}; }
-  void return_value(T &&value) { *slot_ = std::move(value); }
+  void return_value(T &&value) {
+    core_->slot = std::move(value);
+    if (core_->resume) {
+      core_->resume->resume();
+    }
+  }
   void unhandled_exception() {}
 
-  bool ready() { return slot_->has_value(); }
-  T &result() { return **slot_; }
+  PromiseAwaiter operator co_await() { return PromiseAwaiter{core_}; }
+
+  bool ready() { return core_->slot.has_value(); }
+  T result() { return std::move(*core_->slot); }
 
 private:
-  Promise(std::coroutine_handle<> h)
-      : handle_{std::move(h)}, slot_{std::make_shared<std::optional<T>>()} {}
+  struct PromiseAwaiter {
+    bool await_ready() const { return false; }
+    bool await_suspend(std::coroutine_handle<> handle) {
+      if (core_->resume) {
+        fmt::print("promise is already being waited on!\n");
+        assert(false);
+      }
+      core_->resume = handle;
+      return true;
+    }
+    T await_resume() { return std::move(core_->slot.value()); }
 
-  std::optional<std::coroutine_handle<>> handle_;
-  std::shared_ptr<std::optional<T>> slot_;
+    std::shared_ptr<PromiseCore<T>> core_;
+  };
+
+  std::shared_ptr<PromiseCore<T>> core_;
 };
 
 class Stdin {
@@ -71,20 +89,22 @@ class Stdin {
   struct StreamAwaiter {
     struct StreamAwaitState {
       std::coroutine_handle<> handle;
-      std::shared_ptr<std::string> slot;
+      StreamAwaiter *awaiter;
     };
 
-    StreamAwaiter(uv_stream_t *stream)
-        : stream_{stream}, slot_{std::make_shared<std::string>()} {}
+    StreamAwaiter(uv_stream_t *stream) : stream_{stream}, slot_{} {}
 
     bool await_ready() const { return uv_is_readable(stream_) == 1234; }
     bool await_suspend(std::coroutine_handle<> handle) {
-      auto state = new StreamAwaitState{handle, slot_};
+      auto *state = new StreamAwaitState{handle, this};
       stream_->data = state;
       uv_read_start(stream_, allocator, onStreamRead);
       return true;
     }
-    std::string await_resume() { return std::move(*slot_); }
+    std::optional<std::string> await_resume() {
+      assert(slot_);
+      return std::move(*slot_);
+    }
 
     static void onStreamRead(uv_stream_t *stream, ssize_t nread,
                              const uv_buf_t *buf) {
@@ -94,11 +114,12 @@ class Stdin {
 
       if (nread > 0) {
         std::string line{buf->base, static_cast<size_t>(nread)};
-        *state->slot = std::move(line);
-        log(stream->loop, fmt::format("Read {} bytes from stdin: {}", nread,
-                                      std::string_view(buf->base, nread)));
+        state->awaiter->slot_ = std::move(line);
+      } else {
+        // Nested optional is not nice.
+        state->awaiter->slot_ = std::optional<std::string>{};
+        assert(state->awaiter->slot_);
       }
-      log(stream->loop, "Resuming coroutine");
 
       state->handle.resume();
 
@@ -107,7 +128,7 @@ class Stdin {
     }
 
     uv_stream_t *stream_;
-    std::shared_ptr<std::string> slot_;
+    std::optional<std::optional<std::string>> slot_;
   };
 
 public:
@@ -116,10 +137,10 @@ public:
     tty_.data = this;
   }
 
-  Promise<std::string> readLine() {
+  Promise<std::optional<std::string>> readLine() {
+    // This is a promise root function, i.e. origin of a promise.
     StreamAwaiter awaiter{(uv_stream_t *)&tty_};
-
-    std::string line = co_await awaiter;
+    std::optional<std::string> line = co_await awaiter;
     co_return line;
   };
 
@@ -133,6 +154,19 @@ public:
   Data() = default;
 };
 
+Promise<Void> uppercasing(Stdin &s) {
+  while (true) {
+    auto maybeLine = co_await s.readLine();
+    if (!maybeLine)
+      break;
+    auto line = maybeLine.value();
+    std::ranges::transform(line, line.begin(),
+                           [](char c) -> char { return std::toupper(c); });
+    fmt::print(">> {}", line);
+  }
+  co_return {};
+}
+
 void run_loop() {
   Data data;
 
@@ -141,14 +175,13 @@ void run_loop() {
   uv_loop_set_data(&loop, &data);
 
   Stdin s{&loop};
-  Promise<std::string> p = s.readLine();
+  Promise<Void> p = uppercasing(s);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
   log(&loop, "After loop end");
 
   assert(p.ready());
-  fmt::print("obtained promised string: {}", p.result());
 
   uv_loop_close(&loop);
 }
