@@ -1,6 +1,7 @@
 #include "event_loop.h"
 
-int main(void) {
-  test_function();
+int main() {
+  uvco::run_loop();
+  
   return 0;
 }
