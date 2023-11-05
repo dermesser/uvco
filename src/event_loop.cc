@@ -30,8 +30,13 @@ using std::coroutine_handle;
 struct Void {};
 
 template <typename T> struct PromiseCore {
-  std::optional<T> slot;
   std::optional<std::coroutine_handle<>> resume;
+  std::optional<T> slot;
+};
+
+template <> struct PromiseCore<void> {
+  std::optional<std::coroutine_handle<>> resume;
+  bool ready = false;
 };
 
 template <typename T> class Promise {
@@ -41,9 +46,9 @@ public:
   using promise_type = Promise<T>;
 
   Promise() : core_{std::make_shared<PromiseCore<T>>()} {}
-  Promise(Promise &&) noexcept = default;
-  Promise &operator=(const Promise &) = default;
-  Promise &operator=(Promise &&) noexcept = default;
+  Promise(Promise<T> &&) noexcept = default;
+  Promise &operator=(const Promise<T> &) = default;
+  Promise &operator=(Promise<T> &&) noexcept = default;
   Promise(const Promise<T> &other) = default;
   ~Promise() = default;
 
@@ -51,6 +56,7 @@ public:
 
   std::suspend_never initial_suspend() noexcept { return {}; }
   std::suspend_never final_suspend() noexcept { return {}; }
+
   void return_value(T &&value) {
     core_->slot = std::move(value);
     if (core_->resume) {
@@ -83,22 +89,82 @@ private:
   std::shared_ptr<PromiseCore<T>> core_;
 };
 
-class Stdin {
-  static constexpr const int fd = 0;
+template <> class Promise<void> {
+  struct PromiseAwaiter;
 
-  struct StreamAwaiter {
-    struct StreamAwaitState {
+public:
+  using promise_type = Promise<void>;
+
+  Promise() : core_{std::make_shared<PromiseCore<void>>()} {}
+  Promise(Promise<void> &&) noexcept = default;
+  Promise &operator=(const Promise<void> &) = default;
+  Promise &operator=(Promise<void> &&) noexcept = default;
+  Promise(const Promise<void> &other) = default;
+  ~Promise() = default;
+
+  Promise<void> get_return_object() { return *this; }
+
+  std::suspend_never initial_suspend() noexcept { return {}; }
+  std::suspend_never final_suspend() noexcept { return {}; }
+
+  void return_void() {
+    core_->ready = true;
+    if (core_->resume) {
+      core_->resume->resume();
+    }
+  }
+  void unhandled_exception() {}
+
+  PromiseAwaiter operator co_await() { return PromiseAwaiter{core_}; }
+
+  bool ready() { return core_->ready; }
+  void result() {}
+
+private:
+  struct PromiseAwaiter {
+    bool await_ready() const { return false; }
+    bool await_suspend(std::coroutine_handle<> handle) {
+      if (core_->resume) {
+        fmt::print("promise is already being waited on!\n");
+        assert(false);
+      }
+      core_->resume = handle;
+      return true;
+    }
+    void await_resume() {}
+
+    std::shared_ptr<PromiseCore<void>> core_;
+  };
+  std::shared_ptr<PromiseCore<void>> core_;
+};
+
+class Stream {
+
+public:
+  // Takes ownership of stream.
+  explicit Stream(uv_stream_t *stream) : stream_{stream} {}
+
+  ~Stream() = default;
+
+private:
+  std::unique_ptr<uv_stream_t> stream_;
+};
+
+class InStream {
+
+  struct InStreamAwaiter {
+    struct InStreamAwaitState {
       std::coroutine_handle<> handle;
-      StreamAwaiter *awaiter;
+      InStreamAwaiter *awaiter;
     };
 
-    StreamAwaiter(uv_stream_t *stream) : stream_{stream}, slot_{} {}
+    InStreamAwaiter(InStream &stream) : stream_{stream}, slot_{} {}
 
-    bool await_ready() const { return uv_is_readable(stream_) == 1234; }
+    bool await_ready() const { return uv_is_readable(stream_.stream_) == 1234; }
     bool await_suspend(std::coroutine_handle<> handle) {
-      auto *state = new StreamAwaitState{handle, this};
-      stream_->data = state;
-      uv_read_start(stream_, allocator, onStreamRead);
+      auto *state = new InStreamAwaitState{handle, this};
+      stream_.stream_->data = state;
+      uv_read_start(stream_.stream_, allocator, onInStreamRead);
       return true;
     }
     std::optional<std::string> await_resume() {
@@ -106,19 +172,17 @@ class Stdin {
       return std::move(*slot_);
     }
 
-    static void onStreamRead(uv_stream_t *stream, ssize_t nread,
-                             const uv_buf_t *buf) {
+    static void onInStreamRead(uv_stream_t *stream, ssize_t nread,
+                               const uv_buf_t *buf) {
       uv_read_stop(stream);
 
-      auto *state = (StreamAwaitState *)stream->data;
+      auto *state = (InStreamAwaitState *)stream->data;
 
       if (nread > 0) {
         std::string line{buf->base, static_cast<size_t>(nread)};
         state->awaiter->slot_ = std::move(line);
       } else {
-        // Nested optional is not nice.
         state->awaiter->slot_ = std::optional<std::string>{};
-        assert(state->awaiter->slot_);
       }
 
       state->handle.resume();
@@ -127,26 +191,34 @@ class Stdin {
       delete[] buf->base;
     }
 
-    uv_stream_t *stream_;
+    InStream &stream_;
     std::optional<std::optional<std::string>> slot_;
   };
 
 public:
-  explicit Stdin(uv_loop_t *loop) : loop_{loop}, tty_{} {
-    uv_tty_init(loop_, &tty_, fd, 0);
-    tty_.data = this;
+  // InStream takes ownership of the stream.
+  explicit InStream(uv_stream_t *stream) : stream_{stream} {}
+
+  ~InStream() { delete stream_; }
+
+  static InStream stdin(uv_loop_t *loop) {
+    static constexpr const int STDIN_FD = 0;
+    auto *stdin = new uv_tty_t{};
+    uv_tty_init(loop, stdin, STDIN_FD, 0);
+    auto *stream = (uv_stream_t *)stdin;
+    return InStream(stream);
   }
 
   Promise<std::optional<std::string>> readLine() {
     // This is a promise root function, i.e. origin of a promise.
-    StreamAwaiter awaiter{(uv_stream_t *)&tty_};
+    InStreamAwaiter awaiter{*this};
     std::optional<std::string> line = co_await awaiter;
     co_return line;
   };
 
 private:
-  uv_loop_t *loop_;
-  uv_tty_t tty_;
+  // The stream is owned by this class.
+  uv_stream_t *stream_;
 };
 
 class Data {
@@ -154,7 +226,7 @@ public:
   Data() = default;
 };
 
-Promise<Void> uppercasing(Stdin &s) {
+Promise<void> uppercasing(InStream &s) {
   while (true) {
     auto maybeLine = co_await s.readLine();
     if (!maybeLine)
@@ -164,7 +236,7 @@ Promise<Void> uppercasing(Stdin &s) {
                            [](char c) -> char { return std::toupper(c); });
     fmt::print(">> {}", line);
   }
-  co_return {};
+  co_return;
 }
 
 void run_loop() {
@@ -174,8 +246,8 @@ void run_loop() {
   uv_loop_init(&loop);
   uv_loop_set_data(&loop, &data);
 
-  Stdin s{&loop};
-  Promise<Void> p = uppercasing(s);
+  InStream s = InStream::stdin(&loop);
+  Promise<void> p = uppercasing(s);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
