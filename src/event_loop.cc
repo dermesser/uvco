@@ -63,7 +63,7 @@ public:
       core_->resume->resume();
     }
   }
-  void unhandled_exception() {}
+  void unhandled_exception() { fmt::print("UNHANDLED EXCEPTION!\n"); }
 
   PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
 
@@ -107,7 +107,7 @@ public:
   Promise &operator=(const Promise<void> &) = default;
   Promise &operator=(Promise<void> &&) noexcept = default;
   Promise(const Promise<void> &other) = default;
-  ~Promise() = default;
+  ~Promise() {}
 
   Promise<void> get_return_object() { return *this; }
 
@@ -120,7 +120,7 @@ public:
       core_->resume->resume();
     }
   }
-  void unhandled_exception() {}
+  void unhandled_exception() { fmt::print("UNHANDLED EXCEPTION!\n"); }
 
   PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
 
@@ -234,10 +234,8 @@ private:
         awaiter->slot_ = std::optional<std::string>{};
       }
 
-      awaiter->handle_.and_then([](auto h) -> std::optional<int> {
-        h.resume();
-        return {};
-      });
+      if (awaiter->handle_)
+        awaiter->handle_->resume();
 
       delete[] buf->base;
     }
@@ -299,6 +297,72 @@ private:
   };
 };
 
+class Resolver {
+  struct AddrinfoAwaiter;
+
+public:
+  explicit Resolver(uv_loop_t *loop) : loop_{loop} {}
+
+  Promise<struct addrinfo *> gai(std::string_view host, std::string_view port) {
+    AddrinfoAwaiter awaiter;
+    awaiter.req_.data = &awaiter;
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    // Restrictions for testing:
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    uv_getaddrinfo(loop_, &awaiter.req_, onAddrinfo, host.data(), port.data(),
+                   &hints);
+    // Npte: we rely on libuv not resuming before awaiting the result.
+    struct addrinfo *result = co_await awaiter;
+    co_return result;
+  }
+
+private:
+  static void onAddrinfo(uv_getaddrinfo_t *req, int status,
+                         struct addrinfo *result) {
+    auto *awaiter = (AddrinfoAwaiter *)req->data;
+    awaiter->addrinfo_ = result;
+    assert(awaiter->handle_);
+    awaiter->handle_->resume();
+  }
+
+  struct AddrinfoAwaiter {
+    bool await_ready() const { return false; }
+    bool await_suspend(std::coroutine_handle<> handle) {
+      handle_ = handle;
+      return true;
+    }
+
+    struct addrinfo *await_resume() {
+      assert(addrinfo_);
+      return *addrinfo_;
+    }
+
+    uv_getaddrinfo_t req_;
+    std::optional<struct addrinfo *> addrinfo_;
+    std::optional<std::coroutine_handle<>> handle_;
+  };
+
+  uv_loop_t *loop_;
+};
+
+class TcpServer {
+
+public:
+  // Takes ownership of tcp.
+  explicit TcpServer(uv_tcp_t *tcp) : tcp_{tcp} {}
+  explicit TcpServer(uv_loop_t *loop) : tcp_{} {
+    uv_tcp_init(loop, tcp_.get());
+  }
+
+  void bind() {}
+
+private:
+  std::unique_ptr<uv_tcp_t> tcp_;
+};
+
 class Data {
 public:
   Data() = default;
@@ -318,6 +382,21 @@ Promise<void> uppercasing(Stream &in, Stream &out) {
   co_return;
 }
 
+Promise<void> setupUppercasing(uv_loop_t *loop) {
+  Stream in = Stream::stdin(loop);
+  Stream out = Stream::stdout(loop);
+  Promise<void> p = uppercasing(in, out);
+  return p;
+}
+
+Promise<void> resolveName(uv_loop_t *loop, std::string_view name) {
+  Resolver resolver{loop};
+  log(loop, "Before GAI");
+  struct addrinfo *ai = co_await resolver.gai(name, "443");
+  uv_freeaddrinfo(ai);
+  co_return;
+}
+
 void run_loop() {
   Data data;
 
@@ -325,9 +404,7 @@ void run_loop() {
   uv_loop_init(&loop);
   uv_loop_set_data(&loop, &data);
 
-  Stream in = Stream::stdin(&loop);
-  Stream out = Stream::stdout(&loop);
-  Promise<void> p = uppercasing(in, out);
+  Promise<void> p = resolveName(&loop, "borgac.net");
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
