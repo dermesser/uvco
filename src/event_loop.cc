@@ -7,7 +7,9 @@
 #include <functional>
 #include <optional>
 #include <string_view>
-#include <variant>
+#include <typeinfo>
+
+static constexpr const bool TRACK_LIFETIMES = false;
 
 namespace {
 
@@ -21,6 +23,31 @@ void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
   buf->base = underlying;
   buf->len = sugg;
 }
+
+template <typename T> class LifetimeTracker {
+public:
+  explicit LifetimeTracker(std::string id = "") : id_{std::move(id)} {
+    if (TRACK_LIFETIMES)
+      fmt::print("ctor {}()#{}\n", typeid(T).name(), id_);
+  }
+  const LifetimeTracker<T> operator=(const LifetimeTracker<T> &other) {
+    if (TRACK_LIFETIMES)
+      fmt::print("operator={}({})#{}\n", typeid(T).name(), other.id_, id_);
+    id_ = fmt::format("{}/copy", other.id_);
+  }
+  LifetimeTracker(const LifetimeTracker<T> &other)
+      : id_{fmt::format("{}/copy", other.id_)} {
+    if (TRACK_LIFETIMES)
+      fmt::print("operator={}({})#{}\n", typeid(T).name(), other.id_, id_);
+  }
+  ~LifetimeTracker() {
+    if (TRACK_LIFETIMES)
+      fmt::print("dtor ~{}()\n", typeid(T).name());
+  }
+
+protected:
+  std::string id_;
+};
 
 } // namespace
 
@@ -38,7 +65,7 @@ template <> struct PromiseCore<void> {
   bool ready = false;
 };
 
-template <typename T> class Promise {
+template <typename T> class Promise : public LifetimeTracker<Promise<T>> {
   struct PromiseAwaiter_;
   using SharedCore_ = std::shared_ptr<PromiseCore<T>>;
 
@@ -97,7 +124,7 @@ private:
   std::shared_ptr<PromiseCore<T>> core_;
 };
 
-template <> class Promise<void> {
+template <> class Promise<void> : public LifetimeTracker<Promise<void>> {
   struct PromiseAwaiter_;
   using SharedCore_ = std::shared_ptr<PromiseCore<void>>;
 
@@ -176,13 +203,13 @@ public:
 
   Promise<std::optional<std::string>> read() {
     // This is a promise root function, i.e. origin of a promise.
-    InStreamAwaiter awaiter{*this};
+    InStreamAwaiter_ awaiter{*this};
     std::optional<std::string> buf = co_await awaiter;
     co_return buf;
   }
 
   Promise<uv_status> write(std::string buf) {
-    OutStreamAwaiter awaiter{*this, std::move(buf)};
+    OutStreamAwaiter_ awaiter{*this, std::move(buf)};
     uv_status status = co_await awaiter;
     co_return status;
   }
@@ -190,8 +217,8 @@ public:
 private:
   std::unique_ptr<uv_stream_t> stream_;
 
-  struct InStreamAwaiter {
-    explicit InStreamAwaiter(Stream &stream) : stream_{stream}, slot_{} {}
+  struct InStreamAwaiter_ {
+    explicit InStreamAwaiter_(Stream &stream) : stream_{stream}, slot_{} {}
 
     bool await_ready() {
       int state = uv_is_readable(stream_.stream_.get());
@@ -220,7 +247,7 @@ private:
 
     static void onInStreamRead(uv_stream_t *stream, ssize_t nread,
                                const uv_buf_t *buf) {
-      auto *awaiter = (InStreamAwaiter *)stream->data;
+      auto *awaiter = (InStreamAwaiter_ *)stream->data;
       awaiter->stop_read();
 
       if (nread >= 0) {
@@ -242,12 +269,12 @@ private:
     std::optional<std::coroutine_handle<>> handle_;
   };
 
-  struct OutStreamAwaiter {
-    OutStreamAwaiter(Stream &stream, std::string &&buffer)
-        : stream_{stream}, buffer_{std::move(buffer)} {}
+  struct OutStreamAwaiter_ {
+    OutStreamAwaiter_(Stream &stream, std::string &&buffer)
+        : stream_{stream}, buffer_{std::move(buffer)}, write_{} {}
 
     std::array<uv_buf_t, 1> prepare_buffers() const {
-      std::array<uv_buf_t, 1> bufs;
+      std::array<uv_buf_t, 1> bufs{};
       bufs[0].base = const_cast<char *>(buffer_.c_str());
       bufs[0].len = buffer_.size();
       return bufs;
@@ -279,7 +306,7 @@ private:
     }
 
     static void onOutStreamWrite(uv_write_t *write, int status) {
-      auto *state = (OutStreamAwaiter *)write->data;
+      auto *state = (OutStreamAwaiter_ *)write->data;
       assert(state->handle_);
       state->status_ = status;
       state->handle_->resume();
@@ -289,19 +316,19 @@ private:
     std::optional<std::coroutine_handle<>> handle_;
 
     std::string buffer_;
-    uv_write_t write_;
+    uv_write_t write_{};
     std::optional<uv_status> status_;
   };
 };
 
 class Resolver {
-  struct AddrinfoAwaiter;
+  struct AddrinfoAwaiter_;
 
 public:
   explicit Resolver(uv_loop_t *loop) : loop_{loop} {}
 
   Promise<struct addrinfo *> gai(std::string_view host, std::string_view port) {
-    AddrinfoAwaiter awaiter;
+    AddrinfoAwaiter_ awaiter;
     awaiter.req_.data = &awaiter;
     struct addrinfo hints {};
     hints.ai_family = AF_UNSPEC;
@@ -311,19 +338,22 @@ public:
                    &hints);
     // Npte: we rely on libuv not resuming before awaiting the result.
     struct addrinfo *result = co_await awaiter;
+    fmt::print("gai status: {}\n", awaiter.status_.value());
     co_return result;
   }
 
 private:
   static void onAddrinfo(uv_getaddrinfo_t *req, int status,
                          struct addrinfo *result) {
-    auto *awaiter = (AddrinfoAwaiter *)req->data;
+    auto *awaiter = (AddrinfoAwaiter_ *)req->data;
     awaiter->addrinfo_ = result;
+    awaiter->status_ = status;
     assert(awaiter->handle_);
     awaiter->handle_->resume();
   }
 
-  struct AddrinfoAwaiter {
+  struct AddrinfoAwaiter_ : public LifetimeTracker<AddrinfoAwaiter_> {
+    AddrinfoAwaiter_() : req_{} {}
     bool await_ready() const { return false; }
     bool await_suspend(std::coroutine_handle<> handle) {
       handle_ = handle;
@@ -337,6 +367,7 @@ private:
 
     uv_getaddrinfo_t req_;
     std::optional<struct addrinfo *> addrinfo_;
+    std::optional<int> status_;
     std::optional<std::coroutine_handle<>> handle_;
   };
 
@@ -403,8 +434,9 @@ void run_loop() {
   uv_loop_set_data(&loop, &data);
 
   // Promises are run even if they are not waited on or checked.
+
   Promise<void> p = resolveName(&loop, "borgac.net");
-  Promise<void> p2 = setupUppercasing(&loop);
+  // Promise<void> p2 = setupUppercasing(&loop);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
