@@ -54,6 +54,8 @@ public:
 
   Promise<T> get_return_object() { return *this; }
 
+  // Note: if suspend_always is chosen, we can better control when the promise
+  // will be scheduled.
   std::suspend_never initial_suspend() noexcept { return {}; }
   std::suspend_never final_suspend() noexcept { return {}; }
 
@@ -189,12 +191,7 @@ private:
   std::unique_ptr<uv_stream_t> stream_;
 
   struct InStreamAwaiter {
-    struct InStreamAwaitState {
-      std::coroutine_handle<> handle;
-      InStreamAwaiter *awaiter;
-    };
-
-    InStreamAwaiter(Stream &stream) : stream_{stream}, slot_{} {}
+    explicit InStreamAwaiter(Stream &stream) : stream_{stream}, slot_{} {}
 
     bool await_ready() {
       int state = uv_is_readable(stream_.stream_.get());
