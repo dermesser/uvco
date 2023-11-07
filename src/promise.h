@@ -21,26 +21,41 @@ template <> struct PromiseCore<void> {
   bool ready = false;
 };
 
-template <typename T>
-class PromiseBase : public LifetimeTracker<PromiseBase<T>> {
+template <typename T> class Promise : public LifetimeTracker<Promise<T>> {
 protected:
   struct PromiseAwaiter_;
   using SharedCore_ = std::shared_ptr<PromiseCore<T>>;
 
 public:
-  PromiseBase() : core_{std::make_shared<PromiseCore<T>>()} {}
-  PromiseBase(PromiseBase<T> &&) noexcept = default;
-  PromiseBase &operator=(const PromiseBase<T> &) = default;
-  PromiseBase &operator=(PromiseBase<T> &&) noexcept = default;
-  PromiseBase(const PromiseBase<T> &other) = default;
-  ~PromiseBase() = default;
+  Promise() : core_{std::make_shared<PromiseCore<T>>()} {}
+  Promise(Promise<T> &&) noexcept = default;
+  Promise &operator=(const Promise<T> &) = default;
+  Promise &operator=(Promise<T> &&) noexcept = default;
+  Promise(const Promise<T> &other) = default;
+  ~Promise() = default;
 
+  using promise_type = Promise<T>;
+
+  Promise<T> get_return_object() { return *this; }
+
+  void return_value(T &&value) {
+    assert(!core_->slot);
+    core_->slot = std::move(value);
+    // TODO: don't resume immediately, but schedule resumption. The promise is
+    // only destroyed after resume() returns, this has the promise hang around
+    // longer than needed.
+    if (core_->resume) {
+      core_->resume->resume();
+    }
+  }
   // Note: if suspend_always is chosen, we can better control when the promise
   // will be scheduled.
   std::suspend_never initial_suspend() noexcept { return {}; }
   std::suspend_never final_suspend() noexcept { return {}; }
 
-  void unhandled_exception() { fmt::print("UNHANDLED EXCEPTION!\n"); }
+  void unhandled_exception() {
+    std::rethrow_exception(std::current_exception());
+  }
 
   PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
 
@@ -77,83 +92,88 @@ protected:
   SharedCore_ core_;
 };
 
-template <typename T> class Promise : public PromiseBase<T> {
-public:
-  using promise_type = Promise<T>;
-
-  Promise<T> get_return_object() { return *this; }
-
-  void return_value(T &&value) {
-    auto &core_ = PromiseBase<T>::core_;
-    assert(!core_->slot);
-    core_->slot = std::move(value);
-    // TODO: don't resume immediately, but schedule resumption. The promise is
-    // only destroyed after resume() returns, this has the promise hang around
-    // longer than needed.
-    if (core_->resume) {
-      core_->resume->resume();
-    }
-  }
-};
-
-template <typename T> class MultiPromise : public PromiseBase<T> {
+template <typename T>
+class MultiPromise : public LifetimeTracker<MultiPromise<T>> {
+protected:
   struct MultiPromiseAwaiter_;
+  using SharedCore_ = std::shared_ptr<PromiseCore<T>>;
 
 public:
   using promise_type = MultiPromise<T>;
 
-  static_assert(!std::is_void_v<T>);
+  MultiPromise() : core_{std::make_shared<PromiseCore<T>>()} {}
+  MultiPromise(MultiPromise<T> &&) noexcept = default;
+  MultiPromise &operator=(const MultiPromise<T> &) = default;
+  MultiPromise &operator=(MultiPromise<T> &&) noexcept = default;
+  MultiPromise(const MultiPromise<T> &other) = default;
+  ~MultiPromise() = default;
 
-  MultiPromise() = default;
+  static_assert(!std::is_void_v<T>);
 
   MultiPromise<T> get_return_object() { return *this; }
 
   void return_void() {
-    auto &core_ = PromiseBase<T>::core_;
+    // TODO: don't resume immediately, but schedule resumption. The MultiPromise
+    // is only destroyed after resume() returns, this has the MultiPromise hang
+    // around longer than needed.
     if (core_->resume) {
       core_->resume->resume();
     }
   }
+  // Note: if suspend_always is chosen, we can better control when the
+  // MultiPromise will be scheduled.
+  std::suspend_never initial_suspend() noexcept { return {}; }
+  std::suspend_never final_suspend() noexcept { return {}; }
 
-  MultiPromiseAwaiter_ operator co_await() {
-    return MultiPromiseAwaiter_{PromiseBase<T>::core_};
+  void unhandled_exception() {
+    std::rethrow_exception(std::current_exception());
   }
 
   // co_yield = co_await promise.yield_value()
   std::suspend_never yield_value(T &&value) {
-    // yield_awaiter is returned to the yielding coroutine.
-    auto &core_ = PromiseBase<T>::core_;
     assert(!core_->slot);
     core_->slot = std::move(value);
     assert(core_->resume);
-    // Resume the waiting coroutine until the next call to co_await.
     if (core_->resume) {
-      // TODO: schedule resumption instead of resuming in-line. This will lead
-      // to a growing stack!
-      fmt::print("before resume (yield)\n");
+      // TODO: schedule resume on event loop.
       core_->resume->resume();
-      fmt::print("after resume (yield)\n");
     }
     return std::suspend_never{};
   }
 
-private:
-  struct MultiPromiseAwaiter_ : public PromiseBase<T>::PromiseAwaiter_ {
-    explicit MultiPromiseAwaiter_(PromiseBase<T>::SharedCore_ core)
-        : PromiseBase<T>::PromiseAwaiter_{std::move(core)} {}
+  MultiPromiseAwaiter_ operator co_await() {
+    return MultiPromiseAwaiter_{core_};
+  }
 
-    bool await_suspend(std::coroutine_handle<> handle) override {
-      auto &core_ = PromiseBase<T>::PromiseAwaiter_::core_;
+  bool ready() { return core_->slot.has_value(); }
+  T result() { return std::move(*core_->slot); }
+
+protected:
+  struct MultiPromiseAwaiter_ {
+    explicit MultiPromiseAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
+    MultiPromiseAwaiter_(MultiPromiseAwaiter_ &&) = delete;
+    MultiPromiseAwaiter_(const MultiPromiseAwaiter_ &) = delete;
+    MultiPromiseAwaiter_ &operator=(MultiPromiseAwaiter_ &&) = delete;
+    MultiPromiseAwaiter_ &operator=(const MultiPromiseAwaiter_ &) = delete;
+    ~MultiPromiseAwaiter_() = default;
+
+    bool await_ready() const { return core_->slot.has_value(); }
+    virtual bool await_suspend(std::coroutine_handle<> handle) {
       core_->resume = handle;
       return true;
     }
     std::optional<T> await_resume() {
-      auto &core_ = PromiseBase<T>::PromiseAwaiter_::core_;
-      auto result = std::move(core_->slot);
+      std::optional<T> result = std::move(core_->slot);
       core_->slot.reset();
+      // Obvious - but important to avoid constantly yielding!
+      assert(!core_->slot);
       return std::move(result);
     }
+
+    SharedCore_ core_;
   };
+
+  SharedCore_ core_;
 };
 
 template <> class Promise<void> : public LifetimeTracker<Promise<void>> {
@@ -181,7 +201,9 @@ public:
       core_->resume->resume();
     }
   }
-  void unhandled_exception() { fmt::print("UNHANDLED EXCEPTION!\n"); }
+  void unhandled_exception() {
+    std::rethrow_exception(std::current_exception());
+  }
 
   PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
 

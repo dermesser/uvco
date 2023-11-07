@@ -4,6 +4,8 @@
 
 static constexpr const bool TRACK_LIFETIMES = false;
 
+namespace uvco {
+
 template <typename T> class LifetimeTracker {
 public:
   explicit LifetimeTracker(std::string id = "") : id_{std::move(id)} {
@@ -28,3 +30,14 @@ public:
 protected:
   std::string id_;
 };
+
+struct UvcoException : public std::exception {
+  explicit UvcoException(std::string message) : message_{std::move(message)} {}
+  [[nodiscard]] const char *what() const noexcept override {
+    return message_.c_str();
+  }
+  explicit operator std::string() const { return message_; }
+  const std::string message_;
+};
+
+} // namespace uvco

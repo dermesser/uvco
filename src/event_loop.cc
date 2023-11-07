@@ -38,11 +38,17 @@ public:
   // Takes ownership of stream.
   explicit Stream(uv_stream_t *stream) : stream_{stream} {}
   Stream(Stream &&) = default;
-  ~Stream() = default;
+  ~Stream() {
+    // close() MUST be called and awaited before dtor.
+    assert(!stream_);
+  }
 
   static Stream tty(uv_loop_t *loop, int fd) {
     auto *tty = new uv_tty_t{};
-    uv_tty_init(loop, tty, fd, 0);
+    int status = uv_tty_init(loop, tty, fd, 0);
+    if (status != 0)
+      throw UvcoException(
+          fmt::format("opening TTY failed: {}", uv_err_name(status)));
     auto *stream = (uv_stream_t *)tty;
     return Stream(stream);
   }
@@ -63,8 +69,39 @@ public:
     co_return status;
   }
 
+  Promise<void> close() {
+    // TODO: schedule closing operation on event loop?
+    CloseAwaiter_ awaiter(*this);
+    co_await awaiter;
+    stream_.reset();
+  }
+
 private:
   std::unique_ptr<uv_stream_t> stream_;
+
+  struct CloseAwaiter_ {
+    explicit CloseAwaiter_(Stream &stream) : stream_{stream} {}
+
+    bool await_ready() { return closed_; }
+    bool await_suspend(std::coroutine_handle<> handle) {
+      stream_.stream_->data = this;
+      handle_ = handle;
+      uv_close((uv_handle_t *)stream_.stream_.get(), onCloseCallback);
+      return true;
+    }
+    void await_resume() {}
+
+    static void onCloseCallback(uv_handle_t *stream) {
+      CloseAwaiter_ *awaiter = (CloseAwaiter_ *)stream->data;
+      awaiter->closed_ = true;
+      assert(awaiter->handle_);
+      awaiter->handle_->resume();
+    }
+
+    Stream &stream_;
+    std::optional<std::coroutine_handle<>> handle_;
+    bool closed_ = false;
+  };
 
   struct InStreamAwaiter_ {
     explicit InStreamAwaiter_(Stream &stream) : stream_{stream}, slot_{} {}
@@ -290,6 +327,7 @@ MultiPromise<std::string> generateStdinLines(uv_loop_t *loop) {
       break;
     co_yield std::move(*line);
   }
+  co_await in.close();
   co_return;
 }
 
