@@ -1,5 +1,7 @@
 #include <uv.h>
 
+#include "promise.h"
+
 #include <algorithm>
 #include <cassert>
 #include <coroutine>
@@ -8,8 +10,6 @@
 #include <optional>
 #include <string_view>
 #include <typeinfo>
-
-static constexpr const bool TRACK_LIFETIMES = false;
 
 namespace {
 
@@ -24,162 +24,11 @@ void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
   buf->len = sugg;
 }
 
-template <typename T> class LifetimeTracker {
-public:
-  explicit LifetimeTracker(std::string id = "") : id_{std::move(id)} {
-    if (TRACK_LIFETIMES)
-      fmt::print("ctor {}()#{}\n", typeid(T).name(), id_);
-  }
-  const LifetimeTracker<T> operator=(const LifetimeTracker<T> &other) {
-    if (TRACK_LIFETIMES)
-      fmt::print("operator={}({})#{}\n", typeid(T).name(), other.id_, id_);
-    id_ = fmt::format("{}/copy", other.id_);
-  }
-  LifetimeTracker(const LifetimeTracker<T> &other)
-      : id_{fmt::format("{}/copy", other.id_)} {
-    if (TRACK_LIFETIMES)
-      fmt::print("operator={}({})#{}\n", typeid(T).name(), other.id_, id_);
-  }
-  ~LifetimeTracker() {
-    if (TRACK_LIFETIMES)
-      fmt::print("dtor ~{}()\n", typeid(T).name());
-  }
-
-protected:
-  std::string id_;
-};
-
 } // namespace
 
 namespace uvco {
 
 using std::coroutine_handle;
-
-template <typename T> struct PromiseCore {
-  std::optional<std::coroutine_handle<>> resume;
-  std::optional<T> slot;
-};
-
-template <> struct PromiseCore<void> {
-  std::optional<std::coroutine_handle<>> resume;
-  bool ready = false;
-};
-
-template <typename T> class Promise : public LifetimeTracker<Promise<T>> {
-  struct PromiseAwaiter_;
-  using SharedCore_ = std::shared_ptr<PromiseCore<T>>;
-
-public:
-  using promise_type = Promise<T>;
-
-  Promise() : core_{std::make_shared<PromiseCore<T>>()} {}
-  Promise(Promise<T> &&) noexcept = default;
-  Promise &operator=(const Promise<T> &) = default;
-  Promise &operator=(Promise<T> &&) noexcept = default;
-  Promise(const Promise<T> &other) = default;
-  ~Promise() = default;
-
-  Promise<T> get_return_object() { return *this; }
-
-  // Note: if suspend_always is chosen, we can better control when the promise
-  // will be scheduled.
-  std::suspend_never initial_suspend() noexcept { return {}; }
-  std::suspend_never final_suspend() noexcept { return {}; }
-
-  void return_value(T &&value) {
-    core_->slot = std::move(value);
-    if (core_->resume) {
-      core_->resume->resume();
-    }
-  }
-  void unhandled_exception() { fmt::print("UNHANDLED EXCEPTION!\n"); }
-
-  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
-
-  bool ready() { return core_->slot.has_value(); }
-  T result() { return std::move(*core_->slot); }
-
-private:
-  struct PromiseAwaiter_ {
-    explicit PromiseAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
-    PromiseAwaiter_(PromiseAwaiter_ &&) = delete;
-    PromiseAwaiter_(const PromiseAwaiter_ &) = delete;
-    PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
-    PromiseAwaiter_ &operator=(const PromiseAwaiter_ &) = delete;
-
-    bool await_ready() const { return core_->slot.has_value(); }
-    bool await_suspend(std::coroutine_handle<> handle) {
-      if (core_->resume) {
-        fmt::print("promise is already being waited on!\n");
-        assert(false);
-      }
-      core_->resume = handle;
-      return true;
-    }
-    T await_resume() { return std::move(core_->slot.value()); }
-
-    SharedCore_ core_;
-  };
-
-  std::shared_ptr<PromiseCore<T>> core_;
-};
-
-template <> class Promise<void> : public LifetimeTracker<Promise<void>> {
-  struct PromiseAwaiter_;
-  using SharedCore_ = std::shared_ptr<PromiseCore<void>>;
-
-public:
-  using promise_type = Promise<void>;
-
-  Promise() : core_{std::make_shared<PromiseCore<void>>()} {}
-  Promise(Promise<void> &&) noexcept = default;
-  Promise &operator=(const Promise<void> &) = default;
-  Promise &operator=(Promise<void> &&) noexcept = default;
-  Promise(const Promise<void> &other) = default;
-  ~Promise() {}
-
-  Promise<void> get_return_object() { return *this; }
-
-  std::suspend_never initial_suspend() noexcept { return {}; }
-  std::suspend_never final_suspend() noexcept { return {}; }
-
-  void return_void() {
-    core_->ready = true;
-    if (core_->resume) {
-      core_->resume->resume();
-    }
-  }
-  void unhandled_exception() { fmt::print("UNHANDLED EXCEPTION!\n"); }
-
-  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
-
-  bool ready() { return core_->ready; }
-  void result() {}
-
-private:
-  struct PromiseAwaiter_ {
-    explicit PromiseAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
-    PromiseAwaiter_(PromiseAwaiter_ &&) = delete;
-    PromiseAwaiter_(const PromiseAwaiter_ &) = delete;
-    PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
-    PromiseAwaiter_ &operator=(const PromiseAwaiter_ &) = delete;
-
-    bool await_ready() const { return core_->ready; }
-
-    bool await_suspend(std::coroutine_handle<> handle) {
-      if (core_->resume) {
-        fmt::print("promise is already being waited on!\n");
-        assert(false);
-      }
-      core_->resume = handle;
-      return true;
-    }
-    void await_resume() {}
-
-    std::shared_ptr<PromiseCore<void>> core_;
-  };
-  std::shared_ptr<PromiseCore<void>> core_;
-};
 
 class Stream {
 
@@ -374,8 +223,24 @@ private:
   uv_loop_t *loop_;
 };
 
+template <typename T> class Fulfillable {
+public:
+  Fulfillable() = default;
+
+  void fulfill(T &&value) {
+    assert(!promise_.ready());
+    promise_.return_value(std::move(value));
+  }
+
+  Promise<T> promise() { return promise_; }
+
+private:
+  Promise<T> promise_;
+};
+
 class TcpServer {
 
+  // TODO...
 public:
   // Takes ownership of tcp.
   explicit TcpServer(uv_tcp_t *tcp) : tcp_{tcp} {}
@@ -417,6 +282,31 @@ Promise<void> setupUppercasing(uv_loop_t *loop) {
   return p;
 }
 
+MultiPromise<std::string> generateStdinLines(uv_loop_t *loop) {
+  Stream in = Stream::stdin(loop);
+  while (true) {
+    std::optional<std::string> line = co_await in.read();
+    if (!line)
+      break;
+    co_yield std::move(*line);
+  }
+  co_return;
+}
+
+Promise<void> enumerateStdinLines(uv_loop_t *loop) {
+  auto generator = generateStdinLines(loop);
+  size_t count = 0;
+
+  while (true) {
+    ++count;
+    std::optional<std::string> line = co_await generator;
+    if (!line)
+      break;
+    fmt::print("{:3d} {}", count, *line);
+  }
+  co_return;
+}
+
 Promise<void> resolveName(uv_loop_t *loop, std::string_view name) {
   Resolver resolver{loop};
   log(loop, "Before GAI");
@@ -435,8 +325,9 @@ void run_loop() {
 
   // Promises are run even if they are not waited on or checked.
 
-  Promise<void> p = resolveName(&loop, "borgac.net");
-  // Promise<void> p2 = setupUppercasing(&loop);
+  // Promise<void> p = resolveName(&loop, "borgac.net");
+  //  Promise<void> p2 = setupUppercasing(&loop);
+  Promise<void> p = enumerateStdinLines(&loop);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
