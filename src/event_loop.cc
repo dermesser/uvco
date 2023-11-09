@@ -144,8 +144,9 @@ private:
         awaiter->slot_ = std::optional<std::string>{};
       }
 
-      if (awaiter->handle_)
+      if (awaiter->handle_) {
         awaiter->handle_->resume();
+      }
 
       delete[] buf->base;
     }
@@ -269,7 +270,7 @@ public:
     promise_.return_value(std::move(value));
   }
 
-  Promise<T> promise() { return promise_; }
+  Promise<T> &promise() { return promise_; }
 
 private:
   Promise<T> promise_;
@@ -281,13 +282,27 @@ class TcpServer {
 public:
   // Takes ownership of tcp.
   explicit TcpServer(uv_tcp_t *tcp) : tcp_{tcp} {}
-  explicit TcpServer(uv_loop_t *loop) : tcp_{} {
+  explicit TcpServer(uv_loop_t *loop) : tcp_{std::make_unique<uv_tcp_t>()} {
     uv_tcp_init(loop, tcp_.get());
   }
 
-  void bind() {}
+  static constexpr const int IPV6_ONLY = UV_TCP_IPV6ONLY;
+
+  void bind(struct sockaddr_in *addr, int flags = 0) {
+    bind((struct sockaddr *)addr, flags);
+  }
+  void bind(struct sockaddr_in6 *addr, int flags = 0) {
+    bind((struct sockaddr *)addr, flags);
+  }
 
 private:
+  int bind(struct sockaddr *addr, int flags) {
+    int result = uv_tcp_bind(tcp_.get(), addr, flags);
+    if (result != 0) {
+      throw UvcoException{result, "TcpServer::bind"};
+    }
+  }
+
   std::unique_ptr<uv_tcp_t> tcp_;
 };
 
@@ -354,6 +369,16 @@ Promise<void> resolveName(uv_loop_t *loop, std::string_view name) {
   co_return;
 }
 
+// DANGER: due to the C++ standard definition, it is invalid to call a function
+// returning Promise<T> with an argument accepted by a constructor of Promise<T>
+// -- because then, the coroutine returns to itself!
+Promise<int> fulfillWait(Promise<int> *p) {
+  fmt::print("fulfill before await\n");
+  int r = co_await *p;
+  fmt::print("fulfill after await: {}\n", r);
+  co_return r;
+}
+
 void run_loop() {
   Data data;
 
@@ -366,6 +391,10 @@ void run_loop() {
   // Promise<void> p = resolveName(&loop, "borgac.net");
   //  Promise<void> p2 = setupUppercasing(&loop);
   Promise<void> p = enumerateStdinLines(&loop);
+
+  Fulfillable<int> f{};
+  Promise<int> p2 = fulfillWait(&f.promise());
+  f.fulfill(42);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);

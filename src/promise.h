@@ -11,30 +11,63 @@
 
 namespace uvco {
 
-template <typename T> struct PromiseCore {
-  std::optional<std::coroutine_handle<>> resume;
+template <typename T> class PromiseCore {
+public:
   std::optional<T> slot;
+  void set_resume(std::coroutine_handle<> h) { resume_ = h; }
+  bool has_resume() { return resume_.has_value(); }
+  void resume() {
+    if (resume_) {
+      resume_->resume();
+      resume_.reset();
+    }
+  }
+  ~PromiseCore() {
+    // This only happens if the awaiting coroutine has never been resumed, but
+    // the last promise provided by it is gone.
+    if (resume_)
+      resume_->destroy();
+  }
+
+private:
+  std::optional<std::coroutine_handle<>> resume_;
 };
 
-template <> struct PromiseCore<void> {
-  std::optional<std::coroutine_handle<>> resume;
+template <> class PromiseCore<void> {
+public:
   bool ready = false;
+  void set_resume(std::coroutine_handle<> h) { resume_ = h; }
+  bool has_resume() { return resume_.has_value(); }
+  void resume() {
+    if (resume_) {
+      resume_->resume();
+      resume_.reset();
+    }
+  }
+  ~PromiseCore() {
+    if (resume_)
+      resume_->destroy();
+  }
+
+private:
+  std::optional<std::coroutine_handle<>> resume_;
 };
 
 template <typename T> class Promise : public LifetimeTracker<Promise<T>> {
 protected:
   struct PromiseAwaiter_;
-  using SharedCore_ = std::shared_ptr<PromiseCore<T>>;
+  using PromiseCore_ = PromiseCore<T>;
+  using SharedCore_ = std::shared_ptr<PromiseCore_>;
 
 public:
-  Promise() : core_{std::make_shared<PromiseCore<T>>()} {}
+  using promise_type = Promise<T>;
+
+  Promise() : core_{std::make_shared<PromiseCore_>()} {}
   Promise(Promise<T> &&) noexcept = default;
   Promise &operator=(const Promise<T> &) = default;
   Promise &operator=(Promise<T> &&) noexcept = default;
   Promise(const Promise<T> &other) = default;
   ~Promise() = default;
-
-  using promise_type = Promise<T>;
 
   Promise<T> get_return_object() { return *this; }
 
@@ -44,9 +77,7 @@ public:
     // TODO: don't resume immediately, but schedule resumption. The promise is
     // only destroyed after resume() returns, this has the promise hang around
     // longer than needed.
-    if (core_->resume) {
-      core_->resume->resume();
-    }
+    core_->resume();
   }
   // Note: if suspend_always is chosen, we can better control when the promise
   // will be scheduled.
@@ -72,12 +103,12 @@ protected:
     ~PromiseAwaiter_() = default;
 
     bool await_ready() const { return core_->slot.has_value(); }
-    virtual bool await_suspend(std::coroutine_handle<> handle) {
-      if (core_->resume) {
+    bool await_suspend(std::coroutine_handle<> handle) {
+      if (core_->has_resume()) {
         fmt::print("promise is already being waited on!\n");
         assert(false);
       }
-      core_->resume = handle;
+      core_->set_resume(handle);
       return true;
     }
     T await_resume() {
@@ -92,16 +123,27 @@ protected:
   SharedCore_ core_;
 };
 
+template <typename T> struct MultiPromiseCore {
+  std::optional<std::coroutine_handle<>> resume;
+  std::optional<T> slot;
+};
+
+template <> struct MultiPromiseCore<void> {
+  std::optional<std::coroutine_handle<>> resume;
+  bool ready = false;
+};
+
 template <typename T>
 class MultiPromise : public LifetimeTracker<MultiPromise<T>> {
 protected:
   struct MultiPromiseAwaiter_;
-  using SharedCore_ = std::shared_ptr<PromiseCore<T>>;
+  using PromiseCore_ = MultiPromiseCore<T>;
+  using SharedCore_ = std::shared_ptr<PromiseCore_>;
 
 public:
   using promise_type = MultiPromise<T>;
 
-  MultiPromise() : core_{std::make_shared<PromiseCore<T>>()} {}
+  MultiPromise() : core_{std::make_shared<PromiseCore_>()} {}
   MultiPromise(MultiPromise<T> &&) noexcept = default;
   MultiPromise &operator=(const MultiPromise<T> &) = default;
   MultiPromise &operator=(MultiPromise<T> &&) noexcept = default;
@@ -116,9 +158,7 @@ public:
     // TODO: don't resume immediately, but schedule resumption. The MultiPromise
     // is only destroyed after resume() returns, this has the MultiPromise hang
     // around longer than needed.
-    if (core_->resume) {
-      core_->resume->resume();
-    }
+    core_->resume->resume();
   }
   // Note: if suspend_always is chosen, we can better control when the
   // MultiPromise will be scheduled.
@@ -197,9 +237,7 @@ public:
 
   void return_void() {
     core_->ready = true;
-    if (core_->resume) {
-      core_->resume->resume();
-    }
+    core_->resume();
   }
   void unhandled_exception() {
     std::rethrow_exception(std::current_exception());
@@ -221,11 +259,11 @@ private:
     bool await_ready() const { return core_->ready; }
 
     bool await_suspend(std::coroutine_handle<> handle) {
-      if (core_->resume) {
+      if (core_->has_resume()) {
         fmt::print("promise is already being waited on!\n");
         assert(false);
       }
-      core_->resume = handle;
+      core_->set_resume(handle);
       return true;
     }
     void await_resume() {}
