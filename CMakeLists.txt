@@ -8,7 +8,12 @@ pkg_check_modules(UV REQUIRED libuv)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_CXX_FLAGS "-std=c++2b -Wall -fno-inline -fsanitize=address")
+set(CMAKE_CXX_FLAGS "-std=c++2b -Wall -fno-inline")
+
+if(ENABLE_ASAN)
+    add_compile_options(-fsanitize=address)
+    add_link_options(-fsanitize=address)
+endif()
 
 add_library(event-loop STATIC src/promise.cc src/event_loop.cc)
 target_link_libraries(event-loop PRIVATE ${UV_LIBRARIES} ${FMT_LIBRARIES})

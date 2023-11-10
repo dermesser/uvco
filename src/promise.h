@@ -21,12 +21,14 @@ public:
     if (resume_) {
       auto resume = *resume_;
       resume_.reset();
-      resume();
+      resume.resume();
     }
   }
   ~PromiseCore() {
     // This only happens if the awaiting coroutine has never been resumed, but
     // the last promise provided by it is gone.
+    // Important: we may only destroy a suspended coroutine, not a finished one:
+    // co_return already destroys coroutine state.
     if (resume_)
       resume_->destroy();
   }
