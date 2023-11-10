@@ -11,15 +11,17 @@
 
 namespace uvco {
 
-template <typename T> class PromiseCore {
+template <typename T>
+class PromiseCore : public LifetimeTracker<PromiseCore<T>> {
 public:
   std::optional<T> slot;
   void set_resume(std::coroutine_handle<> h) { resume_ = h; }
   bool has_resume() { return resume_.has_value(); }
   void resume() {
     if (resume_) {
-      resume_->resume();
+      auto resume = *resume_;
       resume_.reset();
+      resume();
     }
   }
   ~PromiseCore() {
@@ -33,15 +35,17 @@ private:
   std::optional<std::coroutine_handle<>> resume_;
 };
 
-template <> class PromiseCore<void> {
+template <>
+class PromiseCore<void> : public LifetimeTracker<PromiseCore<void>> {
 public:
   bool ready = false;
   void set_resume(std::coroutine_handle<> h) { resume_ = h; }
   bool has_resume() { return resume_.has_value(); }
   void resume() {
     if (resume_) {
-      resume_->resume();
+      auto resume = *resume_;
       resume_.reset();
+      resume();
     }
   }
   ~PromiseCore() {
@@ -53,7 +57,7 @@ private:
   std::optional<std::coroutine_handle<>> resume_;
 };
 
-template <typename T> class Promise : public LifetimeTracker<Promise<T>> {
+template <typename T> class Promise {
 protected:
   struct PromiseAwaiter_;
   using PromiseCore_ = PromiseCore<T>;
@@ -72,6 +76,7 @@ public:
   Promise<T> get_return_object() { return *this; }
 
   void return_value(T &&value) {
+    auto &core_ = Promise<T>::core_;
     assert(!core_->slot);
     core_->slot = std::move(value);
     // TODO: don't resume immediately, but schedule resumption. The promise is
@@ -112,6 +117,7 @@ protected:
       return true;
     }
     T await_resume() {
+      assert(core_->slot.has_value());
       auto result = std::move(core_->slot.value());
       core_->slot.reset();
       return std::move(result);
@@ -123,21 +129,10 @@ protected:
   SharedCore_ core_;
 };
 
-template <typename T> struct MultiPromiseCore {
-  std::optional<std::coroutine_handle<>> resume;
-  std::optional<T> slot;
-};
-
-template <> struct MultiPromiseCore<void> {
-  std::optional<std::coroutine_handle<>> resume;
-  bool ready = false;
-};
-
-template <typename T>
-class MultiPromise : public LifetimeTracker<MultiPromise<T>> {
+template <typename T> class MultiPromise {
 protected:
   struct MultiPromiseAwaiter_;
-  using PromiseCore_ = MultiPromiseCore<T>;
+  using PromiseCore_ = PromiseCore<T>;
   using SharedCore_ = std::shared_ptr<PromiseCore_>;
 
 public:
@@ -158,7 +153,7 @@ public:
     // TODO: don't resume immediately, but schedule resumption. The MultiPromise
     // is only destroyed after resume() returns, this has the MultiPromise hang
     // around longer than needed.
-    core_->resume->resume();
+    core_->resume();
   }
   // Note: if suspend_always is chosen, we can better control when the
   // MultiPromise will be scheduled.
@@ -173,11 +168,8 @@ public:
   std::suspend_never yield_value(T &&value) {
     assert(!core_->slot);
     core_->slot = std::move(value);
-    assert(core_->resume);
-    if (core_->resume) {
-      // TODO: schedule resume on event loop.
-      core_->resume->resume();
-    }
+    // TODO: schedule resume on event loop.
+    core_->resume();
     return std::suspend_never{};
   }
 
@@ -199,7 +191,11 @@ protected:
 
     bool await_ready() const { return core_->slot.has_value(); }
     virtual bool await_suspend(std::coroutine_handle<> handle) {
-      core_->resume = handle;
+      if (core_->has_resume()) {
+        fmt::print("promise is already being waited on!\n");
+        assert(false);
+      }
+      core_->set_resume(handle);
       return true;
     }
     std::optional<T> await_resume() {
@@ -216,7 +212,7 @@ protected:
   SharedCore_ core_;
 };
 
-template <> class Promise<void> : public LifetimeTracker<Promise<void>> {
+template <> class Promise<void> {
   struct PromiseAwaiter_;
   using SharedCore_ = std::shared_ptr<PromiseCore<void>>;
 
@@ -231,7 +227,6 @@ public:
   ~Promise() {}
 
   Promise<void> get_return_object() { return *this; }
-
   std::suspend_never initial_suspend() noexcept { return {}; }
   std::suspend_never final_suspend() noexcept { return {}; }
 

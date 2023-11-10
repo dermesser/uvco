@@ -3,7 +3,7 @@
 #include <utility>
 #include <uv.h>
 
-static constexpr const bool TRACK_LIFETIMES = false;
+static constexpr const bool TRACK_LIFETIMES = true;
 
 namespace uvco {
 
@@ -34,8 +34,7 @@ protected:
 
 struct UvcoException : public std::exception {
   explicit UvcoException(std::string message) : message_{std::move(message)} {}
-  explicit UvcoException(int status, std::string_view where)
-      : message_{fmt::format("UV error {} ({})", uv_err_name(status), where)} {}
+  explicit UvcoException(int status, std::string_view where) : message_{fmt::format("UV error {} ({})", uv_err_name(status), where)} {}
   [[nodiscard]] const char *what() const noexcept override {
     return message_.c_str();
   }

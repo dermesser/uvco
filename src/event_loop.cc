@@ -8,6 +8,7 @@
 #include <fmt/format.h>
 #include <functional>
 #include <optional>
+#include <span>
 #include <string_view>
 #include <typeinfo>
 
@@ -23,6 +24,34 @@ void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
   buf->base = underlying;
   buf->len = sugg;
 }
+
+struct UvHandleDeleter {
+  void del(uv_handle_t *handle) {
+    switch (handle->type) {
+    case UV_STREAM:
+      delete (uv_stream_t *)handle;
+      break;
+    case UV_TCP:
+      delete (uv_tcp_t *)handle;
+      break;
+    case UV_UDP:
+      delete (uv_udp_t *)handle;
+      break;
+    case UV_TTY:
+      delete (uv_tty_t *)handle;
+      break;
+    case UV_HANDLE:
+      delete (uv_handle_t *)handle;
+      break;
+    default:
+      delete handle;
+      fmt::print("WARN: unhandled handle type {}\n", handle->type);
+    }
+  }
+  template <typename Handle> void operator()(Handle *handle) {
+    del((uv_handle_t *)handle);
+  }
+};
 
 } // namespace
 
@@ -77,7 +106,7 @@ public:
   }
 
 private:
-  std::unique_ptr<uv_stream_t> stream_;
+  std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
 
   struct CloseAwaiter_ {
     explicit CloseAwaiter_(Stream &stream) : stream_{stream} {}
@@ -194,8 +223,8 @@ private:
 
     static void onOutStreamWrite(uv_write_t *write, int status) {
       auto *state = (OutStreamAwaiter_ *)write->data;
-      assert(state->handle_);
       state->status_ = status;
+      assert(state->handle_);
       state->handle_->resume();
     }
 
@@ -218,7 +247,7 @@ public:
     AddrinfoAwaiter_ awaiter;
     awaiter.req_.data = &awaiter;
     struct addrinfo hints {};
-    hints.ai_family = AF_UNSPEC;
+    hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
     uv_getaddrinfo(loop_, &awaiter.req_, onAddrinfo, host.data(), port.data(),
@@ -364,7 +393,10 @@ Promise<void> resolveName(uv_loop_t *loop, std::string_view name) {
   Resolver resolver{loop};
   log(loop, "Before GAI");
   struct addrinfo *ai = co_await resolver.gai(name, "443");
-  log(loop, "After GAI");
+  struct sockaddr_in *sa = (struct sockaddr_in *)ai->ai_addr;
+  unsigned char *addr_array = (unsigned char *)&sa->sin_addr.s_addr;
+  std::span<unsigned char> a{addr_array, 4};
+  log(loop, fmt::format("After GAI: {}.{}.{}.{}", a[0], a[1], a[2], a[3]));
   uv_freeaddrinfo(ai);
   co_return;
 }
@@ -388,13 +420,13 @@ void run_loop() {
 
   // Promises are run even if they are not waited on or checked.
 
-  // Promise<void> p = resolveName(&loop, "borgac.net");
-  //  Promise<void> p2 = setupUppercasing(&loop);
   Promise<void> p = enumerateStdinLines(&loop);
+  Promise<void> p1 = resolveName(&loop, "borgac.net");
 
   Fulfillable<int> f{};
   Promise<int> p2 = fulfillWait(&f.promise());
   f.fulfill(42);
+  //Promise<void> p3 = setupUppercasing(&loop);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
