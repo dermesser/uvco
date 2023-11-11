@@ -11,17 +11,36 @@
 
 namespace uvco {
 
+namespace {
+
+enum class PromiseState {
+  init = 0,
+  waitedOn = 1,
+  running = 2,
+  finished = 3,
+};
+
+}
+
 template <typename T>
 class PromiseCore : public LifetimeTracker<PromiseCore<T>> {
 public:
   std::optional<T> slot;
-  void set_resume(std::coroutine_handle<> h) { resume_ = h; }
+
+  void set_resume(std::coroutine_handle<> h) {
+    resume_ = h;
+    assert(state_ == PromiseState::init);
+    state_ = PromiseState::waitedOn;
+  }
   bool has_resume() { return resume_.has_value(); }
   void resume() {
     if (resume_) {
+      assert(state_ == PromiseState::waitedOn);
+      state_ = PromiseState::running;
       auto resume = *resume_;
       resume_.reset();
       resume.resume();
+      state_ = PromiseState::finished;
     }
   }
   ~PromiseCore() {
@@ -35,6 +54,7 @@ public:
 
 private:
   std::optional<std::coroutine_handle<>> resume_;
+  PromiseState state_ = PromiseState::init;
 };
 
 template <>

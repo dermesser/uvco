@@ -353,14 +353,16 @@ Promise<void> uppercasing(Stream in, Stream out) {
     std::string to_output = fmt::format(">> {}", line);
     co_await out.write(std::move(to_output));
   }
+  co_await in.close();
+  co_await out.close();
   co_return;
 }
 
 Promise<void> setupUppercasing(uv_loop_t *loop) {
   Stream in = Stream::stdin(loop);
   Stream out = Stream::stdout(loop);
-  Promise<void> p = uppercasing(std::move(in), std::move(out));
-  return p;
+  co_await uppercasing(std::move(in), std::move(out));
+  co_return;
 }
 
 MultiPromise<std::string> generateStdinLines(uv_loop_t *loop) {
@@ -426,7 +428,7 @@ void run_loop() {
   Fulfillable<int> f{};
   Promise<int> p2 = fulfillWait(&f.promise());
   f.fulfill(42);
-  // Promise<void> p3 = setupUppercasing(&loop);
+  Promise<void> p3 = setupUppercasing(&loop);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
