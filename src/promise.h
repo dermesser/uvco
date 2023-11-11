@@ -11,8 +11,6 @@
 
 namespace uvco {
 
-namespace {
-
 enum class PromiseState {
   init = 0,
   waitedOn = 1,
@@ -20,16 +18,14 @@ enum class PromiseState {
   finished = 3,
 };
 
-}
-
 template <typename T>
 class PromiseCore : public LifetimeTracker<PromiseCore<T>> {
 public:
   std::optional<T> slot;
 
   void set_resume(std::coroutine_handle<> h) {
-    resume_ = h;
     assert(state_ == PromiseState::init);
+    resume_ = h;
     state_ = PromiseState::waitedOn;
   }
   bool has_resume() { return resume_.has_value(); }
@@ -40,10 +36,15 @@ public:
       auto resume = *resume_;
       resume_.reset();
       resume.resume();
-      state_ = PromiseState::finished;
     }
+    // This can happen if await_ready() is true immediately.
+    state_ = PromiseState::finished;
   }
   ~PromiseCore() {
+    assert(state_ != PromiseState::running);
+    if (state_ == PromiseState::init)
+      fmt::print("value Promise destroyed without being waited on ({})\n",
+                 typeid(T).name());
     // This only happens if the awaiting coroutine has never been resumed, but
     // the last promise provided by it is gone.
     // Important: we may only destroy a suspended coroutine, not a finished one:
@@ -61,22 +62,31 @@ template <>
 class PromiseCore<void> : public LifetimeTracker<PromiseCore<void>> {
 public:
   bool ready = false;
-  void set_resume(std::coroutine_handle<> h) { resume_ = h; }
+  void set_resume(std::coroutine_handle<> h) {
+    assert(state_ == PromiseState::init);
+    resume_ = h;
+    state_ = PromiseState::waitedOn;
+  }
   bool has_resume() { return resume_.has_value(); }
   void resume() {
     if (resume_) {
+      assert(state_ == PromiseState::waitedOn);
       auto resume = *resume_;
       resume_.reset();
+      state_ = PromiseState::running;
       resume();
     }
+    state_ = PromiseState::finished;
   }
   ~PromiseCore() {
+    assert(state_ != PromiseState::running);
     if (resume_)
       resume_->destroy();
   }
 
 private:
   std::optional<std::coroutine_handle<>> resume_;
+  PromiseState state_ = PromiseState::init;
 };
 
 template <typename T> class Promise {
