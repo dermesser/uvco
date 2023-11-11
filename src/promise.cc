@@ -1,3 +1,1 @@
-namespace uvco {
-
-}  // namespace uvco
+namespace uvco {} // namespace uvco

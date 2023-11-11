@@ -422,13 +422,15 @@ void run_loop() {
 
   // Promises are run even if they are not waited on or checked.
 
-  // Promise<void> p = enumerateStdinLines(&loop);
-  Promise<void> p = resolveName(&loop, "borgac.net");
+  Promise<void> p = enumerateStdinLines(&loop);
+  // Promise<void> p = resolveName(&loop, "borgac.net");
 
+  /*
   Fulfillable<int> f{};
   Promise<int> p2 = fulfillWait(&f.promise());
   f.fulfill(42);
-  Promise<void> p3 = setupUppercasing(&loop);
+  */
+  // Promise<void> p = setupUppercasing(&loop);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);

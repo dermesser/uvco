@@ -23,15 +23,14 @@ class PromiseCore : public LifetimeTracker<PromiseCore<T>> {
 public:
   std::optional<T> slot;
 
-  void set_resume(std::coroutine_handle<> h) {
+  virtual void set_resume(std::coroutine_handle<> h) {
     assert(state_ == PromiseState::init);
     resume_ = h;
     state_ = PromiseState::waitedOn;
   }
   bool has_resume() { return resume_.has_value(); }
-  void resume() {
+  virtual void resume() {
     if (resume_) {
-      assert(state_ == PromiseState::waitedOn);
       state_ = PromiseState::running;
       auto resume = *resume_;
       resume_.reset();
@@ -53,9 +52,26 @@ public:
       resume_->destroy();
   }
 
-private:
+protected:
   std::optional<std::coroutine_handle<>> resume_;
   PromiseState state_ = PromiseState::init;
+};
+
+template <typename T> class MultiPromiseCore : public PromiseCore<T> {
+public:
+  static_assert(!std::is_void_v<T>);
+  void set_resume(std::coroutine_handle<> h) override {
+    // Once an external scheduler works, Promises will not be nested anymore
+    // (resume called by resume down in the stack)
+    //
+    // assert(PromiseCore<T>::state_
+    // == PromiseState::init || PromiseCore<T>::state_ ==
+    // PromiseState::finished);
+    PromiseCore<T>::resume_ = h;
+    PromiseCore<T>::state_ = PromiseState::waitedOn;
+  }
+  // For better stacktraces.
+  void resume() override { PromiseCore<T>::resume(); }
 };
 
 template <>
@@ -220,7 +236,7 @@ private:
 template <typename T> class MultiPromise {
 protected:
   struct MultiPromiseAwaiter_;
-  using PromiseCore_ = PromiseCore<T>;
+  using PromiseCore_ = MultiPromiseCore<T>;
   using SharedCore_ = std::shared_ptr<PromiseCore_>;
 
 public:
@@ -277,8 +293,13 @@ protected:
     MultiPromiseAwaiter_ &operator=(const MultiPromiseAwaiter_ &) = delete;
     ~MultiPromiseAwaiter_() = default;
 
-    bool await_ready() const { return core_->slot.has_value(); }
+    bool await_ready() const {
+      const bool ready = core_->slot.has_value();
+      fmt::print("await_ready = {}\n", ready);
+      return ready;
+    }
     virtual bool await_suspend(std::coroutine_handle<> handle) {
+      fmt::print("await_suspend\n");
       if (core_->has_resume()) {
         fmt::print("promise is already being waited on!\n");
         assert(false);
@@ -287,6 +308,7 @@ protected:
       return true;
     }
     std::optional<T> await_resume() {
+      fmt::print("await_resume\n");
       std::optional<T> result = std::move(core_->slot);
       core_->slot.reset();
       // Obvious - but important to avoid constantly yielding!
