@@ -295,11 +295,9 @@ protected:
 
     bool await_ready() const {
       const bool ready = core_->slot.has_value();
-      fmt::print("await_ready = {}\n", ready);
       return ready;
     }
     virtual bool await_suspend(std::coroutine_handle<> handle) {
-      fmt::print("await_suspend\n");
       if (core_->has_resume()) {
         fmt::print("promise is already being waited on!\n");
         assert(false);
@@ -308,7 +306,6 @@ protected:
       return true;
     }
     std::optional<T> await_resume() {
-      fmt::print("await_resume\n");
       std::optional<T> result = std::move(core_->slot);
       core_->slot.reset();
       // Obvious - but important to avoid constantly yielding!

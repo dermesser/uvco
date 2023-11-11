@@ -67,6 +67,7 @@ public:
   // Takes ownership of stream.
   explicit Stream(uv_stream_t *stream) : stream_{stream} {}
   Stream(Stream &&) = default;
+  Stream &operator=(Stream &&) = default;
   ~Stream() {
     // close() MUST be called and awaited before dtor.
     assert(!stream_);
@@ -98,9 +99,13 @@ public:
     co_return status;
   }
 
-  Promise<void> close() {
+  Promise<void> close(void (*uv_close_impl)(uv_handle_t *,
+                                            uv_close_cb) = uv_close) {
     // TODO: schedule closing operation on event loop?
-    CloseAwaiter_ awaiter(*this);
+    CloseAwaiter_ awaiter{};
+
+    stream_->data = &awaiter;
+    uv_close_impl((uv_handle_t *)stream_.get(), onCloseCallback);
     co_await awaiter;
     stream_.reset();
   }
@@ -108,26 +113,21 @@ public:
 private:
   std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
 
-  struct CloseAwaiter_ {
-    explicit CloseAwaiter_(Stream &stream) : stream_{stream} {}
+  static void onCloseCallback(uv_handle_t *stream) {
+    auto *awaiter = (CloseAwaiter_ *)stream->data;
+    awaiter->closed_ = true;
+    if (awaiter->handle_)
+      awaiter->handle_->resume();
+  }
 
-    bool await_ready() { return closed_; }
+  struct CloseAwaiter_ {
+    bool await_ready() const { return closed_; }
     bool await_suspend(std::coroutine_handle<> handle) {
-      stream_.stream_->data = this;
       handle_ = handle;
-      uv_close((uv_handle_t *)stream_.stream_.get(), onCloseCallback);
       return true;
     }
     void await_resume() {}
 
-    static void onCloseCallback(uv_handle_t *stream) {
-      CloseAwaiter_ *awaiter = (CloseAwaiter_ *)stream->data;
-      awaiter->closed_ = true;
-      assert(awaiter->handle_);
-      awaiter->handle_->resume();
-    }
-
-    Stream &stream_;
     std::optional<std::coroutine_handle<>> handle_;
     bool closed_ = false;
   };
@@ -290,19 +290,130 @@ private:
   uv_loop_t *loop_;
 };
 
-template <typename T> class Fulfillable {
+class TcpClient {
 public:
-  Fulfillable() = default;
+  explicit TcpClient(uv_loop_t *loop, std::string target_host_address,
+                     uint16_t target_host_port)
+      : loop_{loop}, host_{std::move(target_host_address)},
+        port_{target_host_port}, state_{State_::initialized} {}
 
-  void fulfill(T &&value) {
-    assert(!promise_.ready());
-    promise_.return_value(std::move(value));
+  TcpClient(TcpClient &&other)
+      : loop_{other.loop_}, host_{std::move(other.host_)}, port_{other.port_},
+        state_{other.state_} {
+    other.state_ = State_::invalid;
+  }
+  TcpClient(const TcpClient &) = delete;
+  TcpClient &operator=(TcpClient &&other) {
+    loop_ = other.loop_;
+    host_ = std::move(other.host_);
+    port_ = other.port_;
+    state_ = other.state_;
+    other.state_ = State_::invalid;
+    return *this;
+  }
+  TcpClient &operator=(const TcpClient &) = delete;
+  ~TcpClient() { assert(state_ != State_::connected); }
+
+  Promise<void> connect() {
+    Resolver resolver{loop_};
+
+    state_ = State_::resolving;
+
+    struct addrinfo *ai =
+        co_await resolver.gai(host_, fmt::format("{}", port_));
+    fmt::print("Resolution OK\n");
+    struct sockaddr *addr = ai->ai_addr;
+
+    uv_connect_t req;
+    ConnectAwaiter_ connect{};
+    req.data = &connect;
+
+    state_ = State_::connecting;
+
+    auto tcp = std::make_unique<uv_tcp_t>();
+
+    uv_tcp_init(loop_, tcp.get());
+    uv_tcp_connect(&req, tcp.get(), addr, onConnect);
+
+    co_await connect;
+
+    uv_freeaddrinfo(ai);
+
+    if (connect.status_ < 0) {
+      throw UvcoException(*connect.status_, "connect");
+    }
+    state_ = State_::connected;
+    fmt::print("Connected successfully to {}:{}\n", host_, port_);
+    connected_stream_ = Stream{(uv_stream_t *)(tcp.release())};
   }
 
-  Promise<T> &promise() { return promise_; }
+  std::optional<Stream> &stream() { return connected_stream_; }
+
+  Promise<void> close() {
+    assert(connected_stream_);
+    if (connected_stream_) {
+      state_ = State_::closing;
+      co_await connected_stream_->close(uv_tcp_close_reset_void);
+      state_ = State_::closed;
+      connected_stream_.reset();
+    }
+    co_return;
+  }
 
 private:
-  Promise<T> promise_;
+  enum class State_ {
+    initialized = 0,
+    resolving = 1,
+    connecting = 2,
+    connected = 3,
+    failed = 4,
+    closing = 5,
+    closed = 6,
+
+    invalid = 7,
+  };
+
+  uv_loop_t *loop_;
+
+  std::string host_;
+  uint16_t port_;
+  State_ state_;
+
+  // Maybe need call to uv_tcp_close_reset?
+  std::optional<Stream> connected_stream_;
+
+  static void uv_tcp_close_reset_void(uv_handle_t *handle, uv_close_cb cb) {
+    uv_tcp_close_reset((uv_tcp_t *)handle, cb);
+  }
+
+  static void onConnect(uv_connect_t *req, int status) {
+    fmt::print("onConnect from UV\n");
+    auto *connect = static_cast<ConnectAwaiter_ *>(req->data);
+    connect->onConnect(status);
+  }
+
+  struct ConnectAwaiter_ {
+    bool await_ready() const { return status_.has_value(); }
+    bool await_suspend(std::coroutine_handle<> h) {
+      assert(!handle_);
+      handle_ = h;
+      return true;
+    }
+    int await_resume() {
+      assert(status_);
+      return *status_;
+    }
+
+    void onConnect(int status) {
+      fmt::print("ConnectAwaiter::onConnect\n");
+      status_ = status;
+      if (handle_)
+        handle_->resume();
+    }
+
+    std::optional<std::coroutine_handle<>> handle_ = {};
+    std::optional<int> status_ = {};
+  };
 };
 
 class TcpServer {
@@ -335,6 +446,20 @@ private:
   std::unique_ptr<uv_tcp_t> tcp_;
 };
 
+template <typename T> class Fulfillable {
+public:
+  Fulfillable() = default;
+
+  void fulfill(T &&value) {
+    assert(!promise_.ready());
+    promise_.return_value(std::move(value));
+  }
+
+  Promise<T> &promise() { return promise_; }
+
+private:
+  Promise<T> promise_;
+};
 class Data {
 public:
   Data() = default;
@@ -413,6 +538,24 @@ Promise<int> fulfillWait(Promise<int> *p) {
   co_return r;
 }
 
+Promise<void> testHttpRequest(uv_loop_t *loop) {
+  TcpClient client{loop, "borgac.net", 80};
+  co_await client.connect();
+  auto &stream = client.stream();
+  assert(stream);
+
+  co_await stream->write(
+      fmt::format("HEAD / HTTP/1.0\r\nHost: borgac.net\r\n\r\n"));
+  do {
+    std::optional<std::string> chunk = co_await stream->read();
+    if (chunk)
+      fmt::print("Got chunk: >> {} <<\n", *chunk);
+    else
+      break;
+  } while (true);
+  co_await client.close();
+}
+
 void run_loop() {
   Data data;
 
@@ -422,8 +565,8 @@ void run_loop() {
 
   // Promises are run even if they are not waited on or checked.
 
-  Promise<void> p = enumerateStdinLines(&loop);
-  // Promise<void> p = resolveName(&loop, "borgac.net");
+  // Promise<void> p = enumerateStdinLines(&loop);
+  //  Promise<void> p = resolveName(&loop, "borgac.net");
 
   /*
   Fulfillable<int> f{};
@@ -431,6 +574,8 @@ void run_loop() {
   f.fulfill(42);
   */
   // Promise<void> p = setupUppercasing(&loop);
+
+  Promise<void> p = testHttpRequest(&loop);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
