@@ -161,6 +161,62 @@ protected:
   SharedCore_ core_;
 };
 
+template <> class Promise<void> {
+  struct PromiseAwaiter_;
+  using SharedCore_ = std::shared_ptr<PromiseCore<void>>;
+
+public:
+  using promise_type = Promise<void>;
+
+  Promise() : core_{std::make_shared<PromiseCore<void>>()} {}
+  Promise(Promise<void> &&) noexcept = default;
+  Promise &operator=(const Promise<void> &) = default;
+  Promise &operator=(Promise<void> &&) noexcept = default;
+  Promise(const Promise<void> &other) = default;
+  ~Promise() {}
+
+  Promise<void> get_return_object() { return *this; }
+  std::suspend_never initial_suspend() noexcept { return {}; }
+  std::suspend_never final_suspend() noexcept { return {}; }
+
+  void return_void() {
+    core_->ready = true;
+    core_->resume();
+  }
+  void unhandled_exception() {
+    std::rethrow_exception(std::current_exception());
+  }
+
+  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
+
+  bool ready() { return core_->ready; }
+  void result() {}
+
+private:
+  struct PromiseAwaiter_ {
+    explicit PromiseAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
+    PromiseAwaiter_(PromiseAwaiter_ &&) = delete;
+    PromiseAwaiter_(const PromiseAwaiter_ &) = delete;
+    PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
+    PromiseAwaiter_ &operator=(const PromiseAwaiter_ &) = delete;
+
+    bool await_ready() const { return core_->ready; }
+
+    bool await_suspend(std::coroutine_handle<> handle) {
+      if (core_->has_resume()) {
+        fmt::print("promise is already being waited on!\n");
+        assert(false);
+      }
+      core_->set_resume(handle);
+      return true;
+    }
+    void await_resume() {}
+
+    std::shared_ptr<PromiseCore<void>> core_;
+  };
+  std::shared_ptr<PromiseCore<void>> core_;
+};
+
 template <typename T> class MultiPromise {
 protected:
   struct MultiPromiseAwaiter_;
@@ -242,62 +298,6 @@ protected:
   };
 
   SharedCore_ core_;
-};
-
-template <> class Promise<void> {
-  struct PromiseAwaiter_;
-  using SharedCore_ = std::shared_ptr<PromiseCore<void>>;
-
-public:
-  using promise_type = Promise<void>;
-
-  Promise() : core_{std::make_shared<PromiseCore<void>>()} {}
-  Promise(Promise<void> &&) noexcept = default;
-  Promise &operator=(const Promise<void> &) = default;
-  Promise &operator=(Promise<void> &&) noexcept = default;
-  Promise(const Promise<void> &other) = default;
-  ~Promise() {}
-
-  Promise<void> get_return_object() { return *this; }
-  std::suspend_never initial_suspend() noexcept { return {}; }
-  std::suspend_never final_suspend() noexcept { return {}; }
-
-  void return_void() {
-    core_->ready = true;
-    core_->resume();
-  }
-  void unhandled_exception() {
-    std::rethrow_exception(std::current_exception());
-  }
-
-  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
-
-  bool ready() { return core_->ready; }
-  void result() {}
-
-private:
-  struct PromiseAwaiter_ {
-    explicit PromiseAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
-    PromiseAwaiter_(PromiseAwaiter_ &&) = delete;
-    PromiseAwaiter_(const PromiseAwaiter_ &) = delete;
-    PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
-    PromiseAwaiter_ &operator=(const PromiseAwaiter_ &) = delete;
-
-    bool await_ready() const { return core_->ready; }
-
-    bool await_suspend(std::coroutine_handle<> handle) {
-      if (core_->has_resume()) {
-        fmt::print("promise is already being waited on!\n");
-        assert(false);
-      }
-      core_->set_resume(handle);
-      return true;
-    }
-    void await_resume() {}
-
-    std::shared_ptr<PromiseCore<void>> core_;
-  };
-  std::shared_ptr<PromiseCore<void>> core_;
 };
 
 } // namespace uvco
