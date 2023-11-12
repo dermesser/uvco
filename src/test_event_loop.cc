@@ -1,7 +1,7 @@
 #include "event_loop.h"
 
 int main() {
-  uvco::run_loop(0);
+  uvco::run_loop(1);
 
 
   return 0;

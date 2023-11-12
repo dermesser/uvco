@@ -3,7 +3,7 @@
 #include <utility>
 #include <uv.h>
 
-static constexpr const bool TRACK_LIFETIMES = true;
+static constexpr const bool TRACK_LIFETIMES = false;
 
 namespace uvco {
 

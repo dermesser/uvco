@@ -7,7 +7,7 @@ pkg_check_modules(FMT REQUIRED fmt)
 pkg_check_modules(UV REQUIRED libuv)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
-add_compile_options(-std=c++2b -Wall -fno-inline)
+add_compile_options(-std=c++2b -Wall -fno-inline -pipe)
 
 if(ENABLE_ASAN)
     add_compile_options(-fsanitize=address)

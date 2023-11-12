@@ -29,7 +29,10 @@ void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
   buf->len = size;
 }
 
-void freeUvBuf(const uv_buf_t *buf) { delete[] buf->base; }
+void freeUvBuf(const uv_buf_t *buf) {
+  if (buf)
+    delete[] buf->base;
+}
 
 struct UvHandleDeleter {
   void del(uv_handle_t *handle) {
@@ -244,14 +247,163 @@ private:
   };
 };
 
+class AddressHandle {
+  struct NtopHelper_;
+
+public:
+  constexpr static size_t ipv4Length = 4;
+  constexpr static size_t ipv6Length = 16;
+
+  AddressHandle() = default;
+  AddressHandle(const AddressHandle &) = default;
+  AddressHandle(AddressHandle &&) = default;
+  AddressHandle &operator=(const AddressHandle &) = default;
+  AddressHandle &operator=(AddressHandle &&) = default;
+  ~AddressHandle() = default;
+
+  AddressHandle(std::span<const uint8_t> ipv4_or_6, uint16_t port,
+                uint32_t v6scope = 0) {
+    if (ipv4_or_6.size() == ipv4Length) {
+      struct sockaddr_in addr {};
+      struct in_addr ipAddr {};
+      ipAddr.s_addr = *(uint32_t *)ipv4_or_6.data();
+
+      addr.sin_family = AF_INET;
+      addr.sin_port = port;
+      addr.sin_addr = ipAddr;
+      addr_ = addr;
+    } else if (ipv4_or_6.size() == ipv6Length) {
+      struct sockaddr_in6 addr {};
+      struct in6_addr ipAddr {};
+
+      std::copy(ipv4_or_6.begin(), ipv4_or_6.end(),
+                static_cast<uint8_t *>(ipAddr.s6_addr));
+
+      addr.sin6_family = AF_INET6;
+      addr.sin6_port = port;
+      addr.sin6_addr = ipAddr;
+      addr.sin6_scope_id = v6scope;
+      addr_ = addr;
+    } else {
+      throw UvcoException("Invalid address size for IPv4/6 address!");
+    }
+  }
+  AddressHandle(uint32_t ipv4, uint16_t port)
+      : AddressHandle{std::span<const uint8_t>{(uint8_t *)(&ipv4), 4}, port} {}
+  AddressHandle(std::string_view ip, uint16_t port, uint32_t v6scope = 0) {
+    if (ip.contains(':')) {
+      struct in6_addr ipAddr {};
+      int status = inet_pton(AF_INET6, ip.data(), &ipAddr);
+      if (status != 1)
+        throw UvcoException(fmt::format("invalid IPv6 address: {}", ip));
+
+      struct sockaddr_in6 addr {};
+      addr.sin6_family = AF_INET6;
+      addr.sin6_addr = ipAddr;
+      addr.sin6_port = port;
+      addr.sin6_scope_id = v6scope;
+      addr_ = addr;
+    } else {
+      struct in_addr ipAddr;
+      int status = inet_pton(AF_INET, ip.data(), &ipAddr);
+      if (status != 1)
+        throw UvcoException(fmt::format("invalid IPv4 address: {}", ip));
+
+      struct sockaddr_in addr {};
+      addr.sin_family = AF_INET;
+      addr.sin_addr = ipAddr;
+      addr.sin_port = port;
+      addr_ = addr;
+    }
+  }
+  AddressHandle(const struct addrinfo *ai) {
+    if (ai->ai_family == AF_INET) {
+      assert(ai->ai_addrlen >= sizeof(struct sockaddr_in));
+      addr_ = *(struct sockaddr_in *)ai->ai_addr;
+    } else if (ai->ai_family == AF_INET6) {
+      assert(ai->ai_addrlen >= sizeof(struct sockaddr_in6));
+      addr_ = *(struct sockaddr_in6 *)ai->ai_addr;
+    }
+  }
+  AddressHandle(const struct sockaddr *sa) {
+    int af = sa->sa_family;
+    if (af == AF_INET) {
+      const auto *addr = (struct sockaddr_in *)sa;
+      addr_ = *addr;
+    } else if (af == AF_INET6) {
+      const auto *addr = (struct sockaddr_in6 *)sa;
+      addr_ = *addr;
+    } else {
+      throw UvcoException(fmt::format("unknown address family {}", af));
+    }
+  }
+
+  std::string address() const { return std::visit(NtopHelper_{}, addr_); }
+  uint16_t port() const {
+    if (addr_.index() == 0) {
+      const auto &addr = std::get<0>(addr_);
+      return addr.sin_port;
+    } else {
+      const auto &addr = std::get<1>(addr_);
+      return addr.sin6_port;
+    }
+  }
+  std::string toString() const {
+    if (family() == AF_INET)
+      return fmt::format("{}:{}", address(), port());
+    if (family() == AF_INET6)
+      return fmt::format("[{}]:{}", address(), port());
+    return {};
+  }
+
+  int family() const {
+    if (addr_.index() == 0)
+      return AF_INET;
+    if (addr_.index() == 1)
+      return AF_INET6;
+    throw UvcoException("family(): unknown address variant!");
+  }
+
+  struct sockaddr *sockaddr() const {
+    return std::visit(
+        [](const auto &sockaddr) -> struct sockaddr * {
+          return (struct sockaddr *)&sockaddr;
+        },
+        addr_);
+  }
+
+private:
+  std::variant<struct sockaddr_in, struct sockaddr_in6> addr_;
+
+  struct NtopHelper_ {
+    std::string operator()(const struct sockaddr_in &ipv4) {
+      return ntop(ipv4.sin_family, (void *)&ipv4.sin_addr);
+    }
+    std::string operator()(const struct sockaddr_in6 &ipv6) {
+      return ntop(ipv6.sin6_family, (void *)&ipv6.sin6_addr);
+    }
+    std::string ntop(int family, void *addr) {
+      std::string dst{};
+      if (family == AF_INET)
+        dst.resize(4 * 3 + 3 + 1);
+      else if (family == AF_INET6)
+        dst.resize(8 * 4 + 7 + 1);
+      const char *result = inet_ntop(family, addr, dst.data(), dst.size());
+      if (!result)
+        throw UvcoException(fmt::format("inet_ntop(): {}", strerror(errno)));
+      return dst;
+    }
+  };
+};
+
 class Resolver {
   struct AddrinfoAwaiter_;
 
 public:
   explicit Resolver(uv_loop_t *loop) : loop_{loop} {}
 
-  Promise<struct addrinfo *> gai(std::string_view host, std::string_view port,
-                                 int af_hint = AF_UNSPEC) {
+  Promise<AddressHandle> gai(std::string_view host, std::string_view port,
+                             int af_hint = AF_UNSPEC) {
     AddrinfoAwaiter_ awaiter;
     awaiter.req_.data = &awaiter;
     struct addrinfo hints {};
@@ -268,7 +420,10 @@ public:
       throw UvcoException{status, "getaddrinfo()"};
     }
 
-    co_return result;
+    AddressHandle address{result};
+    uv_freeaddrinfo(result);
+
+    co_return address;
   }
 
 private:
@@ -321,12 +476,9 @@ public:
     int hint = 0;
     if (flag | UV_UDP_IPV6ONLY)
       hint = AF_INET6;
-    struct addrinfo *ai =
-        co_await r.gai(address, fmt::format("{}", port), hint);
-    struct sockaddr *first = ai->ai_addr;
+    AddressHandle ah = co_await r.gai(address, fmt::format("{}", port), hint);
 
-    int status = uv_udp_bind(udp_.get(), first, flag);
-    uv_freeaddrinfo(ai);
+    int status = uv_udp_bind(udp_.get(), ah.sockaddr(), flag);
     if (status != 0)
       throw UvcoException{status, "binding UDP socket"};
   }
@@ -335,31 +487,16 @@ public:
                         bool ipv6only = false) {
     Resolver r{loop_};
     int hint = ipv6only ? AF_INET6 : AF_UNSPEC;
-    struct addrinfo *ai =
-        co_await r.gai(address, fmt::format("{}", port), hint);
-    struct sockaddr *first = ai->ai_addr;
+    AddressHandle ah = co_await r.gai(address, fmt::format("{}", port), hint);
 
-    int status = uv_udp_connect(udp_.get(), first);
-    uv_freeaddrinfo(ai);
+    int status = uv_udp_connect(udp_.get(), ah.sockaddr());
     if (status != 0)
       throw UvcoException{status, "connecting UDP socket"};
     connected_ = true;
   }
 
   template <typename T>
-  Promise<void> send(std::span<T> buffer, std::string_view address,
-                     uint16_t port, bool ipv6only = false) {
-    Resolver r{loop_};
-    struct sockaddr *addr = nullptr;
-    struct addrinfo *ai = nullptr;
-
-    if (address.size() > 0) {
-      int hint = ipv6only ? AF_INET6 : AF_UNSPEC;
-      struct addrinfo *ai =
-          co_await r.gai(address, fmt::format("{}", port), hint);
-      addr = ai->ai_addr;
-    }
-
+  Promise<void> send(std::span<T> buffer, std::optional<AddressHandle> ah) {
     SendAwaiter_ sendAwaiter{};
     uv_udp_send_t req;
     req.data = &sendAwaiter;
@@ -368,10 +505,12 @@ public:
     bufs[0].base = &(*buffer.begin());
     bufs[0].len = buffer.size_bytes();
 
+    struct sockaddr *addr = nullptr;
+    if (ah)
+      addr = ah->sockaddr();
+
     int status =
         uv_udp_send(&req, udp_.get(), bufs.begin(), 1, addr, onSendDone);
-    if (ai)
-      uv_freeaddrinfo(ai);
     if (status != 0)
       throw UvcoException{status, "uv_udp_send() failed immediately"};
 
@@ -383,6 +522,11 @@ public:
   }
 
   Promise<std::string> receiveOne() {
+    auto p = co_await receiveOneFrom();
+    co_return std::move(p.first);
+  }
+
+  Promise<std::pair<std::string, AddressHandle>> receiveOneFrom() {
     RecvAwaiter_ awaiter{};
     udp_->data = &awaiter;
     int status = uv_udp_recv_start(udp_.get(), allocator, onReceiveOne);
@@ -391,11 +535,10 @@ public:
 
     std::string buffer = co_await awaiter;
 
-    if (awaiter.nread_ && *awaiter.nread_ < 0)
-      throw UvcoException(*awaiter.nread_, "uv UDP recv");
+    // Any exceptions are thrown in RecvAwaiter_::await_resume
 
     udp_->data = nullptr;
-    co_return buffer;
+    co_return std::make_pair(buffer, *awaiter.addr_);
   }
 
   Promise<void> close() {
@@ -415,21 +558,21 @@ private:
   static void onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
                            const struct sockaddr *addr, unsigned int flags) {
 
-    if (addr == nullptr && nread == 0) {
-      if (handle->flags & UV_UDP_MMSG_FREE)
-        freeUvBuf(buf);
-      return;
-    }
-
     uv_udp_recv_stop(handle);
-
     auto *awaiter = (RecvAwaiter_ *)handle->data;
     awaiter->nread_ = nread;
-    awaiter->addr_ = *addr;
-    if (nread > 0)
-      awaiter->buffer_ = std::string{buf->base, static_cast<size_t>(nread)};
 
-    if (0 == (handle->flags & UV_UDP_MMSG_CHUNK))
+    if (addr == nullptr) {
+      // Error or asking to free buffers.
+      if (flags & UV_UDP_MMSG_FREE)
+        freeUvBuf(buf);
+    } else {
+      awaiter->addr_ = AddressHandle{addr};
+      if (nread > 0)
+        awaiter->buffer_ = std::string{buf->base, static_cast<size_t>(nread)};
+    }
+
+    if (0 == (flags & UV_UDP_MMSG_CHUNK))
       freeUvBuf(buf);
 
     if (awaiter->handle_)
@@ -444,13 +587,16 @@ private:
       return true;
     }
     std::string await_resume() {
+      assert(nread_);
+      if (*nread_ < 0)
+        throw UvcoException(*nread_, "onReceiveOne");
       assert(buffer_);
       return std::move(*buffer_);
     }
 
     std::optional<std::string> buffer_;
     std::optional<std::coroutine_handle<>> handle_;
-    std::optional<struct sockaddr> addr_;
+    std::optional<AddressHandle> addr_;
     std::optional<int> nread_;
   };
 
@@ -507,10 +653,8 @@ public:
 
     state_ = State_::resolving;
 
-    struct addrinfo *ai =
-        co_await resolver.gai(host_, fmt::format("{}", port_));
+    AddressHandle ah = co_await resolver.gai(host_, fmt::format("{}", port_));
     fmt::print("Resolution OK\n");
-    struct sockaddr *addr = ai->ai_addr;
 
     uv_connect_t req;
     ConnectAwaiter_ connect{};
@@ -521,11 +665,9 @@ public:
     auto tcp = std::make_unique<uv_tcp_t>();
 
     uv_tcp_init(loop_, tcp.get());
-    uv_tcp_connect(&req, tcp.get(), addr, onConnect);
+    uv_tcp_connect(&req, tcp.get(), ah.sockaddr(), onConnect);
 
     co_await connect;
-
-    uv_freeaddrinfo(ai);
 
     if (connect.status_ < 0) {
       throw UvcoException(*connect.status_, "connect");
@@ -707,17 +849,14 @@ Promise<void> enumerateStdinLines(uv_loop_t *loop) {
 Promise<void> resolveName(uv_loop_t *loop, std::string_view name) {
   Resolver resolver{loop};
   log(loop, "Before GAI");
-  struct addrinfo *ai = co_await resolver.gai(name, "443");
-  struct sockaddr_in *sa = (struct sockaddr_in *)ai->ai_addr;
-  unsigned char *addr_array = (unsigned char *)&sa->sin_addr.s_addr;
-  std::span<unsigned char> a{addr_array, 4};
-  log(loop, fmt::format("After GAI: {}.{}.{}.{}", a[0], a[1], a[2], a[3]));
-  uv_freeaddrinfo(ai);
+  AddressHandle ah = co_await resolver.gai(name, "443");
+  log(loop, fmt::format("After GAI: {}", ah.toString()));
   co_return;
 }
 
-// DANGER: due to the C++ standard definition, it is invalid to call a function
-// returning Promise<T> with an argument accepted by a constructor of Promise<T>
+// DANGER: due to the C++ standard definition, it is invalid to call a
+// function returning Promise<T> with an argument accepted by a constructor of
+// Promise<T>
 // -- because then, the coroutine returns to itself!
 Promise<int> fulfillWait(Promise<int> *p) {
   fmt::print("fulfill before await\n");
@@ -746,6 +885,7 @@ Promise<void> testHttpRequest(uv_loop_t *loop) {
 
 Promise<void> udpServer(uv_loop_t *loop) {
   uint32_t counter = 0;
+  constexpr std::string_view buffer{"Hello back"};
   std::chrono::system_clock clock;
   const std::chrono::time_point zero = clock.now();
 
@@ -754,15 +894,20 @@ Promise<void> udpServer(uv_loop_t *loop) {
 
   std::chrono::time_point last = zero;
 
-  while (true) {
-    std::string buffer = co_await server.receiveOne();
+  while (counter < 50) {
+    auto recvd = co_await server.receiveOneFrom();
+    auto &buffer = recvd.first;
+    auto &from = recvd.second;
+
     const std::chrono::time_point now = clock.now();
     const std::chrono::duration passed = now - last;
     last = now;
     const uint64_t passed_micros =
         std::chrono::duration_cast<std::chrono::microseconds>(passed).count();
-    fmt::print("[{:03d} @ {:d}] Received: {}\n", counter, passed_micros,
-               buffer);
+    fmt::print("[{:03d} @ {:d}] Received >> {} << from {}\n", counter,
+               passed_micros, buffer, from.toString());
+
+    co_await server.send(std::span{buffer.begin(), buffer.end()}, from);
 
     ++counter;
   }
@@ -777,8 +922,11 @@ Promise<void> udpClient(uv_loop_t *loop) {
   Udp client{loop};
   co_await client.connect("::1", 9999);
 
-  for (uint32_t i = 0; i < max; ++i)
-    co_await client.send(std::span{msg}, "", 0);
+  for (uint32_t i = 0; i < max; ++i) {
+    co_await client.send(std::span{msg}, {});
+    auto response = co_await client.receiveOne();
+    fmt::print("Response: {}\n", response);
+  }
 
   co_await client.close();
 }
