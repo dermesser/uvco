@@ -1,3 +1,5 @@
+// uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
+
 #pragma once
 
 #include <fmt/format.h>

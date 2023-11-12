@@ -14,7 +14,7 @@ if(ENABLE_ASAN)
     add_link_options(-fsanitize=address)
 endif()
 
-add_library(event-loop STATIC
+add_library(event-loop-lib STATIC
     src/close.cc
     src/internal_utils.cc
     src/name_resolution.cc
@@ -24,11 +24,11 @@ add_library(event-loop STATIC
     src/udp.cc
 
     src/event_loop.cc)
-target_link_libraries(event-loop PRIVATE ${UV_LIBRARIES} ${FMT_LIBRARIES})
-target_include_directories(event-loop PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
+target_link_libraries(event-loop-lib PRIVATE ${UV_LIBRARIES} ${FMT_LIBRARIES})
+target_include_directories(event-loop-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
 #target_compile_options(event-loop PRIVATE)
 
 
 add_executable(test-event-loop src/test_event_loop.cc)
-target_link_libraries(test-event-loop event-loop)
+target_link_libraries(test-event-loop event-loop-lib)
 
