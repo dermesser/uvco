@@ -29,7 +29,7 @@ Provide ergonomic asynchronous abstractions of all libuv functionality.
 // Using co_await in a function turns it into a coroutine. You can co_await all
 // Promise and MultiPromise values; the right thing will happen.
 Promise<void> testHttpRequest(uv_loop_t *loop) {
-uvco::TcpClient client{loop, "borgac.net", 80, AF_INET};
+  uvco::TcpClient client{loop, "borgac.net", 80, AF_INET};
   co_await client.connect();
 
   std::optional<uvco::Stream> &stream = client.stream();
