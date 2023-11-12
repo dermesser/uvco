@@ -653,13 +653,13 @@ private:
 class TcpClient {
 public:
   explicit TcpClient(uv_loop_t *loop, std::string target_host_address,
-                     uint16_t target_host_port)
-      : loop_{loop}, host_{std::move(target_host_address)},
-        port_{target_host_port}, state_{State_::initialized} {}
+                     uint16_t target_host_port, int af_hint = AF_UNSPEC)
+      : loop_{loop}, host_{std::move(target_host_address)}, af_hint_{af_hint},
+        state_{State_::initialized}, port_{target_host_port} {}
 
   TcpClient(TcpClient &&other)
-      : loop_{other.loop_}, host_{std::move(other.host_)}, port_{other.port_},
-        state_{other.state_} {
+      : loop_{other.loop_}, host_{std::move(other.host_)},
+        af_hint_{other.af_hint_}, state_{other.state_}, port_{other.port_} {
     other.state_ = State_::invalid;
   }
   TcpClient(const TcpClient &) = delete;
@@ -679,8 +679,9 @@ public:
 
     state_ = State_::resolving;
 
-    AddressHandle ah = co_await resolver.gai(host_, fmt::format("{}", port_));
-    fmt::print("Resolution OK\n");
+    AddressHandle ah =
+        co_await resolver.gai(host_, fmt::format("{}", port_), af_hint_);
+    fmt::print("Resolution OK: {}\n", ah.toString());
 
     uv_connect_t req;
     ConnectAwaiter_ connect{};
@@ -732,8 +733,9 @@ private:
   uv_loop_t *loop_;
 
   std::string host_;
-  uint16_t port_;
+  int af_hint_;
   State_ state_;
+  uint16_t port_;
 
   // Maybe need call to uv_tcp_close_reset?
   std::optional<Stream> connected_stream_;
@@ -892,7 +894,7 @@ Promise<int> fulfillWait(Promise<int> *p) {
 }
 
 Promise<void> testHttpRequest(uv_loop_t *loop) {
-  TcpClient client{loop, "ip6.me", 80};
+  TcpClient client{loop, "borgac.net", 80, AF_INET};
   co_await client.connect();
   auto &stream = client.stream();
   assert(stream);
@@ -989,13 +991,15 @@ void run_loop(int disc) {
   */
   // Promise<void> p = setupUppercasing(&loop);
 
-  // Promise<void> p = testHttpRequest(&loop);
+  Promise<void> p = testHttpRequest(&loop);
 
+  /*
   Promise<void> p;
   if (disc == 0)
     p = udpServer(&loop);
   if (disc == 1)
     p = udpClient(&loop);
+  */
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
