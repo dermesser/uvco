@@ -274,7 +274,7 @@ public:
     core_->slot = std::move(value);
     // TODO: schedule resume on event loop.
     core_->resume();
-    return std::suspend_never{};
+    return {};
   }
 
   MultiPromiseAwaiter_ operator co_await() {
@@ -282,7 +282,7 @@ public:
   }
 
   bool ready() { return core_->slot.has_value(); }
-  T result() { return std::move(*core_->slot); }
+  T result() { T t = std::move(*core_->slot); core_->slot.reset(); return t; }
 
 protected:
   struct MultiPromiseAwaiter_ {

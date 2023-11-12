@@ -541,6 +541,23 @@ public:
     co_return std::make_pair(buffer, *awaiter.addr_);
   }
 
+  MultiPromise<std::pair<std::string, AddressHandle>> receiveMany() {
+    RecvAwaiter_ awaiter{};
+    awaiter.stop_receiving_ = false;
+    udp_->data = &awaiter;
+
+    int status = uv_udp_recv_start(udp_.get(), allocator, onReceiveOne);
+    if (status != 0)
+      throw UvcoException(status, "receiveMany(): uv_udp_recv_start()");
+
+    while (true) {
+      std::string buffer = co_await awaiter;
+      co_yield std::make_pair(std::move(buffer), *awaiter.addr_);
+      // TODO: a way to stop?
+    };
+    co_return;
+  }
+
   Promise<void> close() {
     CloseAwaiter awaiter{};
     udp_->data = &awaiter;
@@ -558,25 +575,31 @@ private:
   static void onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
                            const struct sockaddr *addr, unsigned int flags) {
 
-    uv_udp_recv_stop(handle);
     auto *awaiter = (RecvAwaiter_ *)handle->data;
+    if (awaiter->stop_receiving_)
+      uv_udp_recv_stop(handle);
     awaiter->nread_ = nread;
 
     if (addr == nullptr) {
       // Error or asking to free buffers.
-      if (flags & UV_UDP_MMSG_FREE)
+      if (!(flags & UV_UDP_MMSG_CHUNK))
         freeUvBuf(buf);
+      if (nread == 0)
+        return;
     } else {
       awaiter->addr_ = AddressHandle{addr};
-      if (nread > 0)
+      if (nread >= 0)
         awaiter->buffer_ = std::string{buf->base, static_cast<size_t>(nread)};
     }
 
     if (0 == (flags & UV_UDP_MMSG_CHUNK))
       freeUvBuf(buf);
 
-    if (awaiter->handle_)
-      awaiter->handle_->resume();
+    if (awaiter->handle_) {
+      auto handle = *awaiter->handle_;
+      awaiter->handle_.reset();
+      handle.resume();
+    }
   }
 
   struct RecvAwaiter_ {
@@ -591,13 +614,16 @@ private:
       if (*nread_ < 0)
         throw UvcoException(*nread_, "onReceiveOne");
       assert(buffer_);
-      return std::move(*buffer_);
+      auto b = std::move(*buffer_);
+      buffer_.reset();
+      return b;
     }
 
     std::optional<std::string> buffer_;
     std::optional<std::coroutine_handle<>> handle_;
     std::optional<AddressHandle> addr_;
     std::optional<int> nread_;
+    bool stop_receiving_ = true;
   };
 
   static void onSendDone(uv_udp_send_t *req, int status) {
@@ -893,11 +919,15 @@ Promise<void> udpServer(uv_loop_t *loop) {
   co_await server.bind("::1", 9999, 0);
 
   std::chrono::time_point last = zero;
+  MultiPromise<std::pair<std::string, AddressHandle>> packets =
+      server.receiveMany();
 
   while (counter < 50) {
-    auto recvd = co_await server.receiveOneFrom();
-    auto &buffer = recvd.first;
-    auto &from = recvd.second;
+    auto recvd = co_await packets;
+    if (!recvd)
+      break;
+    auto &buffer = recvd->first;
+    auto &from = recvd->second;
 
     const std::chrono::time_point now = clock.now();
     const std::chrono::duration passed = now - last;
