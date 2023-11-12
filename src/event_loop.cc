@@ -923,6 +923,15 @@ Promise<void> udpServer(uv_loop_t *loop) {
       server.receiveMany();
 
   while (counter < 50) {
+    /*
+     * Can also be written as:
+     *
+     *   auto recvd = co_await server.receiveOneFrom();
+     *   auto &buffer = recvd.first;
+     *   auto &from = recvd.second;
+     *
+     *  With little/no performance impact.
+     */
     auto recvd = co_await packets;
     if (!recvd)
       break;
