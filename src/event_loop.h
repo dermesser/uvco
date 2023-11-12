@@ -4,6 +4,6 @@
 
 namespace uvco {
 
-void run_loop();
+void run_loop(int disc);
 
 } // namespace uvco

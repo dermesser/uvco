@@ -1,3 +1,4 @@
+#include <chrono>
 #include <uv.h>
 
 #include "promise.h"
@@ -8,6 +9,7 @@
 #include <fmt/format.h>
 #include <functional>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <string_view>
 #include <typeinfo>
@@ -20,10 +22,14 @@ void log(uv_loop_t *loop, std::string_view message) {
 }
 
 void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
-  char *underlying = new char[sugg];
+  constexpr static size_t defaultSize = 2048;
+  const size_t size = std::min(defaultSize, sugg);
+  char *underlying = new char[size];
   buf->base = underlying;
-  buf->len = sugg;
+  buf->len = size;
 }
+
+void freeUvBuf(const uv_buf_t *buf) { delete[] buf->base; }
 
 struct UvHandleDeleter {
   void del(uv_handle_t *handle) {
@@ -44,14 +50,33 @@ struct UvHandleDeleter {
       delete (uv_handle_t *)handle;
       break;
     default:
-      delete handle;
       fmt::print("WARN: unhandled handle type {}\n", handle->type);
+      delete handle;
     }
   }
   template <typename Handle> void operator()(Handle *handle) {
     del((uv_handle_t *)handle);
   }
 };
+
+struct CloseAwaiter {
+  bool await_ready() const { return closed_; }
+  bool await_suspend(std::coroutine_handle<> handle) {
+    handle_ = handle;
+    return true;
+  }
+  void await_resume() {}
+
+  std::optional<std::coroutine_handle<>> handle_;
+  bool closed_ = false;
+};
+
+static void onCloseCallback(uv_handle_t *stream) {
+  auto *awaiter = (CloseAwaiter *)stream->data;
+  awaiter->closed_ = true;
+  if (awaiter->handle_)
+    awaiter->handle_->resume();
+}
 
 } // namespace
 
@@ -102,7 +127,7 @@ public:
   Promise<void> close(void (*uv_close_impl)(uv_handle_t *,
                                             uv_close_cb) = uv_close) {
     // TODO: schedule closing operation on event loop?
-    CloseAwaiter_ awaiter{};
+    CloseAwaiter awaiter{};
 
     stream_->data = &awaiter;
     uv_close_impl((uv_handle_t *)stream_.get(), onCloseCallback);
@@ -112,25 +137,6 @@ public:
 
 private:
   std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
-
-  static void onCloseCallback(uv_handle_t *stream) {
-    auto *awaiter = (CloseAwaiter_ *)stream->data;
-    awaiter->closed_ = true;
-    if (awaiter->handle_)
-      awaiter->handle_->resume();
-  }
-
-  struct CloseAwaiter_ {
-    bool await_ready() const { return closed_; }
-    bool await_suspend(std::coroutine_handle<> handle) {
-      handle_ = handle;
-      return true;
-    }
-    void await_resume() {}
-
-    std::optional<std::coroutine_handle<>> handle_;
-    bool closed_ = false;
-  };
 
   struct InStreamAwaiter_ {
     explicit InStreamAwaiter_(Stream &stream) : stream_{stream}, slot_{} {}
@@ -177,7 +183,7 @@ private:
         awaiter->handle_->resume();
       }
 
-      delete[] buf->base;
+      freeUvBuf(buf);
     }
 
     Stream &stream_;
@@ -210,6 +216,7 @@ private:
       write_.data = this;
       handle_ = handle;
       auto bufs = prepare_buffers();
+      // TODO: move before suspension point.
       uv_write(&write_, stream_.stream_.get(), bufs.data(), bufs.size(),
                onOutStreamWrite);
 
@@ -243,22 +250,30 @@ class Resolver {
 public:
   explicit Resolver(uv_loop_t *loop) : loop_{loop} {}
 
-  Promise<struct addrinfo *> gai(std::string_view host, std::string_view port) {
+  Promise<struct addrinfo *> gai(std::string_view host, std::string_view port,
+                                 int af_hint = AF_UNSPEC) {
     AddrinfoAwaiter_ awaiter;
     awaiter.req_.data = &awaiter;
     struct addrinfo hints {};
-    hints.ai_family = AF_INET;
+    hints.ai_family = af_hint;
     hints.ai_socktype = SOCK_STREAM;
 
     uv_getaddrinfo(loop_, &awaiter.req_, onAddrinfo, host.data(), port.data(),
                    &hints);
     // Npte: we rely on libuv not resuming before awaiting the result.
     struct addrinfo *result = co_await awaiter;
-    fmt::print("gai status: {}\n", awaiter.status_.value());
+
+    int status = awaiter.status_.value();
+    if (status != 0) {
+      throw UvcoException{status, "getaddrinfo()"};
+    }
+
     co_return result;
   }
 
 private:
+  uv_loop_t *loop_;
+
   static void onAddrinfo(uv_getaddrinfo_t *req, int status,
                          struct addrinfo *result) {
     auto *awaiter = (AddrinfoAwaiter_ *)req->data;
@@ -286,8 +301,181 @@ private:
     std::optional<int> status_;
     std::optional<std::coroutine_handle<>> handle_;
   };
+};
 
+class Udp {
+public:
+  explicit Udp(uv_loop_t *loop)
+      : loop_{loop}, udp_{std::make_unique<uv_udp_t>()} {
+    uv_udp_init(loop, udp_.get());
+  }
+  Udp(Udp &&other) = default;
+  Udp &operator=(Udp &&other) = default;
+  Udp(const Udp &) = delete;
+  Udp &operator=(const Udp &) = delete;
+  ~Udp() { assert(!udp_); }
+
+  Promise<void> bind(std::string_view address, uint16_t port,
+                     unsigned int flag = 0) {
+    Resolver r{loop_};
+    int hint = 0;
+    if (flag | UV_UDP_IPV6ONLY)
+      hint = AF_INET6;
+    struct addrinfo *ai =
+        co_await r.gai(address, fmt::format("{}", port), hint);
+    struct sockaddr *first = ai->ai_addr;
+
+    int status = uv_udp_bind(udp_.get(), first, flag);
+    uv_freeaddrinfo(ai);
+    if (status != 0)
+      throw UvcoException{status, "binding UDP socket"};
+  }
+
+  Promise<void> connect(std::string_view address, uint16_t port,
+                        bool ipv6only = false) {
+    Resolver r{loop_};
+    int hint = ipv6only ? AF_INET6 : AF_UNSPEC;
+    struct addrinfo *ai =
+        co_await r.gai(address, fmt::format("{}", port), hint);
+    struct sockaddr *first = ai->ai_addr;
+
+    int status = uv_udp_connect(udp_.get(), first);
+    uv_freeaddrinfo(ai);
+    if (status != 0)
+      throw UvcoException{status, "connecting UDP socket"};
+    connected_ = true;
+  }
+
+  template <typename T>
+  Promise<void> send(std::span<T> buffer, std::string_view address,
+                     uint16_t port, bool ipv6only = false) {
+    Resolver r{loop_};
+    struct sockaddr *addr = nullptr;
+    struct addrinfo *ai = nullptr;
+
+    if (address.size() > 0) {
+      int hint = ipv6only ? AF_INET6 : AF_UNSPEC;
+      struct addrinfo *ai =
+          co_await r.gai(address, fmt::format("{}", port), hint);
+      addr = ai->ai_addr;
+    }
+
+    SendAwaiter_ sendAwaiter{};
+    uv_udp_send_t req;
+    req.data = &sendAwaiter;
+
+    std::array<uv_buf_t, 1> bufs;
+    bufs[0].base = &(*buffer.begin());
+    bufs[0].len = buffer.size_bytes();
+
+    int status =
+        uv_udp_send(&req, udp_.get(), bufs.begin(), 1, addr, onSendDone);
+    if (ai)
+      uv_freeaddrinfo(ai);
+    if (status != 0)
+      throw UvcoException{status, "uv_udp_send() failed immediately"};
+
+    int status_done = co_await sendAwaiter;
+    if (status_done != 0)
+      throw UvcoException{status_done, "uv_udp_send() failed while sending"};
+
+    co_return;
+  }
+
+  Promise<std::string> receiveOne() {
+    RecvAwaiter_ awaiter{};
+    udp_->data = &awaiter;
+    int status = uv_udp_recv_start(udp_.get(), allocator, onReceiveOne);
+    if (status != 0)
+      throw UvcoException(status, "uv_udp_recv_start()");
+
+    std::string buffer = co_await awaiter;
+
+    if (awaiter.nread_ && *awaiter.nread_ < 0)
+      throw UvcoException(*awaiter.nread_, "uv UDP recv");
+
+    udp_->data = nullptr;
+    co_return buffer;
+  }
+
+  Promise<void> close() {
+    CloseAwaiter awaiter{};
+    udp_->data = &awaiter;
+    uv_close((uv_handle_t *)udp_.get(), onCloseCallback);
+    co_await awaiter;
+    udp_.reset();
+    connected_ = false;
+  }
+
+private:
   uv_loop_t *loop_;
+  std::unique_ptr<uv_udp_t> udp_;
+  bool connected_ = false;
+
+  static void onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
+                           const struct sockaddr *addr, unsigned int flags) {
+
+    if (addr == nullptr && nread == 0) {
+      if (handle->flags & UV_UDP_MMSG_FREE)
+        freeUvBuf(buf);
+      return;
+    }
+
+    uv_udp_recv_stop(handle);
+
+    auto *awaiter = (RecvAwaiter_ *)handle->data;
+    awaiter->nread_ = nread;
+    awaiter->addr_ = *addr;
+    if (nread > 0)
+      awaiter->buffer_ = std::string{buf->base, static_cast<size_t>(nread)};
+
+    if (0 == (handle->flags & UV_UDP_MMSG_CHUNK))
+      freeUvBuf(buf);
+
+    if (awaiter->handle_)
+      awaiter->handle_->resume();
+  }
+
+  struct RecvAwaiter_ {
+    bool await_ready() const { return buffer_.has_value(); }
+    bool await_suspend(std::coroutine_handle<> h) {
+      assert(!handle_);
+      handle_ = h;
+      return true;
+    }
+    std::string await_resume() {
+      assert(buffer_);
+      return std::move(*buffer_);
+    }
+
+    std::optional<std::string> buffer_;
+    std::optional<std::coroutine_handle<>> handle_;
+    std::optional<struct sockaddr> addr_;
+    std::optional<int> nread_;
+  };
+
+  static void onSendDone(uv_udp_send_t *req, int status) {
+    auto *awaiter = (SendAwaiter_ *)req->data;
+    awaiter->status_ = status;
+    if (awaiter->handle_)
+      awaiter->handle_->resume();
+  }
+
+  struct SendAwaiter_ {
+    bool await_ready() { return status_.has_value(); }
+    bool await_suspend(std::coroutine_handle<> h) {
+      assert(!handle_);
+      handle_ = h;
+      return true;
+    }
+    int await_resume() {
+      assert(status_);
+      return *status_;
+    }
+
+    std::optional<std::coroutine_handle<>> handle_;
+    std::optional<int> status_;
+  };
 };
 
 class TcpClient {
@@ -539,7 +727,7 @@ Promise<int> fulfillWait(Promise<int> *p) {
 }
 
 Promise<void> testHttpRequest(uv_loop_t *loop) {
-  TcpClient client{loop, "borgac.net", 80};
+  TcpClient client{loop, "ip6.me", 80};
   co_await client.connect();
   auto &stream = client.stream();
   assert(stream);
@@ -556,7 +744,46 @@ Promise<void> testHttpRequest(uv_loop_t *loop) {
   co_await client.close();
 }
 
-void run_loop() {
+Promise<void> udpServer(uv_loop_t *loop) {
+  uint32_t counter = 0;
+  std::chrono::system_clock clock;
+  const std::chrono::time_point zero = clock.now();
+
+  Udp server{loop};
+  co_await server.bind("::1", 9999, 0);
+
+  std::chrono::time_point last = zero;
+
+  while (true) {
+    std::string buffer = co_await server.receiveOne();
+    const std::chrono::time_point now = clock.now();
+    const std::chrono::duration passed = now - last;
+    last = now;
+    const uint64_t passed_micros =
+        std::chrono::duration_cast<std::chrono::microseconds>(passed).count();
+    fmt::print("[{:03d} @ {:d}] Received: {}\n", counter, passed_micros,
+               buffer);
+
+    ++counter;
+  }
+  co_await server.close();
+  co_return;
+}
+
+Promise<void> udpClient(uv_loop_t *loop) {
+  constexpr static uint32_t max = 16;
+  std::string msg = "Hello there!";
+
+  Udp client{loop};
+  co_await client.connect("::1", 9999);
+
+  for (uint32_t i = 0; i < max; ++i)
+    co_await client.send(std::span{msg}, "", 0);
+
+  co_await client.close();
+}
+
+void run_loop(int disc) {
   Data data;
 
   uv_loop_t loop;
@@ -575,7 +802,13 @@ void run_loop() {
   */
   // Promise<void> p = setupUppercasing(&loop);
 
-  Promise<void> p = testHttpRequest(&loop);
+  // Promise<void> p = testHttpRequest(&loop);
+
+  Promise<void> p;
+  if (disc == 0)
+    p = udpServer(&loop);
+  if (disc == 1)
+    p = udpClient(&loop);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
