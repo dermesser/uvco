@@ -8,6 +8,7 @@ Stream::~Stream() {
   // close() MUST be called and awaited before dtor.
   assert(!stream_);
 }
+
 Stream Stream::tty(uv_loop_t *loop, int fd) {
   auto *tty = new uv_tty_t{};
   int status = uv_tty_init(loop, tty, fd, 0);
@@ -17,17 +18,20 @@ Stream Stream::tty(uv_loop_t *loop, int fd) {
   auto *stream = (uv_stream_t *)tty;
   return Stream(stream);
 }
+
 Promise<std::optional<std::string>> Stream::read() {
   // This is a promise root function, i.e. origin of a promise.
   InStreamAwaiter_ awaiter{*this};
   std::optional<std::string> buf = co_await awaiter;
   co_return buf;
 }
+
 Promise<Stream::uv_status> Stream::write(std::string buf) {
   OutStreamAwaiter_ awaiter{*this, std::move(buf)};
   uv_status status = co_await awaiter;
   co_return status;
 }
+
 Promise<void> Stream::close(void (*uv_close_impl)(uv_handle_t *, uv_close_cb)) {
   // TODO: schedule closing operation on event loop?
   CloseAwaiter awaiter{};
@@ -37,6 +41,7 @@ Promise<void> Stream::close(void (*uv_close_impl)(uv_handle_t *, uv_close_cb)) {
   co_await awaiter;
   stream_.reset();
 }
+
 bool Stream::InStreamAwaiter_::await_ready() {
   int state = uv_is_readable(stream_.stream_.get());
   if (state == 1) {
@@ -46,22 +51,27 @@ bool Stream::InStreamAwaiter_::await_ready() {
   }
   return slot_.has_value();
 }
+
 bool Stream::InStreamAwaiter_::await_suspend(std::coroutine_handle<> handle) {
   stream_.stream_->data = this;
   handle_ = handle;
   start_read();
   return true;
 }
+
 std::optional<std::string> Stream::InStreamAwaiter_::await_resume() {
   assert(slot_);
   return std::move(*slot_);
 }
+
 void Stream::InStreamAwaiter_::start_read() {
   uv_read_start(stream_.stream_.get(), allocator, onInStreamRead);
 }
+
 void Stream::InStreamAwaiter_::stop_read() {
   uv_read_stop(stream_.stream_.get());
 }
+
 void Stream::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
                                               ssize_t nread,
                                               const uv_buf_t *buf) {
@@ -82,6 +92,7 @@ void Stream::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
 
   freeUvBuf(buf);
 }
+
 Stream::OutStreamAwaiter_::OutStreamAwaiter_(Stream &stream,
                                              std::string &&buffer)
     : stream_{stream}, buffer_{std::move(buffer)}, write_{} {}
@@ -91,6 +102,7 @@ std::array<uv_buf_t, 1> Stream::OutStreamAwaiter_::prepare_buffers() const {
   bufs[0].len = buffer_.size();
   return bufs;
 }
+
 bool Stream::OutStreamAwaiter_::await_ready() {
   // Attempt early write:
   auto bufs = prepare_buffers();
@@ -99,6 +111,7 @@ bool Stream::OutStreamAwaiter_::await_ready() {
     status_ = result;
   return result > 0;
 }
+
 bool Stream::OutStreamAwaiter_::await_suspend(std::coroutine_handle<> handle) {
   write_.data = this;
   handle_ = handle;
@@ -109,10 +122,12 @@ bool Stream::OutStreamAwaiter_::await_suspend(std::coroutine_handle<> handle) {
 
   return true;
 }
+
 Stream::uv_status Stream::OutStreamAwaiter_::await_resume() {
   assert(status_);
   return *status_;
 }
+
 void Stream::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
                                                  int status) {
   auto *state = (OutStreamAwaiter_ *)write->data;
@@ -120,4 +135,5 @@ void Stream::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
   assert(state->handle_);
   state->handle_->resume();
 }
+
 } // namespace uvco

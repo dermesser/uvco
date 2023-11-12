@@ -1,11 +1,12 @@
 #include <chrono>
 #include <uv.h>
 
-#include "promise.h"
-#include "name_resolution.h"
-#include "stream.h"
-#include "udp.h"
 #include "close.h"
+#include "name_resolution.h"
+#include "promise.h"
+#include "stream.h"
+#include "tcp.h"
+#include "udp.h"
 
 #include <algorithm>
 #include <cassert>
@@ -18,166 +19,9 @@
 #include <string_view>
 #include <typeinfo>
 
-namespace {
-
-} // namespace
+namespace {} // namespace
 
 namespace uvco {
-
-using std::coroutine_handle;
-
-class TcpClient {
-public:
-  explicit TcpClient(uv_loop_t *loop, std::string target_host_address,
-                     uint16_t target_host_port, int af_hint = AF_UNSPEC)
-      : loop_{loop}, host_{std::move(target_host_address)}, af_hint_{af_hint},
-        state_{State_::initialized}, port_{target_host_port} {}
-
-  TcpClient(TcpClient &&other)
-      : loop_{other.loop_}, host_{std::move(other.host_)},
-        af_hint_{other.af_hint_}, state_{other.state_}, port_{other.port_} {
-    other.state_ = State_::invalid;
-  }
-  TcpClient(const TcpClient &) = delete;
-  TcpClient &operator=(TcpClient &&other) {
-    loop_ = other.loop_;
-    host_ = std::move(other.host_);
-    port_ = other.port_;
-    state_ = other.state_;
-    other.state_ = State_::invalid;
-    return *this;
-  }
-  TcpClient &operator=(const TcpClient &) = delete;
-  ~TcpClient() { assert(state_ != State_::connected); }
-
-  Promise<void> connect() {
-    Resolver resolver{loop_};
-
-    state_ = State_::resolving;
-
-    AddressHandle ah =
-        co_await resolver.gai(host_, fmt::format("{}", port_), af_hint_);
-    fmt::print("Resolution OK: {}\n", ah.toString());
-
-    uv_connect_t req;
-    ConnectAwaiter_ connect{};
-    req.data = &connect;
-
-    state_ = State_::connecting;
-
-    auto tcp = std::make_unique<uv_tcp_t>();
-
-    uv_tcp_init(loop_, tcp.get());
-    uv_tcp_connect(&req, tcp.get(), ah.sockaddr(), onConnect);
-
-    co_await connect;
-
-    if (connect.status_ < 0) {
-      throw UvcoException(*connect.status_, "connect");
-    }
-    state_ = State_::connected;
-    fmt::print("Connected successfully to {}:{}\n", host_, port_);
-    connected_stream_ = Stream{(uv_stream_t *)(tcp.release())};
-  }
-
-  std::optional<Stream> &stream() { return connected_stream_; }
-
-  Promise<void> close() {
-    assert(connected_stream_);
-    if (connected_stream_) {
-      state_ = State_::closing;
-      co_await connected_stream_->close(uv_tcp_close_reset_void);
-      state_ = State_::closed;
-      connected_stream_.reset();
-    }
-    co_return;
-  }
-
-private:
-  enum class State_ {
-    initialized = 0,
-    resolving = 1,
-    connecting = 2,
-    connected = 3,
-    failed = 4,
-    closing = 5,
-    closed = 6,
-
-    invalid = 7,
-  };
-
-  uv_loop_t *loop_;
-
-  std::string host_;
-  int af_hint_;
-  State_ state_;
-  uint16_t port_;
-
-  // Maybe need call to uv_tcp_close_reset?
-  std::optional<Stream> connected_stream_;
-
-  static void uv_tcp_close_reset_void(uv_handle_t *handle, uv_close_cb cb) {
-    uv_tcp_close_reset((uv_tcp_t *)handle, cb);
-  }
-
-  static void onConnect(uv_connect_t *req, int status) {
-    fmt::print("onConnect from UV\n");
-    auto *connect = static_cast<ConnectAwaiter_ *>(req->data);
-    connect->onConnect(status);
-  }
-
-  struct ConnectAwaiter_ {
-    bool await_ready() const { return status_.has_value(); }
-    bool await_suspend(std::coroutine_handle<> h) {
-      assert(!handle_);
-      handle_ = h;
-      return true;
-    }
-    int await_resume() {
-      assert(status_);
-      return *status_;
-    }
-
-    void onConnect(int status) {
-      status_ = status;
-      if (handle_)
-        handle_->resume();
-    }
-
-    std::optional<std::coroutine_handle<>> handle_ = {};
-    std::optional<int> status_ = {};
-  };
-};
-
-class TcpServer {
-
-  // TODO...
-public:
-  // Takes ownership of tcp.
-  explicit TcpServer(uv_tcp_t *tcp) : tcp_{tcp} {}
-  explicit TcpServer(uv_loop_t *loop) : tcp_{std::make_unique<uv_tcp_t>()} {
-    uv_tcp_init(loop, tcp_.get());
-  }
-
-  static constexpr const int IPV6_ONLY = UV_TCP_IPV6ONLY;
-
-  void bind(struct sockaddr_in *addr, int flags = 0) {
-    bind((struct sockaddr *)addr, flags);
-  }
-  void bind(struct sockaddr_in6 *addr, int flags = 0) {
-    bind((struct sockaddr *)addr, flags);
-  }
-
-private:
-  int bind(struct sockaddr *addr, int flags) {
-    int result = uv_tcp_bind(tcp_.get(), addr, flags);
-    if (result != 0) {
-      throw UvcoException{result, "TcpServer::bind"};
-    }
-  }
-
-  std::unique_ptr<uv_tcp_t> tcp_;
-};
 
 template <typename T> class Fulfillable {
 public:
