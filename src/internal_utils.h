@@ -44,4 +44,17 @@ struct UvcoException : public std::exception {
   const std::string message_;
 };
 
+void log(uv_loop_t *loop, std::string_view message);
+
+void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf);
+
+void freeUvBuf(const uv_buf_t *buf);
+
+struct UvHandleDeleter {
+  static void del(uv_handle_t *handle);
+  template <typename Handle> void operator()(Handle *handle) {
+    del((uv_handle_t *)handle);
+  }
+};
+
 } // namespace uvco

@@ -18,6 +18,9 @@ add_library(event-loop STATIC
     src/internal_utils.cc
     src/promise.cc
     src/name_resolution.cc
+    src/close.cc
+    src/stream.cc
+    src/udp.cc
     src/event_loop.cc)
 target_link_libraries(event-loop PRIVATE ${UV_LIBRARIES} ${FMT_LIBRARIES})
 target_include_directories(event-loop PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
