@@ -1,11 +1,12 @@
+#pragma once
 
 #include <fmt/format.h>
 #include <utility>
 #include <uv.h>
 
-static constexpr const bool TRACK_LIFETIMES = false;
-
 namespace uvco {
+
+extern const bool TRACK_LIFETIMES;
 
 template <typename T> class LifetimeTracker {
 public:
