@@ -146,7 +146,11 @@ public:
   PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
 
   bool ready() { return core_->slot.has_value(); }
-  T result() { return std::move(*core_->slot); }
+  T result() {
+    T result = std::move(*core_->slot);
+    core_.reset();
+    return result;
+  }
 
 protected:
   struct PromiseAwaiter_ {
@@ -170,7 +174,7 @@ protected:
       assert(core_->slot.has_value());
       auto result = std::move(core_->slot.value());
       core_->slot.reset();
-      return std::move(result);
+      return result;
     }
 
     SharedCore_ core_;
@@ -284,7 +288,11 @@ public:
   }
 
   bool ready() { return core_->slot.has_value(); }
-  T result() { T t = std::move(*core_->slot); core_->slot.reset(); return t; }
+  T result() {
+    T result = std::move(*core_->slot);
+    core_->slot.reset();
+    return result;
+  }
 
 protected:
   struct MultiPromiseAwaiter_ {
@@ -312,7 +320,7 @@ protected:
       core_->slot.reset();
       // Obvious - but important to avoid constantly yielding!
       assert(!core_->slot);
-      return std::move(result);
+      return result;
     }
 
     SharedCore_ core_;
