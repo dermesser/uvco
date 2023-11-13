@@ -130,6 +130,7 @@ Promise<void> testHttpRequest(uv_loop_t *loop) {
       break;
   } while (true);
   co_await client.close();
+  uv_stop(loop);
 }
 
 Promise<void> udpServer(uv_loop_t *loop) {
@@ -214,13 +215,8 @@ void run_loop(int disc) {
 
   Promise<void> p = testHttpRequest(&loop);
 
-  /*
-  Promise<void> p;
-  if (disc == 0)
-    p = udpServer(&loop);
-  if (disc == 1)
-    p = udpClient(&loop);
-  */
+  auto server = udpServer(&loop);
+  auto client = udpClient(&loop);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
