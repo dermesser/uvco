@@ -164,7 +164,8 @@ protected:
 
     bool await_ready() const { return core_->slot.has_value(); }
     bool await_suspend(std::coroutine_handle<> handle) {
-      BOOST_ASSERT_MSG(!core_->has_resume(), "promise is already being waited on!\n");
+      BOOST_ASSERT_MSG(!core_->has_resume(),
+                       "promise is already being waited on!\n");
       core_->set_resume(handle);
       return true;
     }
@@ -223,7 +224,8 @@ private:
     bool await_ready() const { return core_->ready; }
 
     bool await_suspend(std::coroutine_handle<> handle) {
-      BOOST_ASSERT_MSG(!core_->has_resume(), "promise is already being waited on!\n");
+      BOOST_ASSERT_MSG(!core_->has_resume(),
+                       "promise is already being waited on!\n");
       core_->set_resume(handle);
       return true;
     }
@@ -303,7 +305,8 @@ protected:
       return ready;
     }
     virtual bool await_suspend(std::coroutine_handle<> handle) {
-      BOOST_ASSERT_MSG(!core_->has_resume(), "promise is already being waited on!\n");
+      BOOST_ASSERT_MSG(!core_->has_resume(),
+                       "promise is already being waited on!\n");
       core_->set_resume(handle);
       return true;
     }
