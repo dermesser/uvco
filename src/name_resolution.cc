@@ -53,10 +53,10 @@ std::string AddressHandle::toString() const {
 uint16_t AddressHandle::port() const {
   if (addr_.index() == 0) {
     const auto &addr = std::get<0>(addr_);
-    return addr.sin_port;
+    return ntohs(addr.sin_port);
   } else {
     const auto &addr = std::get<1>(addr_);
-    return addr.sin6_port;
+    return ntohs(addr.sin6_port);
   }
 }
 int AddressHandle::family() const {
@@ -66,10 +66,10 @@ int AddressHandle::family() const {
     return AF_INET6;
   throw UvcoException("family(): unknown address variant!");
 }
-struct sockaddr *AddressHandle::sockaddr() const {
+const struct sockaddr *AddressHandle::sockaddr() const {
   return std::visit(
-      [](const auto &sockaddr) -> struct sockaddr * {
-        return (struct sockaddr *)&sockaddr;
+      [](const auto &sockaddr) -> const struct sockaddr * {
+        return (const struct sockaddr *)&sockaddr;
       },
       addr_);
 }
@@ -85,7 +85,7 @@ AddressHandle::AddressHandle(std::string_view ip, uint16_t port,
     struct sockaddr_in6 addr {};
     addr.sin6_family = AF_INET6;
     addr.sin6_addr = ipAddr;
-    addr.sin6_port = port;
+    addr.sin6_port = htons(port);
     addr.sin6_scope_id = v6scope;
     addr_ = addr;
   } else {
@@ -97,7 +97,7 @@ AddressHandle::AddressHandle(std::string_view ip, uint16_t port,
     struct sockaddr_in addr {};
     addr.sin_family = AF_INET;
     addr.sin_addr = ipAddr;
-    addr.sin_port = port;
+    addr.sin_port = htons(port);
     addr_ = addr;
   }
 }
