@@ -63,7 +63,9 @@ bool Stream::InStreamAwaiter_::await_suspend(std::coroutine_handle<> handle) {
 
 std::optional<std::string> Stream::InStreamAwaiter_::await_resume() {
   assert(slot_);
-  return std::move(*slot_);
+  std::optional<std::string> result = std::move(*slot_);
+  slot_.reset();
+  return result;
 }
 
 void Stream::InStreamAwaiter_::start_read() {
@@ -88,11 +90,10 @@ void Stream::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
     awaiter->slot_ = std::optional<std::string>{};
   }
 
+  freeUvBuf(buf);
   if (awaiter->handle_) {
     awaiter->handle_->resume();
   }
-
-  freeUvBuf(buf);
 }
 
 Stream::OutStreamAwaiter_::OutStreamAwaiter_(Stream &stream,

@@ -18,7 +18,7 @@ public:
 
   // Takes ownership of stream.
   explicit Stream(uv_stream_t *stream) : stream_{stream} {}
-  Stream(Stream &&) = default;
+  Stream(Stream &&other) = default;
   Stream &operator=(Stream &&) = default;
   ~Stream();
 
@@ -31,10 +31,11 @@ public:
 
   Promise<uv_status> write(std::string buf);
 
-  Promise<void> close(void (*uv_close_impl)(uv_handle_t *,
-                                            uv_close_cb) = uv_close);
+  // close() must be co_awaited!
+  [[nodiscard]] Promise<void>
+  close(void (*uv_close_impl)(uv_handle_t *, uv_close_cb) = uv_close);
 
-  const uv_stream_t *underlying() const { return stream_.get(); }
+  [[nodiscard]] const uv_stream_t *underlying() const { return stream_.get(); }
 
 private:
   std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
