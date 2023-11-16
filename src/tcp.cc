@@ -139,6 +139,7 @@ void TcpServer::onNewConnection(uv_stream_t *stream, int status) {
   if (status == 0) {
     auto *const clientStream = new uv_tcp_t{};
     uv_tcp_init(loop, clientStream);
+    uv_accept((uv_stream_t *)server, (uv_stream_t *)clientStream);
     assert(!awaiter->slot_);
     awaiter->slot_ = Stream{(uv_stream_t *)clientStream};
   }

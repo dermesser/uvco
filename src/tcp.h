@@ -97,6 +97,7 @@ private:
       assert(status_);
 
       if (*status_ == 0) {
+        assert(slot_);
         Stream stream{std::move(*slot_)};
         status_.reset();
         slot_.reset();
