@@ -25,6 +25,8 @@ Provide ergonomic asynchronous abstractions of all libuv functionality.
 
 ## Example
 
+### HTTP 1.0 client
+
 ```c++
 // Using co_await in a function turns it into a coroutine. You can co_await all
 // Promise and MultiPromise values; the right thing will happen.
@@ -63,6 +65,64 @@ void run_loop(int disc) {
 
   uv_loop_close(&loop);
 }
+```
+
+### TCP Echo server
+
+```c++
+Promise<void> echoReceived(Stream stream) {
+  struct sockaddr_storage addr {};
+  int namelen = sizeof(addr);
+  uv_tcp_getpeername((const uv_tcp_t *)stream.underlying(),
+                     (struct sockaddr *)&addr, &namelen);
+  const AddressHandle address{(struct sockaddr *)&addr};
+  const std::string addressStr = address.toString();
+  fmt::print("Received connection from [{}]\n", addressStr);
+
+  while (true) {
+    std::optional<std::string> p = co_await stream.read();
+    if (!p) {
+      break;
+    }
+    fmt::print("[{}] {}", addressStr, *p);
+    co_await stream.write(std::move(*p));
+  }
+  co_await stream.close();
+}
+
+Promise<void> echoTcpServer(uv_loop_t *loop) {
+  AddressHandle addr{"127.0.0.1", 8090};
+  TcpServer server{loop, addr};
+  // Ensure that promises are kept alive. Not strictly necessary here,
+  // but useful to e.g. await on these promises.
+  // Reason: promise cores are ref-counted and will survive on the coroutine frame.
+  std::vector<Promise<void>> clientLoops{};
+
+  MultiPromise<Stream> clients = server.listen();
+
+  while (true) {
+    std::optional<Stream> client = co_await clients;
+    if (!client)
+      break;
+    Promise<void> clientLoop = echoReceived(std::move(*client));
+    clientLoops.push_back(clientLoop);
+  }
+}
+
+int main(void) {
+  uv_loop_t loop;
+  uv_loop_init(&loop);
+  uv_loop_set_data(&loop, &data);
+
+  Promise<void> p = echoTcpServer(&loop);
+
+  uv_run(&loop, UV_RUN_DEFAULT);
+
+  // Never reached: infinite accept loop.
+
+  uv_loop_close(&loop);
+}
+
 ```
 
 ## Dependencies

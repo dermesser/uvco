@@ -227,6 +227,8 @@ Promise<void> echoTcpServer(uv_loop_t *loop) {
     if (!client)
       break;
     Promise<void> clientLoop = echoReceived(std::move(*client));
+    // TODO: investigate if coroutine handles need to be destroyed?
+    // Are the frames released automatically upon return?
     clientLoops.push_back(clientLoop);
   }
 }
