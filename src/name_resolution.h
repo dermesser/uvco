@@ -42,7 +42,7 @@ public:
 
   int family() const;
 
-  struct sockaddr *sockaddr() const;
+  const struct sockaddr *sockaddr() const;
 
 private:
   std::variant<struct sockaddr_in, struct sockaddr_in6> addr_{};

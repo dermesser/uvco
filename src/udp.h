@@ -38,7 +38,7 @@ public:
     bufs[0].base = &(*buffer.begin());
     bufs[0].len = buffer.size_bytes();
 
-    struct sockaddr *addr = nullptr;
+    const struct sockaddr *addr = nullptr;
     if (ah)
       addr = ah->sockaddr();
 
