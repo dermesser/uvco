@@ -89,8 +89,7 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
     // Error or asking to free buffers.
     if (!(flags & UV_UDP_MMSG_CHUNK))
       freeUvBuf(buf);
-    if (nread == 0)
-      return;
+    return;
   } else {
     awaiter->addr_ = AddressHandle{addr};
     if (nread >= 0)

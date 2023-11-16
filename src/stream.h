@@ -34,6 +34,8 @@ public:
   Promise<void> close(void (*uv_close_impl)(uv_handle_t *,
                                             uv_close_cb) = uv_close);
 
+  const uv_stream_t *underlying() const { return stream_.get(); }
+
 private:
   std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
 
@@ -77,4 +79,4 @@ private:
   };
 };
 
-}  // namespace uvco
+} // namespace uvco

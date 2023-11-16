@@ -130,7 +130,6 @@ Promise<void> testHttpRequest(uv_loop_t *loop) {
       break;
   } while (true);
   co_await client.close();
-  uv_stop(loop);
 }
 
 Promise<void> udpServer(uv_loop_t *loop) {
@@ -179,7 +178,7 @@ Promise<void> udpServer(uv_loop_t *loop) {
 }
 
 Promise<void> udpClient(uv_loop_t *loop) {
-  constexpr static uint32_t max = 16;
+  constexpr static uint32_t max = 50;
   std::string msg = "Hello there!";
 
   Udp client{loop};
@@ -192,6 +191,19 @@ Promise<void> udpClient(uv_loop_t *loop) {
   }
 
   co_await client.close();
+}
+
+Promise<void> testFunc(Promise<void> a) { co_await a; }
+
+Promise<void> echoTcpServer(uv_loop_t *loop) {
+  AddressHandle addr{"127.0.0.1", 8090};
+  TcpServer server{loop, addr};
+
+  MultiPromise<Stream> clients = server.listen();
+
+  while (true) {
+    std::optional<Stream> client = co_await clients;
+  }
 }
 
 void run_loop(int disc) {
@@ -217,6 +229,9 @@ void run_loop(int disc) {
 
   auto server = udpServer(&loop);
   auto client = udpClient(&loop);
+
+  testFunc(server);
+  testFunc(server);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);

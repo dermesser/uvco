@@ -4,6 +4,7 @@
 
 #include "internal_utils.h"
 
+#include <boost/assert.hpp>
 #include <cassert>
 #include <coroutine>
 #include <fmt/format.h>
@@ -163,10 +164,7 @@ protected:
 
     bool await_ready() const { return core_->slot.has_value(); }
     bool await_suspend(std::coroutine_handle<> handle) {
-      if (core_->has_resume()) {
-        fmt::print("promise is already being waited on!\n");
-        assert(false);
-      }
+      BOOST_ASSERT_MSG(!core_->has_resume(), "promise is already being waited on!\n");
       core_->set_resume(handle);
       return true;
     }
@@ -225,10 +223,7 @@ private:
     bool await_ready() const { return core_->ready; }
 
     bool await_suspend(std::coroutine_handle<> handle) {
-      if (core_->has_resume()) {
-        fmt::print("promise is already being waited on!\n");
-        assert(false);
-      }
+      BOOST_ASSERT_MSG(!core_->has_resume(), "promise is already being waited on!\n");
       core_->set_resume(handle);
       return true;
     }
@@ -308,10 +303,7 @@ protected:
       return ready;
     }
     virtual bool await_suspend(std::coroutine_handle<> handle) {
-      if (core_->has_resume()) {
-        fmt::print("promise is already being waited on!\n");
-        assert(false);
-      }
+      BOOST_ASSERT_MSG(!core_->has_resume(), "promise is already being waited on!\n");
       core_->set_resume(handle);
       return true;
     }

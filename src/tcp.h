@@ -4,6 +4,7 @@
 
 #include <uv.h>
 
+#include "name_resolution.h"
 #include "stream.h"
 
 namespace uvco {
@@ -65,22 +66,54 @@ private:
 };
 
 class TcpServer {
-
   // TODO...
 public:
-  // Takes ownership of tcp.
-  explicit TcpServer(uv_tcp_t *tcp) : tcp_{tcp} {}
-  explicit TcpServer(uv_loop_t *loop);
+  // Sets up and binds socket to address.
+  TcpServer(uv_loop_t *loop, AddressHandle bindAddress, bool ipv6Only = false);
 
-  static constexpr const int IPV6_ONLY = UV_TCP_IPV6ONLY;
+  TcpServer(const TcpServer &) = delete;
+  TcpServer(TcpServer &&) = default;
+  TcpServer &operator=(const TcpServer &) = delete;
+  TcpServer &operator=(TcpServer &&) = default;
 
-  void bind(struct sockaddr_in *addr, int flags = 0);
-  void bind(struct sockaddr_in6 *addr, int flags = 0);
+  MultiPromise<Stream> listen(int backlog = 128);
 
 private:
-  void bind(struct sockaddr *addr, int flags);
+  void bind(const struct sockaddr *addr, int flags);
 
-  std::unique_ptr<uv_tcp_t> tcp_;
+  static void onNewConnection(uv_stream_t *server, int status);
+
+  uv_loop_t *loop_;
+  uv_tcp_t tcp_;
+
+  struct ConnectionAwaiter_ {
+    explicit ConnectionAwaiter_(uv_loop_t *loop) : loop_{loop} {}
+    bool await_ready() { return false; }
+    bool await_suspend(std::coroutine_handle<> handle) {
+      handle_ = handle;
+      return true;
+    }
+    Stream await_resume() {
+      assert(status_);
+
+      if (*status_ == 0) {
+        Stream stream{std::move(*slot_)};
+        status_.reset();
+        slot_.reset();
+        return stream;
+      } else {
+        int status = *status_;
+        assert(!slot_);
+        status_.reset();
+        throw UvcoException(status, "TcpServer::listen()");
+      }
+    }
+
+    uv_loop_t *loop_;
+    std::optional<std::coroutine_handle<>> handle_;
+    std::optional<Stream> slot_;
+    std::optional<int> status_;
+  };
 };
 
 } // namespace uvco

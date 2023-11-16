@@ -101,23 +101,47 @@ void TcpClient::ConnectAwaiter_::onConnect(int status) {
     handle_->resume();
 }
 
-void TcpServer::bind(struct sockaddr *addr, int flags) {
-  int result = uv_tcp_bind(tcp_.get(), addr, flags);
+TcpServer::TcpServer(uv_loop_t *loop, AddressHandle bindAddress, bool ipv6Only)
+    : loop_{loop} {
+  uv_tcp_init(loop, &tcp_);
+  const auto *sa = bindAddress.sockaddr();
+  const unsigned flags = ipv6Only ? UV_TCP_IPV6ONLY : 0;
+  bind(sa, flags);
+}
+
+void TcpServer::bind(const struct sockaddr *addr, int flags) {
+  int result = uv_tcp_bind(&tcp_, addr, flags);
   if (result != 0) {
-    throw UvcoException{result, "TcpServer::bind"};
+    throw UvcoException{result, "TcpServer::bind()"};
   }
 }
 
-void TcpServer::bind(struct sockaddr_in *addr, int flags) {
-  bind((struct sockaddr *)addr, flags);
+MultiPromise<Stream> TcpServer::listen(int backlog) {
+  uv_listen((uv_stream_t *)&tcp_, backlog, onNewConnection);
+
+  ConnectionAwaiter_ awaiter{loop_};
+
+  // TODO: elegant way to shut down listener loop?
+  while (true) {
+    // TODO: specialize stream to enable getsockname etc.
+    Stream stream = co_await awaiter;
+    co_yield std::move(stream);
+  }
 }
 
-void TcpServer::bind(struct sockaddr_in6 *addr, int flags) {
-  bind((struct sockaddr *)addr, flags);
-}
+void TcpServer::onNewConnection(uv_stream_t *stream, int status) {
+  const auto *server = (uv_tcp_t *)stream;
+  auto *awaiter = (ConnectionAwaiter_ *)server->data;
+  uv_loop_t *const loop = awaiter->loop_;
 
-TcpServer::TcpServer(uv_loop_t *loop) : tcp_{std::make_unique<uv_tcp_t>()} {
-  uv_tcp_init(loop, tcp_.get());
+  awaiter->status_ = status;
+  if (status == 0) {
+    auto *const clientStream = new uv_tcp_t{};
+    uv_tcp_init(loop, clientStream);
+    assert(!awaiter->slot_);
+    awaiter->slot_ = Stream{(uv_stream_t *)clientStream};
+  }
+  awaiter->handle_->resume();
 }
 
 } // namespace uvco
