@@ -102,7 +102,7 @@ void TcpClient::ConnectAwaiter_::onConnect(int status) {
 }
 
 TcpServer::TcpServer(uv_loop_t *loop, AddressHandle bindAddress, bool ipv6Only)
-    : loop_{loop} {
+    : loop_{loop}, tcp_{} {
   uv_tcp_init(loop, &tcp_);
   const auto *sa = bindAddress.sockaddr();
   const unsigned flags = ipv6Only ? UV_TCP_IPV6ONLY : 0;
@@ -120,6 +120,7 @@ MultiPromise<Stream> TcpServer::listen(int backlog) {
   uv_listen((uv_stream_t *)&tcp_, backlog, onNewConnection);
 
   ConnectionAwaiter_ awaiter{loop_};
+  tcp_.data = &awaiter;
 
   // TODO: elegant way to shut down listener loop?
   while (true) {
