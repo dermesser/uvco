@@ -31,22 +31,19 @@ Provide ergonomic asynchronous abstractions of all libuv functionality.
 // Using co_await in a function turns it into a coroutine. You can co_await all
 // Promise and MultiPromise values; the right thing will happen.
 Promise<void> testHttpRequest(uv_loop_t *loop) {
-  uvco::TcpClient client{loop, "borgac.net", 80, AF_INET};
-  co_await client.connect();
+  TcpClient client{loop, "borgac.net", 80, AF_INET6};
+  TcpStream stream = co_await client.connect();
 
-  std::optional<uvco::Stream> &stream = client.stream();
-  assert(stream);
-
-  co_await stream->write(
+  co_await stream.write(
       fmt::format("HEAD / HTTP/1.0\r\nHost: borgac.net\r\n\r\n"));
   do {
-    std::optional<std::string> chunk = co_await stream->read();
+    std::optional<std::string> chunk = co_await stream.read();
     if (chunk)
       fmt::print("Got chunk: >> {} <<\n", *chunk);
     else
       break;
   } while (true);
-  co_await client.close();
+  co_await stream.closeReset();
 }
 
 // Manual setup: this will be part of uvco later.
@@ -70,13 +67,9 @@ void run_loop(int disc) {
 ### TCP Echo server
 
 ```c++
-Promise<void> echoReceived(Stream stream) {
-  struct sockaddr_storage addr {};
-  int namelen = sizeof(addr);
-  uv_tcp_getpeername((const uv_tcp_t *)stream.underlying(),
-                     (struct sockaddr *)&addr, &namelen);
-  const AddressHandle address{(struct sockaddr *)&addr};
-  const std::string addressStr = address.toString();
+Promise<void> echoReceived(TcpStream stream) {
+  const AddressHandle peerAddress = stream.getPeerName();
+  const std::string addressStr = peerAddress.toString();
   fmt::print("Received connection from [{}]\n", addressStr);
 
   while (true) {
@@ -93,15 +86,12 @@ Promise<void> echoReceived(Stream stream) {
 Promise<void> echoTcpServer(uv_loop_t *loop) {
   AddressHandle addr{"127.0.0.1", 8090};
   TcpServer server{loop, addr};
-  // Ensure that promises are kept alive. Not strictly necessary here,
-  // but useful to e.g. await on these promises.
-  // Reason: promise cores are ref-counted and will survive on the coroutine frame.
   std::vector<Promise<void>> clientLoops{};
 
-  MultiPromise<Stream> clients = server.listen();
+  MultiPromise<TcpStream> clients = server.listen();
 
   while (true) {
-    std::optional<Stream> client = co_await clients;
+    std::optional<TcpStream> client = co_await clients;
     if (!client)
       break;
     Promise<void> clientLoop = echoReceived(std::move(*client));
