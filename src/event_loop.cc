@@ -191,13 +191,9 @@ Promise<void> udpClient(uv_loop_t *loop) {
 
 Promise<void> testFunc(Promise<void> a) { co_await a; }
 
-Promise<void> echoReceived(StreamBase stream) {
-  struct sockaddr_storage addr {};
-  int namelen = sizeof(addr);
-  uv_tcp_getpeername((const uv_tcp_t *)stream.underlying(),
-                     (struct sockaddr *)&addr, &namelen);
-  const AddressHandle address{(struct sockaddr *)&addr};
-  const std::string addressStr = address.toString();
+Promise<void> echoReceived(TcpStream stream) {
+  const AddressHandle peerAddress = stream.getPeerName();
+  const std::string addressStr = peerAddress.toString();
   fmt::print("Received connection from [{}]\n", addressStr);
 
   while (true) {
@@ -216,10 +212,10 @@ Promise<void> echoTcpServer(uv_loop_t *loop) {
   TcpServer server{loop, addr};
   std::vector<Promise<void>> clientLoops{};
 
-  MultiPromise<StreamBase> clients = server.listen();
+  MultiPromise<TcpStream> clients = server.listen();
 
   while (true) {
-    std::optional<StreamBase> client = co_await clients;
+    std::optional<TcpStream> client = co_await clients;
     if (!client)
       break;
     Promise<void> clientLoop = echoReceived(std::move(*client));
@@ -246,14 +242,14 @@ void run_loop(int disc) {
   Promise<int> p2 = fulfillWait(&f.promise());
   f.fulfill(42);
   */
-  Promise<void> p = setupUppercasing(&loop);
+  // Promise<void> p = setupUppercasing(&loop);
 
   Promise<void> p2 = testHttpRequest(&loop);
 
   // auto server = udpServer(&loop);
   // auto client = udpClient(&loop);
 
-  // Promise<void> p = echoTcpServer(&loop);
+  Promise<void> p = echoTcpServer(&loop);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);

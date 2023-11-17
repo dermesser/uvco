@@ -88,7 +88,7 @@ void TcpServer::bind(const struct sockaddr *addr, int flags) {
   }
 }
 
-MultiPromise<StreamBase> TcpServer::listen(int backlog) {
+MultiPromise<TcpStream> TcpServer::listen(int backlog) {
   ConnectionAwaiter_ awaiter{loop_};
   tcp_.data = &awaiter;
 

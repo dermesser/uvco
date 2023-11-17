@@ -106,7 +106,7 @@ public:
 
   // Libuv does not appear to offer a way to stop listening and accepting
   // connections: so we won't either.
-  MultiPromise<StreamBase> listen(int backlog = 128);
+  MultiPromise<TcpStream> listen(int backlog = 128);
 
 private:
   void bind(const struct sockaddr *addr, int flags);
