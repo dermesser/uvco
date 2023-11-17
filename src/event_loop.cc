@@ -46,7 +46,7 @@ public:
 
 // Some demo and test functions.
 
-Promise<void> uppercasing(Stream in, Stream out) {
+Promise<void> uppercasing(TtyStream in, TtyStream out) {
   while (true) {
     auto maybeLine = co_await in.read();
     if (!maybeLine)
@@ -63,14 +63,14 @@ Promise<void> uppercasing(Stream in, Stream out) {
 }
 
 Promise<void> setupUppercasing(uv_loop_t *loop) {
-  Stream in = Stream::stdin(loop);
-  Stream out = Stream::stdout(loop);
+  TtyStream in = TtyStream::stdin(loop);
+  TtyStream out = TtyStream::stdout(loop);
   co_await uppercasing(std::move(in), std::move(out));
   co_return;
 }
 
 MultiPromise<std::string> generateStdinLines(uv_loop_t *loop) {
-  Stream in = Stream::stdin(loop);
+  TtyStream in = TtyStream::stdin(loop);
   while (true) {
     std::optional<std::string> line = co_await in.read();
     if (!line)
@@ -115,7 +115,7 @@ Promise<int> fulfillWait(Promise<int> *p) {
 }
 
 Promise<void> testHttpRequest(uv_loop_t *loop) {
-  TcpClient client{loop, "borgac.net", 80, AF_INET};
+  TcpClient client{loop, "borgac.net", 80, AF_INET6};
   co_await client.connect();
   auto &stream = client.stream();
   assert(stream);
@@ -195,7 +195,7 @@ Promise<void> udpClient(uv_loop_t *loop) {
 
 Promise<void> testFunc(Promise<void> a) { co_await a; }
 
-Promise<void> echoReceived(Stream stream) {
+Promise<void> echoReceived(StreamBase stream) {
   struct sockaddr_storage addr {};
   int namelen = sizeof(addr);
   uv_tcp_getpeername((const uv_tcp_t *)stream.underlying(),
@@ -220,10 +220,10 @@ Promise<void> echoTcpServer(uv_loop_t *loop) {
   TcpServer server{loop, addr};
   std::vector<Promise<void>> clientLoops{};
 
-  MultiPromise<Stream> clients = server.listen();
+  MultiPromise<StreamBase> clients = server.listen();
 
   while (true) {
-    std::optional<Stream> client = co_await clients;
+    std::optional<StreamBase> client = co_await clients;
     if (!client)
       break;
     Promise<void> clientLoop = echoReceived(std::move(*client));
@@ -250,14 +250,14 @@ void run_loop(int disc) {
   Promise<int> p2 = fulfillWait(&f.promise());
   f.fulfill(42);
   */
-  // Promise<void> p = setupUppercasing(&loop);
+  Promise<void> p = setupUppercasing(&loop);
 
-  // Promise<void> p = testHttpRequest(&loop);
+  Promise<void> p2 = testHttpRequest(&loop);
 
   // auto server = udpServer(&loop);
   // auto client = udpClient(&loop);
 
-  Promise<void> p = echoTcpServer(&loop);
+  // Promise<void> p = echoTcpServer(&loop);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);

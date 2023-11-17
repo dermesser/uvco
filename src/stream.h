@@ -11,25 +11,21 @@
 
 namespace uvco {
 
-class Stream {
-
+class StreamBase {
 public:
   using uv_status = int;
 
   // Takes ownership of stream.
-  explicit Stream(uv_stream_t *stream) : stream_{stream} {}
-  Stream(Stream &&other) = default;
-  Stream &operator=(Stream &&) = default;
-  ~Stream();
+  explicit StreamBase(uv_stream_t *stream) : stream_{stream} {}
+  StreamBase(const StreamBase &) = delete;
+  StreamBase(StreamBase &&) = default;
+  StreamBase &operator=(const StreamBase &) = delete;
+  StreamBase &operator=(StreamBase &&) = default;
+  virtual ~StreamBase();
 
-  static Stream tty(uv_loop_t *loop, int fd);
-  static Stream stdin(uv_loop_t *loop) { return tty(loop, 0); }
-  static Stream stdout(uv_loop_t *loop) { return tty(loop, 1); }
-  static Stream stderr(uv_loop_t *loop) { return tty(loop, 2); }
+  [[nodiscard]] Promise<std::optional<std::string>> read();
 
-  Promise<std::optional<std::string>> read();
-
-  Promise<uv_status> write(std::string buf);
+  [[nodiscard]] Promise<uv_status> write(std::string buf);
 
   // close() must be co_awaited!
   [[nodiscard]] Promise<void>
@@ -37,11 +33,12 @@ public:
 
   [[nodiscard]] const uv_stream_t *underlying() const { return stream_.get(); }
 
-private:
+protected:
   std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
 
+private:
   struct InStreamAwaiter_ {
-    explicit InStreamAwaiter_(Stream &stream) : stream_{stream}, slot_{} {}
+    explicit InStreamAwaiter_(StreamBase &stream) : stream_{stream} {}
 
     bool await_ready();
     bool await_suspend(std::coroutine_handle<> handle);
@@ -53,13 +50,13 @@ private:
     static void onInStreamRead(uv_stream_t *stream, ssize_t nread,
                                const uv_buf_t *buf);
 
-    Stream &stream_;
+    StreamBase &stream_;
     std::optional<std::optional<std::string>> slot_;
     std::optional<std::coroutine_handle<>> handle_;
   };
 
   struct OutStreamAwaiter_ {
-    OutStreamAwaiter_(Stream &stream, std::string &&buffer);
+    OutStreamAwaiter_(StreamBase &stream, std::string &&buffer);
 
     std::array<uv_buf_t, 1> prepare_buffers() const;
 
@@ -71,13 +68,31 @@ private:
 
     static void onOutStreamWrite(uv_write_t *write, int status);
 
-    Stream &stream_;
+    StreamBase &stream_;
     std::optional<std::coroutine_handle<>> handle_;
 
     std::string buffer_;
     uv_write_t write_{};
     std::optional<uv_status> status_;
   };
+};
+
+class TtyStream : public StreamBase {
+public:
+  // Takes ownership of stream.
+  TtyStream(TtyStream &&other) = default;
+  TtyStream(const TtyStream &other) = delete;
+  TtyStream &operator=(TtyStream &&) = default;
+  TtyStream &operator=(const TtyStream &) = delete;
+  ~TtyStream() override = default;
+
+  static TtyStream tty(uv_loop_t *loop, int fd);
+  static TtyStream stdin(uv_loop_t *loop) { return tty(loop, 0); }
+  static TtyStream stdout(uv_loop_t *loop) { return tty(loop, 1); }
+  static TtyStream stderr(uv_loop_t *loop) { return tty(loop, 2); }
+
+private:
+  explicit TtyStream(uv_stream_t *stream) : StreamBase{stream} {}
 };
 
 } // namespace uvco

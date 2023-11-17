@@ -55,10 +55,10 @@ Promise<void> TcpClient::connect() {
   }
   state_ = State_::connected;
   fmt::print("Connected successfully to {}:{}\n", host_, port_);
-  connected_stream_ = Stream{(uv_stream_t *)(tcp.release())};
+  connected_stream_ = StreamBase{(uv_stream_t *)(tcp.release())};
 }
 
-std::optional<Stream> &TcpClient::stream() { return connected_stream_; }
+std::optional<StreamBase> &TcpClient::stream() { return connected_stream_; }
 Promise<void> TcpClient::close() {
   assert(connected_stream_);
   if (connected_stream_) {
@@ -116,17 +116,18 @@ void TcpServer::bind(const struct sockaddr *addr, int flags) {
   }
 }
 
-MultiPromise<Stream> TcpServer::listen(int backlog) {
+MultiPromise<StreamBase> TcpServer::listen(int backlog) {
   ConnectionAwaiter_ awaiter{loop_};
   tcp_.data = &awaiter;
 
   uv_listen((uv_stream_t *)&tcp_, backlog, onNewConnection);
 
-  // TODO: elegant way to shut down listener loop?
   while (true) {
     // TODO: specialize stream to enable getsockname etc.
-    Stream stream = co_await awaiter;
-    co_yield std::move(stream);
+    std::optional<StreamBase> stream = co_await awaiter;
+    if (!stream)
+      break;
+    co_yield std::move(*stream);
   }
 }
 
@@ -137,11 +138,11 @@ void TcpServer::onNewConnection(uv_stream_t *stream, int status) {
 
   awaiter->status_ = status;
   if (status == 0) {
-    auto *const clientStream = new uv_tcp_t{};
-    uv_tcp_init(loop, clientStream);
-    uv_accept((uv_stream_t *)server, (uv_stream_t *)clientStream);
+    auto *const clientStreamBase = new uv_tcp_t{};
+    uv_tcp_init(loop, clientStreamBase);
+    uv_accept((uv_stream_t *)server, (uv_stream_t *)clientStreamBase);
     assert(!awaiter->slot_);
-    awaiter->slot_ = Stream{(uv_stream_t *)clientStream};
+    awaiter->slot_ = StreamBase{(uv_stream_t *)clientStreamBase};
   }
   awaiter->handle_->resume();
 }

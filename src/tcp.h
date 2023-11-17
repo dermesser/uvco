@@ -22,7 +22,7 @@ public:
 
   Promise<void> connect();
 
-  std::optional<Stream> &stream();
+  std::optional<StreamBase> &stream();
 
   Promise<void> close();
 
@@ -47,7 +47,7 @@ private:
   uint16_t port_;
 
   // Maybe need call to uv_tcp_close_reset?
-  std::optional<Stream> connected_stream_;
+  std::optional<StreamBase> connected_stream_;
 
   static void uv_tcp_close_reset_void(uv_handle_t *handle, uv_close_cb cb);
 
@@ -76,7 +76,9 @@ public:
   TcpServer &operator=(const TcpServer &) = delete;
   TcpServer &operator=(TcpServer &&) = default;
 
-  MultiPromise<Stream> listen(int backlog = 128);
+  // Libuv does not appear to offer a way to stop listening and accepting
+  // connections: so we won't either.
+  MultiPromise<StreamBase> listen(int backlog = 128);
 
 private:
   void bind(const struct sockaddr *addr, int flags);
@@ -93,12 +95,14 @@ private:
       handle_ = handle;
       return true;
     }
-    Stream await_resume() {
+    std::optional<StreamBase> await_resume() {
+      if (stopped_)
+        return {};
       assert(status_);
 
       if (*status_ == 0) {
         assert(slot_);
-        Stream stream{std::move(*slot_)};
+        StreamBase stream{std::move(*slot_)};
         status_.reset();
         slot_.reset();
         return stream;
@@ -110,10 +114,18 @@ private:
       }
     }
 
+    void stop() {
+      stopped_ = true;
+      if (handle_) {
+        handle_->resume();
+      }
+    }
+
     uv_loop_t *loop_;
     std::optional<std::coroutine_handle<>> handle_;
-    std::optional<Stream> slot_;
+    std::optional<StreamBase> slot_;
     std::optional<int> status_;
+    bool stopped_ = false;
   };
 };
 
