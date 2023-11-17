@@ -39,14 +39,14 @@ Promise<void> StreamBase::close(void (*uv_close_impl)(uv_handle_t *,
   // TODO: schedule closing operation on event loop?
   CloseAwaiter awaiter{};
 
-  stream_->data = &awaiter;
-  uv_close_impl((uv_handle_t *)stream_.get(), onCloseCallback);
+  stream().data = &awaiter;
+  uv_close_impl((uv_handle_t *)&stream(), onCloseCallback);
   co_await awaiter;
   stream_.reset();
 }
 
 bool StreamBase::InStreamAwaiter_::await_ready() {
-  uv_status state = uv_is_readable(stream_.stream_.get());
+  uv_status state = uv_is_readable(&stream_.stream());
   if (state == 1) {
     // Read available data and return immediately.
     start_read();
@@ -57,7 +57,7 @@ bool StreamBase::InStreamAwaiter_::await_ready() {
 
 bool StreamBase::InStreamAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
-  stream_.stream_->data = this;
+  stream_.stream().data = this;
   handle_ = handle;
   start_read();
   return true;
@@ -71,11 +71,11 @@ std::optional<std::string> StreamBase::InStreamAwaiter_::await_resume() {
 }
 
 void StreamBase::InStreamAwaiter_::start_read() {
-  uv_read_start(stream_.stream_.get(), allocator, onInStreamRead);
+  uv_read_start(&stream_.stream(), allocator, onInStreamRead);
 }
 
 void StreamBase::InStreamAwaiter_::stop_read() {
-  uv_read_stop(stream_.stream_.get());
+  uv_read_stop(&stream_.stream());
 }
 
 void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
@@ -111,8 +111,7 @@ std::array<uv_buf_t, 1> StreamBase::OutStreamAwaiter_::prepare_buffers() const {
 bool StreamBase::OutStreamAwaiter_::await_ready() {
   // Attempt early write:
   auto bufs = prepare_buffers();
-  uv_status result =
-      uv_try_write(stream_.stream_.get(), bufs.data(), bufs.size());
+  uv_status result = uv_try_write(&stream_.stream(), bufs.data(), bufs.size());
   if (result > 0) {
     status_ = result;
   }
@@ -125,7 +124,7 @@ bool StreamBase::OutStreamAwaiter_::await_suspend(
   handle_ = handle;
   auto bufs = prepare_buffers();
   // TODO: move before suspension point.
-  uv_write(&write_, stream_.stream_.get(), bufs.data(), bufs.size(),
+  uv_write(&write_, &stream_.stream(), bufs.data(), bufs.size(),
            onOutStreamWrite);
 
   return true;

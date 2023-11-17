@@ -10,72 +10,43 @@ namespace uvco {
 TcpClient::TcpClient(uv_loop_t *loop, std::string target_host_address,
                      uint16_t target_host_port, int af_hint)
     : loop_{loop}, host_{std::move(target_host_address)}, af_hint_{af_hint},
-      state_{State_::initialized}, port_{target_host_port} {}
-TcpClient::TcpClient(TcpClient &&other)
-    : loop_{other.loop_}, host_{std::move(other.host_)},
-      af_hint_{other.af_hint_}, state_{other.state_}, port_{other.port_} {
-  other.state_ = State_::invalid;
-}
+      port_{target_host_port} {}
 
-TcpClient &TcpClient::operator=(TcpClient &&other) {
+TcpClient::TcpClient(TcpClient &&other) noexcept
+    : loop_{other.loop_}, host_{std::move(other.host_)},
+      af_hint_{other.af_hint_}, port_{other.port_} {}
+
+TcpClient &TcpClient::operator=(TcpClient &&other) noexcept {
   loop_ = other.loop_;
   host_ = std::move(other.host_);
   port_ = other.port_;
-  state_ = other.state_;
-  other.state_ = State_::invalid;
   return *this;
 }
 
-TcpClient::~TcpClient() { assert(state_ != State_::connected); }
-
-Promise<void> TcpClient::connect() {
+Promise<TcpStream> TcpClient::connect() {
   Resolver resolver{loop_};
-
-  state_ = State_::resolving;
 
   AddressHandle ah =
       co_await resolver.gai(host_, fmt::format("{}", port_), af_hint_);
-  fmt::print("Resolution OK: {}\n", ah.toString());
 
   uv_connect_t req;
   ConnectAwaiter_ connect{};
   req.data = &connect;
-
-  state_ = State_::connecting;
 
   auto tcp = std::make_unique<uv_tcp_t>();
 
   uv_tcp_init(loop_, tcp.get());
   uv_tcp_connect(&req, tcp.get(), ah.sockaddr(), onConnect);
 
-  co_await connect;
-
-  if (connect.status_ < 0) {
-    throw UvcoException(*connect.status_, "connect");
+  int status = co_await connect;
+  if (status < 0) {
+    throw UvcoException(status, "connect");
   }
-  state_ = State_::connected;
-  fmt::print("Connected successfully to {}:{}\n", host_, port_);
-  connected_stream_ = StreamBase{(uv_stream_t *)(tcp.release())};
-}
 
-std::optional<StreamBase> &TcpClient::stream() { return connected_stream_; }
-Promise<void> TcpClient::close() {
-  assert(connected_stream_);
-  if (connected_stream_) {
-    state_ = State_::closing;
-    co_await connected_stream_->close(uv_tcp_close_reset_void);
-    state_ = State_::closed;
-    connected_stream_.reset();
-  }
-  co_return;
-}
-
-void TcpClient::uv_tcp_close_reset_void(uv_handle_t *handle, uv_close_cb cb) {
-  uv_tcp_close_reset((uv_tcp_t *)handle, cb);
+  co_return TcpStream{tcp.release()};
 }
 
 void TcpClient::onConnect(uv_connect_t *req, int status) {
-  fmt::print("onConnect from UV\n");
   auto *connect = static_cast<ConnectAwaiter_ *>(req->data);
   connect->onConnect(status);
 }
@@ -84,9 +55,9 @@ bool TcpClient::ConnectAwaiter_::await_ready() const {
   return status_.has_value();
 }
 
-bool TcpClient::ConnectAwaiter_::await_suspend(std::coroutine_handle<> h) {
+bool TcpClient::ConnectAwaiter_::await_suspend(std::coroutine_handle<> handle) {
   assert(!handle_);
-  handle_ = h;
+  handle_ = handle;
   return true;
 }
 
@@ -97,8 +68,9 @@ int TcpClient::ConnectAwaiter_::await_resume() {
 
 void TcpClient::ConnectAwaiter_::onConnect(int status) {
   status_ = status;
-  if (handle_)
+  if (handle_) {
     handle_->resume();
+  }
 }
 
 TcpServer::TcpServer(uv_loop_t *loop, AddressHandle bindAddress, bool ipv6Only)
@@ -124,7 +96,7 @@ MultiPromise<StreamBase> TcpServer::listen(int backlog) {
 
   while (true) {
     // TODO: specialize stream to enable getsockname etc.
-    std::optional<StreamBase> stream = co_await awaiter;
+    std::optional<TcpStream> stream = co_await awaiter;
     if (!stream)
       break;
     co_yield std::move(*stream);
@@ -138,11 +110,11 @@ void TcpServer::onNewConnection(uv_stream_t *stream, int status) {
 
   awaiter->status_ = status;
   if (status == 0) {
-    auto *const clientStreamBase = new uv_tcp_t{};
-    uv_tcp_init(loop, clientStreamBase);
-    uv_accept((uv_stream_t *)server, (uv_stream_t *)clientStreamBase);
+    auto *const clientStream = new uv_tcp_t{};
+    uv_tcp_init(loop, clientStream);
+    uv_accept((uv_stream_t *)server, (uv_stream_t *)clientStream);
     assert(!awaiter->slot_);
-    awaiter->slot_ = StreamBase{(uv_stream_t *)clientStreamBase};
+    awaiter->slot_ = TcpStream{clientStream};
   }
   awaiter->handle_->resume();
 }

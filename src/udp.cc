@@ -8,13 +8,15 @@ namespace uvco {
 
 Promise<void> Udp::bind(std::string_view address, uint16_t port,
                         unsigned int flag) {
-  Resolver r{loop_};
+  Resolver resolver{loop_};
   int hint = 0;
-  if (flag | UV_UDP_IPV6ONLY)
+  if ((flag & UV_UDP_IPV6ONLY) != 0U) {
     hint = AF_INET6;
-  AddressHandle ah = co_await r.gai(address, fmt::format("{}", port), hint);
+  }
+  AddressHandle addressHandle =
+      co_await resolver.gai(address, fmt::format("{}", port), hint);
 
-  int status = uv_udp_bind(udp_.get(), ah.sockaddr(), flag);
+  int status = uv_udp_bind(udp_.get(), addressHandle.sockaddr(), flag);
   if (status != 0)
     throw UvcoException{status, "binding UDP socket"};
 }
@@ -23,11 +25,14 @@ Promise<void> Udp::connect(std::string_view address, uint16_t port,
                            bool ipv6only) {
   Resolver r{loop_};
   int hint = ipv6only ? AF_INET6 : AF_UNSPEC;
-  AddressHandle ah = co_await r.gai(address, fmt::format("{}", port), hint);
+  AddressHandle addressHandle =
+      co_await r.gai(address, fmt::format("{}", port), hint);
 
-  int status = uv_udp_connect(udp_.get(), ah.sockaddr());
-  if (status != 0)
+  int status = uv_udp_connect(udp_.get(), addressHandle.sockaddr());
+  if (status != 0) {
+
     throw UvcoException{status, "connecting UDP socket"};
+  }
   connected_ = true;
 }
 

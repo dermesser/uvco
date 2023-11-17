@@ -24,14 +24,14 @@ enum class PromiseState {
 template <typename T>
 class PromiseCore : public LifetimeTracker<PromiseCore<T>> {
 public:
-  std::optional<T> slot;
-
-  virtual void set_resume(std::coroutine_handle<> h) {
+  virtual void set_resume(std::coroutine_handle<> handle) {
     assert(state_ == PromiseState::init);
-    resume_ = h;
+    resume_ = handle;
     state_ = PromiseState::waitedOn;
   }
+
   bool has_resume() { return resume_.has_value(); }
+
   virtual void resume() {
     if (resume_) {
       state_ = PromiseState::running;
@@ -42,7 +42,8 @@ public:
     // This can happen if await_ready() is true immediately.
     state_ = PromiseState::finished;
   }
-  ~PromiseCore() {
+
+  virtual ~PromiseCore() {
     assert(state_ != PromiseState::running);
     if (state_ == PromiseState::init)
       fmt::print("value Promise destroyed without being waited on ({})\n",
@@ -55,6 +56,8 @@ public:
       resume_->destroy();
   }
 
+  std::optional<T> slot;
+
 protected:
   std::optional<std::coroutine_handle<>> resume_;
   PromiseState state_ = PromiseState::init;
@@ -63,14 +66,17 @@ protected:
 template <typename T> class MultiPromiseCore : public PromiseCore<T> {
 public:
   static_assert(!std::is_void_v<T>);
-  void set_resume(std::coroutine_handle<> h) override {
+
+  ~MultiPromiseCore() override = default;
+
+  void set_resume(std::coroutine_handle<> handle) override {
     // Once an external scheduler works, Promises will not be nested anymore
     // (resume called by resume down in the stack)
     //
     // assert(PromiseCore<T>::state_
     // == PromiseState::init || PromiseCore<T>::state_ ==
     // PromiseState::finished);
-    PromiseCore<T>::resume_ = h;
+    PromiseCore<T>::resume_ = handle;
     PromiseCore<T>::state_ = PromiseState::waitedOn;
   }
   // For better stacktraces.

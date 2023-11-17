@@ -16,7 +16,6 @@
 #include <fmt/format.h>
 #include <functional>
 #include <optional>
-#include <ranges>
 #include <span>
 #include <string_view>
 #include <typeinfo>
@@ -52,8 +51,8 @@ Promise<void> uppercasing(TtyStream in, TtyStream out) {
     if (!maybeLine)
       break;
     auto line = maybeLine.value();
-    std::ranges::transform(line, line.begin(),
-                           [](char c) -> char { return std::toupper(c); });
+    std::transform(line.begin(), line.end(), line.begin(),
+                   [](char c) { return std::toupper(c); });
     std::string to_output = fmt::format(">> {}", line);
     co_await out.write(std::move(to_output));
   }
@@ -116,25 +115,22 @@ Promise<int> fulfillWait(Promise<int> *p) {
 
 Promise<void> testHttpRequest(uv_loop_t *loop) {
   TcpClient client{loop, "borgac.net", 80, AF_INET6};
-  co_await client.connect();
-  auto &stream = client.stream();
-  assert(stream);
+  TcpStream stream = co_await client.connect();
 
-  co_await stream->write(
+  co_await stream.write(
       fmt::format("HEAD / HTTP/1.0\r\nHost: borgac.net\r\n\r\n"));
   do {
-    std::optional<std::string> chunk = co_await stream->read();
+    std::optional<std::string> chunk = co_await stream.read();
     if (chunk)
       fmt::print("Got chunk: >> {} <<\n", *chunk);
     else
       break;
   } while (true);
-  co_await client.close();
+  co_await stream.closeReset();
 }
 
 Promise<void> udpServer(uv_loop_t *loop) {
   uint32_t counter = 0;
-  constexpr std::string_view buffer{"Hello back"};
   std::chrono::system_clock clock;
   const std::chrono::time_point zero = clock.now();
 

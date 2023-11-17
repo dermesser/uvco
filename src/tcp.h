@@ -4,52 +4,79 @@
 
 #include <uv.h>
 
+#include "close.h"
 #include "name_resolution.h"
 #include "stream.h"
 
 namespace uvco {
+
+class TcpStream : public StreamBase {
+public:
+  // Takes ownership of tcp. tcp must be dynamically allocated.
+  explicit TcpStream(uv_tcp_t *tcp) : StreamBase{(uv_stream_t *)tcp} {}
+  TcpStream(const TcpStream &) = delete;
+  TcpStream(TcpStream &&) = default;
+  TcpStream &operator=(const TcpStream &) = delete;
+  TcpStream &operator=(TcpStream &&) = default;
+
+  ~TcpStream() override = default;
+
+  AddressHandle getPeerName() const {
+    struct sockaddr_storage addr {};
+    int namelen = sizeof(addr);
+    uv_tcp_getpeername((const uv_tcp_t *)underlying(), (struct sockaddr *)&addr,
+                       &namelen);
+    const AddressHandle address{(struct sockaddr *)&addr};
+    return address;
+  };
+
+  AddressHandle getSockName() const {
+    struct sockaddr_storage addr {};
+    int namelen = sizeof(addr);
+    uv_tcp_getsockname((const uv_tcp_t *)underlying(), (struct sockaddr *)&addr,
+                       &namelen);
+    const AddressHandle address{(struct sockaddr *)&addr};
+    return address;
+  }
+
+  // Sends RST to TCP peer.
+  // Must be awaited.
+  [[nodiscard]] Promise<void> closeReset() {
+    CloseAwaiter awaiter{};
+    stream().data = &awaiter;
+    uv_tcp_close_reset((uv_tcp_t *)&stream(), onCloseCallback);
+    co_await awaiter;
+    destroyStream();
+  }
+
+  void keepAlive(bool enable, unsigned int delay = 10) {
+    uv_tcp_keepalive((uv_tcp_t *)&stream(), static_cast<int>(enable), delay);
+  }
+
+  void noDelay(bool enable) {
+    uv_tcp_nodelay((uv_tcp_t *)&stream(), static_cast<int>(enable));
+  }
+};
 
 class TcpClient {
 public:
   explicit TcpClient(uv_loop_t *loop, std::string target_host_address,
                      uint16_t target_host_port, int af_hint = AF_UNSPEC);
 
-  TcpClient(TcpClient &&other);
+  TcpClient(TcpClient &&other) noexcept;
   TcpClient(const TcpClient &) = delete;
-  TcpClient &operator=(TcpClient &&other);
+  TcpClient &operator=(TcpClient &&other) noexcept;
   TcpClient &operator=(const TcpClient &) = delete;
-  ~TcpClient();
+  ~TcpClient() = default;
 
-  Promise<void> connect();
-
-  std::optional<StreamBase> &stream();
-
-  Promise<void> close();
+  Promise<TcpStream> connect();
 
 private:
-  enum class State_ {
-    initialized = 0,
-    resolving = 1,
-    connecting = 2,
-    connected = 3,
-    failed = 4,
-    closing = 5,
-    closed = 6,
-
-    invalid = 7,
-  };
-
   uv_loop_t *loop_;
 
   std::string host_;
   int af_hint_;
-  State_ state_;
   uint16_t port_;
-
-  // Maybe need call to uv_tcp_close_reset?
-  std::optional<StreamBase> connected_stream_;
-
-  static void uv_tcp_close_reset_void(uv_handle_t *handle, uv_close_cb cb);
 
   static void onConnect(uv_connect_t *req, int status);
 
@@ -75,6 +102,7 @@ public:
   TcpServer(TcpServer &&) = default;
   TcpServer &operator=(const TcpServer &) = delete;
   TcpServer &operator=(TcpServer &&) = default;
+  ~TcpServer() = default;
 
   // Libuv does not appear to offer a way to stop listening and accepting
   // connections: so we won't either.
@@ -95,14 +123,14 @@ private:
       handle_ = handle;
       return true;
     }
-    std::optional<StreamBase> await_resume() {
+    std::optional<TcpStream> await_resume() {
       if (stopped_)
         return {};
       assert(status_);
 
       if (*status_ == 0) {
         assert(slot_);
-        StreamBase stream{std::move(*slot_)};
+        TcpStream stream{std::move(*slot_)};
         status_.reset();
         slot_.reset();
         return stream;
@@ -123,7 +151,7 @@ private:
 
     uv_loop_t *loop_;
     std::optional<std::coroutine_handle<>> handle_;
-    std::optional<StreamBase> slot_;
+    std::optional<TcpStream> slot_;
     std::optional<int> status_;
     bool stopped_ = false;
   };

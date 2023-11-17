@@ -34,9 +34,18 @@ public:
   [[nodiscard]] const uv_stream_t *underlying() const { return stream_.get(); }
 
 protected:
-  std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
+  uv_stream_t &stream() {
+    BOOST_ASSERT(stream_);
+    return *stream_;
+  }
+  void destroyStream() {
+    BOOST_ASSERT(stream_);
+    stream_.reset();
+  }
 
 private:
+  std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
+
   struct InStreamAwaiter_ {
     explicit InStreamAwaiter_(StreamBase &stream) : stream_{stream} {}
 
