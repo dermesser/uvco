@@ -119,6 +119,7 @@ int main(void) {
 
 * libuv (tested with 1.46, but > 1.0 probably works)
 * libfmt (tested with 9.0)
+* boost (boost-assert)
 
 ## Building
 
