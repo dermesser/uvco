@@ -117,10 +117,10 @@ void TcpServer::bind(const struct sockaddr *addr, int flags) {
 }
 
 MultiPromise<Stream> TcpServer::listen(int backlog) {
-  uv_listen((uv_stream_t *)&tcp_, backlog, onNewConnection);
-
   ConnectionAwaiter_ awaiter{loop_};
   tcp_.data = &awaiter;
+
+  uv_listen((uv_stream_t *)&tcp_, backlog, onNewConnection);
 
   // TODO: elegant way to shut down listener loop?
   while (true) {
