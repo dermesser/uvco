@@ -1,8 +1,9 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include "udp.h"
+#include <boost/assert.hpp>
 
 #include "close.h"
+#include "udp.h"
 
 namespace uvco {
 
@@ -112,7 +113,7 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
 }
 
 bool Udp::RecvAwaiter_::await_suspend(std::coroutine_handle<> h) {
-  assert(!handle_);
+  BOOST_ASSERT(!handle_);
   handle_ = h;
   return true;
 }
@@ -120,10 +121,10 @@ bool Udp::RecvAwaiter_::await_suspend(std::coroutine_handle<> h) {
 bool Udp::RecvAwaiter_::await_ready() const { return buffer_.has_value(); }
 
 std::string Udp::RecvAwaiter_::await_resume() {
-  assert(nread_);
+  BOOST_ASSERT(nread_);
   if (*nread_ < 0)
     throw UvcoException(*nread_, "onReceiveOne");
-  assert(buffer_);
+  BOOST_ASSERT(buffer_);
   auto b = std::move(*buffer_);
   buffer_.reset();
   return b;
@@ -139,13 +140,13 @@ void Udp::onSendDone(uv_udp_send_t *req, int status) {
 bool Udp::SendAwaiter_::await_ready() const { return status_.has_value(); }
 
 bool Udp::SendAwaiter_::await_suspend(std::coroutine_handle<> h) {
-  assert(!handle_);
+  BOOST_ASSERT(!handle_);
   handle_ = h;
   return true;
 }
 
 int Udp::SendAwaiter_::await_resume() {
-  assert(status_);
+  BOOST_ASSERT(status_);
   return *status_;
 }
 

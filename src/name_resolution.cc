@@ -1,14 +1,16 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include <cassert>
-#include <coroutine>
-#include <optional>
 #include <uv.h>
+#include <boost/assert.hpp>
+
 
 #include "internal_utils.h"
 #include "name_resolution.h"
 #include "promise.h"
 
+#include <cassert>
+#include <coroutine>
+#include <optional>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -107,10 +109,10 @@ AddressHandle::AddressHandle(uint32_t ipv4, uint16_t port)
 
 AddressHandle::AddressHandle(const struct addrinfo *ai) {
   if (ai->ai_family == AF_INET) {
-    assert(ai->ai_addrlen >= sizeof(struct sockaddr_in));
+    BOOST_ASSERT(ai->ai_addrlen >= sizeof(struct sockaddr_in));
     addr_ = *(struct sockaddr_in *)ai->ai_addr;
   } else if (ai->ai_family == AF_INET6) {
-    assert(ai->ai_addrlen >= sizeof(struct sockaddr_in6));
+    BOOST_ASSERT(ai->ai_addrlen >= sizeof(struct sockaddr_in6));
     addr_ = *(struct sockaddr_in6 *)ai->ai_addr;
   }
 }
@@ -157,12 +159,12 @@ void Resolver::onAddrinfo(uv_getaddrinfo_t *req, int status,
   auto *awaiter = (AddrinfoAwaiter_ *)req->data;
   awaiter->addrinfo_ = result;
   awaiter->status_ = status;
-  assert(awaiter->handle_);
+  BOOST_ASSERT(awaiter->handle_);
   awaiter->handle_->resume();
 }
 
 struct addrinfo *Resolver::AddrinfoAwaiter_::await_resume() {
-  assert(addrinfo_);
+  BOOST_ASSERT(addrinfo_);
   return *addrinfo_;
 }
 

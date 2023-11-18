@@ -1,9 +1,11 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include "tcp.h"
+#include <boost/assert.hpp>
+#include <uv.h>
 
 #include "name_resolution.h"
 #include "stream.h"
+#include "tcp.h"
 
 namespace uvco {
 
@@ -56,13 +58,13 @@ bool TcpClient::ConnectAwaiter_::await_ready() const {
 }
 
 bool TcpClient::ConnectAwaiter_::await_suspend(std::coroutine_handle<> handle) {
-  assert(!handle_);
+  BOOST_ASSERT(!handle_);
   handle_ = handle;
   return true;
 }
 
 int TcpClient::ConnectAwaiter_::await_resume() {
-  assert(status_);
+  BOOST_ASSERT(status_);
   return *status_;
 }
 
@@ -113,7 +115,7 @@ void TcpServer::onNewConnection(uv_stream_t *stream, int status) {
     auto *const clientStream = new uv_tcp_t{};
     uv_tcp_init(loop, clientStream);
     uv_accept((uv_stream_t *)server, (uv_stream_t *)clientStream);
-    assert(!awaiter->slot_);
+    BOOST_ASSERT(!awaiter->slot_);
     awaiter->slot_ = TcpStream{clientStream};
   }
   awaiter->handle_->resume();

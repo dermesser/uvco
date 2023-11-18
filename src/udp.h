@@ -2,11 +2,13 @@
 
 #pragma once
 
-#include <span>
+#include <boost/assert.hpp>
 #include <uv.h>
 
 #include "name_resolution.h"
 #include "promise.h"
+
+#include <span>
 
 namespace uvco {
 
@@ -20,7 +22,7 @@ public:
   Udp &operator=(Udp &&other) = default;
   Udp(const Udp &) = delete;
   Udp &operator=(const Udp &) = delete;
-  ~Udp() { assert(!udp_); }
+  ~Udp() { BOOST_ASSERT(!udp_); }
 
   Promise<void> bind(std::string_view address, uint16_t port,
                      unsigned int flag = 0);

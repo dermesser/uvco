@@ -3,6 +3,7 @@
 #pragma once
 
 #include <uv.h>
+#include <boost/assert.hpp>
 
 #include "close.h"
 #include "name_resolution.h"
@@ -126,17 +127,17 @@ private:
     std::optional<TcpStream> await_resume() {
       if (stopped_)
         return {};
-      assert(status_);
+      BOOST_ASSERT(status_);
 
       if (*status_ == 0) {
-        assert(slot_);
+        BOOST_ASSERT(slot_);
         TcpStream stream{std::move(*slot_)};
         status_.reset();
         slot_.reset();
         return stream;
       } else {
         int status = *status_;
-        assert(!slot_);
+        BOOST_ASSERT(!slot_);
         status_.reset();
         throw UvcoException(status, "TcpServer::listen()");
       }

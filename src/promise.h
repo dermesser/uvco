@@ -5,6 +5,7 @@
 #include "internal_utils.h"
 
 #include <boost/assert.hpp>
+
 #include <cassert>
 #include <coroutine>
 #include <fmt/format.h>
@@ -25,12 +26,12 @@ template <typename T>
 class PromiseCore : public LifetimeTracker<PromiseCore<T>> {
 public:
   virtual void set_resume(std::coroutine_handle<> handle) {
-    assert(state_ == PromiseState::init);
+    BOOST_ASSERT(state_ == PromiseState::init);
     resume_ = handle;
     state_ = PromiseState::waitedOn;
   }
 
-  bool has_resume() { return resume_.has_value(); }
+  bool willResume() { return resume_.has_value(); }
 
   virtual void resume() {
     if (resume_) {
@@ -44,7 +45,7 @@ public:
   }
 
   virtual ~PromiseCore() {
-    assert(state_ != PromiseState::running);
+    BOOST_ASSERT(state_ != PromiseState::running);
     if (state_ == PromiseState::init)
       fmt::print("value Promise destroyed without being waited on ({})\n",
                  typeid(T).name());
@@ -73,7 +74,7 @@ public:
     // Once an external scheduler works, Promises will not be nested anymore
     // (resume called by resume down in the stack)
     //
-    // assert(PromiseCore<T>::state_
+    // BOOST_ASSERT(PromiseCore<T>::state_
     // == PromiseState::init || PromiseCore<T>::state_ ==
     // PromiseState::finished);
     PromiseCore<T>::resume_ = handle;
@@ -88,14 +89,14 @@ class PromiseCore<void> : public LifetimeTracker<PromiseCore<void>> {
 public:
   bool ready = false;
   void set_resume(std::coroutine_handle<> h) {
-    assert(state_ == PromiseState::init);
+    BOOST_ASSERT(state_ == PromiseState::init);
     resume_ = h;
     state_ = PromiseState::waitedOn;
   }
   bool has_resume() { return resume_.has_value(); }
   void resume() {
     if (resume_) {
-      assert(state_ == PromiseState::waitedOn);
+      BOOST_ASSERT(state_ == PromiseState::waitedOn);
       auto resume = *resume_;
       resume_.reset();
       state_ = PromiseState::running;
@@ -104,7 +105,7 @@ public:
     state_ = PromiseState::finished;
   }
   ~PromiseCore() {
-    assert(state_ != PromiseState::running);
+    BOOST_ASSERT(state_ != PromiseState::running);
     if (resume_)
       resume_->destroy();
   }
@@ -134,7 +135,7 @@ public:
 
   void return_value(T &&value) {
     auto &core_ = Promise<T>::core_;
-    assert(!core_->slot);
+    BOOST_ASSERT(!core_->slot);
     core_->slot = std::move(value);
     // TODO: don't resume immediately, but schedule resumption. The promise is
     // only destroyed after resume() returns, this has the promise hang around
@@ -170,13 +171,13 @@ protected:
 
     bool await_ready() const { return core_->slot.has_value(); }
     bool await_suspend(std::coroutine_handle<> handle) {
-      BOOST_ASSERT_MSG(!core_->has_resume(),
+      BOOST_ASSERT_MSG(!core_->willResume(),
                        "promise is already being waited on!\n");
       core_->set_resume(handle);
       return true;
     }
     T await_resume() {
-      assert(core_->slot.has_value());
+      BOOST_ASSERT(core_->slot.has_value());
       auto result = std::move(core_->slot.value());
       core_->slot.reset();
       return result;
@@ -279,7 +280,7 @@ public:
 
   // co_yield = co_await promise.yield_value()
   std::suspend_never yield_value(T &&value) {
-    assert(!core_->slot);
+    BOOST_ASSERT(!core_->slot);
     core_->slot = std::move(value);
     // TODO: schedule resume on event loop.
     core_->resume();
@@ -311,7 +312,7 @@ protected:
       return ready;
     }
     virtual bool await_suspend(std::coroutine_handle<> handle) {
-      BOOST_ASSERT_MSG(!core_->has_resume(),
+      BOOST_ASSERT_MSG(!core_->willResume(),
                        "promise is already being waited on!\n");
       core_->set_resume(handle);
       return true;
@@ -320,7 +321,7 @@ protected:
       std::optional<T> result = std::move(core_->slot);
       core_->slot.reset();
       // Obvious - but important to avoid constantly yielding!
-      assert(!core_->slot);
+      BOOST_ASSERT(!core_->slot);
       return result;
     }
 

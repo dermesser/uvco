@@ -1,6 +1,7 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include <chrono>
+#include <boost/assert.hpp>
+#include <fmt/format.h>
 #include <uv.h>
 
 #include "close.h"
@@ -12,8 +13,8 @@
 
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <coroutine>
-#include <fmt/format.h>
 #include <functional>
 #include <optional>
 #include <span>
@@ -29,7 +30,7 @@ public:
   Fulfillable() = default;
 
   void fulfill(T &&value) {
-    assert(!promise_.ready());
+    BOOST_ASSERT(!promise_.ready());
     promise_.return_value(std::move(value));
   }
 
@@ -117,7 +118,7 @@ Promise<int> fulfillWait(Promise<int> *p) {
 }
 
 Promise<void> testHttpRequest(uv_loop_t *loop) {
-  TcpClient client{loop, "borgac.net", 80, AF_INET6};
+  TcpClient client{loop, "borgac.net", 80, AF_INET};
   TcpStream stream = co_await client.connect();
 
   co_await stream.write(
@@ -261,7 +262,7 @@ void run_loop() {
   uv_run(&loop, UV_RUN_DEFAULT);
   log(&loop, "After loop end");
 
-  assert(p.ready());
+  BOOST_ASSERT(p.ready());
 
   uv_loop_close(&loop);
 }

@@ -1,14 +1,16 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include "stream.h"
+#include <boost/assert.hpp>
+#include <uv.h>
 
+#include "stream.h"
 #include "close.h"
 
 namespace uvco {
 
 StreamBase::~StreamBase() {
   // close() MUST be called and awaited before dtor.
-  assert(!stream_);
+  BOOST_ASSERT(!stream_);
 }
 
 TtyStream TtyStream::tty(uv_loop_t *loop, int fd) {
@@ -64,7 +66,7 @@ bool StreamBase::InStreamAwaiter_::await_suspend(
 }
 
 std::optional<std::string> StreamBase::InStreamAwaiter_::await_resume() {
-  assert(slot_);
+  BOOST_ASSERT(slot_);
   std::optional<std::string> result = std::move(*slot_);
   slot_.reset();
   return result;
@@ -131,7 +133,7 @@ bool StreamBase::OutStreamAwaiter_::await_suspend(
 }
 
 StreamBase::uv_status StreamBase::OutStreamAwaiter_::await_resume() {
-  assert(status_);
+  BOOST_ASSERT(status_);
   return *status_;
 }
 
@@ -139,7 +141,7 @@ void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
                                                      uv_status status) {
   auto *state = (OutStreamAwaiter_ *)write->data;
   state->status_ = status;
-  assert(state->handle_);
+  BOOST_ASSERT(state->handle_);
   state->handle_->resume();
 }
 
