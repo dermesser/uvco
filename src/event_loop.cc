@@ -48,8 +48,9 @@ public:
 Promise<void> uppercasing(TtyStream in, TtyStream out) {
   while (true) {
     auto maybeLine = co_await in.read();
-    if (!maybeLine)
+    if (!maybeLine) {
       break;
+    }
     auto line = maybeLine.value();
     std::transform(line.begin(), line.end(), line.begin(),
                    [](char c) { return std::toupper(c); });
@@ -72,8 +73,9 @@ MultiPromise<std::string> generateStdinLines(uv_loop_t *loop) {
   TtyStream in = TtyStream::stdin(loop);
   while (true) {
     std::optional<std::string> line = co_await in.read();
-    if (!line)
+    if (!line) {
       break;
+    }
     co_yield std::move(*line);
   }
   co_await in.close();
@@ -87,8 +89,9 @@ Promise<void> enumerateStdinLines(uv_loop_t *loop) {
   while (true) {
     ++count;
     std::optional<std::string> line = co_await generator;
-    if (!line)
+    if (!line) {
       break;
+    }
     fmt::print("{:3d} {}", count, *line);
   }
   co_return;
@@ -97,8 +100,8 @@ Promise<void> enumerateStdinLines(uv_loop_t *loop) {
 Promise<void> resolveName(uv_loop_t *loop, std::string_view name) {
   Resolver resolver{loop};
   log(loop, "Before GAI");
-  AddressHandle ah = co_await resolver.gai(name, "443");
-  log(loop, fmt::format("After GAI: {}", ah.toString()));
+  AddressHandle address = co_await resolver.gai(name, "443");
+  log(loop, fmt::format("After GAI: {}", address.toString()));
   co_return;
 }
 
@@ -108,9 +111,9 @@ Promise<void> resolveName(uv_loop_t *loop, std::string_view name) {
 // -- because then, the coroutine returns to itself!
 Promise<int> fulfillWait(Promise<int> *p) {
   fmt::print("fulfill before await\n");
-  int r = co_await *p;
-  fmt::print("fulfill after await: {}\n", r);
-  co_return r;
+  int result = co_await *p;
+  fmt::print("fulfill after await: {}\n", result);
+  co_return result;
 }
 
 Promise<void> testHttpRequest(uv_loop_t *loop) {
@@ -119,13 +122,14 @@ Promise<void> testHttpRequest(uv_loop_t *loop) {
 
   co_await stream.write(
       fmt::format("HEAD / HTTP/1.0\r\nHost: borgac.net\r\n\r\n"));
-  do {
+  while (true) {
     std::optional<std::string> chunk = co_await stream.read();
-    if (chunk)
+    if (chunk) {
       fmt::print("Got chunk: >> {} <<\n", *chunk);
-    else
+    } else {
       break;
-  } while (true);
+    }
+  }
   co_await stream.closeReset();
 }
 
@@ -152,8 +156,9 @@ Promise<void> udpServer(uv_loop_t *loop) {
      *  With little/no performance impact.
      */
     auto recvd = co_await packets;
-    if (!recvd)
+    if (!recvd) {
       break;
+    }
     auto &buffer = recvd->first;
     auto &from = recvd->second;
 
@@ -197,12 +202,12 @@ Promise<void> echoReceived(TcpStream stream) {
   fmt::print("Received connection from [{}]\n", addressStr);
 
   while (true) {
-    std::optional<std::string> p = co_await stream.read();
-    if (!p) {
+    std::optional<std::string> chunk = co_await stream.read();
+    if (!chunk) {
       break;
     }
-    fmt::print("[{}] {}", addressStr, *p);
-    co_await stream.write(std::move(*p));
+    fmt::print("[{}] {}", addressStr, *chunk);
+    co_await stream.write(std::move(*chunk));
   }
   co_await stream.close();
 }
@@ -216,8 +221,9 @@ Promise<void> echoTcpServer(uv_loop_t *loop) {
 
   while (true) {
     std::optional<TcpStream> client = co_await clients;
-    if (!client)
+    if (!client) {
       break;
+    }
     Promise<void> clientLoop = echoReceived(std::move(*client));
     // TODO: investigate if coroutine handles need to be destroyed?
     // Are the frames released automatically upon return?
@@ -225,7 +231,7 @@ Promise<void> echoTcpServer(uv_loop_t *loop) {
   }
 }
 
-void run_loop(int disc) {
+void run_loop() {
   Data data;
 
   uv_loop_t loop;
