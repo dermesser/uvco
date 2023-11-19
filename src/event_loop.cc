@@ -249,14 +249,14 @@ void run_loop() {
   Promise<int> p2 = fulfillWait(&f.promise());
   f.fulfill(42);
   */
-  // Promise<void> p = setupUppercasing(&loop);
+  Promise<void> p = setupUppercasing(&loop);
 
   Promise<void> p2 = testHttpRequest(&loop);
 
   // auto server = udpServer(&loop);
   // auto client = udpClient(&loop);
 
-  Promise<void> p = echoTcpServer(&loop);
+  //Promise<void> p = echoTcpServer(&loop);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);

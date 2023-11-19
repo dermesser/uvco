@@ -39,6 +39,10 @@ public:
       auto resume = *resume_;
       resume_.reset();
       resume.resume();
+    } else {
+      // This occurs if no co_await has occured until resume. Either the promise
+      // was not co_awaited, or the producing coroutine immediately returned a
+      // value.
     }
     // This can happen if await_ready() is true immediately.
     state_ = PromiseState::finished;
@@ -46,15 +50,18 @@ public:
 
   virtual ~PromiseCore() {
     BOOST_ASSERT(state_ != PromiseState::running);
-    if (state_ == PromiseState::init)
-      fmt::print("value Promise destroyed without being waited on ({})\n",
+    if (state_ == PromiseState::init) {
+      fmt::print(stderr,
+                 "PromiseCore destroyed without ever being waited on ({})\n",
                  typeid(T).name());
+    }
     // This only happens if the awaiting coroutine has never been resumed, but
     // the last promise provided by it is gone.
     // Important: we may only destroy a suspended coroutine, not a finished one:
     // co_return already destroys coroutine state.
-    if (resume_)
+    if (resume_) {
       resume_->destroy();
+    }
   }
 
   std::optional<T> slot;
@@ -101,13 +108,19 @@ public:
       resume_.reset();
       state_ = PromiseState::running;
       resume();
+    } else {
+      // If a coroutine returned immediately, or nobody co_awaited for results.
     }
     state_ = PromiseState::finished;
   }
   ~PromiseCore() {
     BOOST_ASSERT(state_ != PromiseState::running);
-    if (resume_)
+    if (state_ == PromiseState::init) {
+      fmt::print(stderr, "void Promise not finished\n");
+    }
+    if (resume_) {
       resume_->destroy();
+    }
   }
 
 private:

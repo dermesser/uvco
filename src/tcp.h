@@ -22,41 +22,17 @@ public:
 
   ~TcpStream() override = default;
 
-  AddressHandle getPeerName() const {
-    struct sockaddr_storage addr {};
-    int namelen = sizeof(addr);
-    uv_tcp_getpeername((const uv_tcp_t *)underlying(), (struct sockaddr *)&addr,
-                       &namelen);
-    const AddressHandle address{(struct sockaddr *)&addr};
-    return address;
-  };
+  [[nodiscard]] AddressHandle getPeerName() const;
 
-  AddressHandle getSockName() const {
-    struct sockaddr_storage addr {};
-    int namelen = sizeof(addr);
-    uv_tcp_getsockname((const uv_tcp_t *)underlying(), (struct sockaddr *)&addr,
-                       &namelen);
-    const AddressHandle address{(struct sockaddr *)&addr};
-    return address;
-  }
+  [[nodiscard]] AddressHandle getSockName() const;
 
   // Sends RST to TCP peer.
   // Must be awaited.
-  [[nodiscard]] Promise<void> closeReset() {
-    CloseAwaiter awaiter{};
-    stream().data = &awaiter;
-    uv_tcp_close_reset((uv_tcp_t *)&stream(), onCloseCallback);
-    co_await awaiter;
-    destroyStream();
-  }
+  [[nodiscard]] Promise<void> closeReset();
 
-  void keepAlive(bool enable, unsigned int delay = 10) {
-    uv_tcp_keepalive((uv_tcp_t *)&stream(), static_cast<int>(enable), delay);
-  }
+  void keepAlive(bool enable, unsigned int delay = 10);
 
-  void noDelay(bool enable) {
-    uv_tcp_nodelay((uv_tcp_t *)&stream(), static_cast<int>(enable));
-  }
+  void noDelay(bool enable);
 };
 
 class TcpClient {

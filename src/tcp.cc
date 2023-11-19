@@ -121,4 +121,38 @@ void TcpServer::onNewConnection(uv_stream_t *stream, int status) {
   awaiter->handle_->resume();
 }
 
+Promise<void> TcpStream::closeReset() {
+  CloseAwaiter awaiter{};
+  stream().data = &awaiter;
+  uv_tcp_close_reset((uv_tcp_t *)&stream(), onCloseCallback);
+  co_await awaiter;
+  destroyStream();
+}
+
+AddressHandle TcpStream::getSockName() const {
+  struct sockaddr_storage addr {};
+  int namelen = sizeof(addr);
+  uv_tcp_getsockname((const uv_tcp_t *)underlying(), (struct sockaddr *)&addr,
+                     &namelen);
+  const AddressHandle address{(struct sockaddr *)&addr};
+  return address;
+}
+
+AddressHandle TcpStream::getPeerName() const {
+  struct sockaddr_storage addr {};
+  int namelen = sizeof(addr);
+  uv_tcp_getpeername((const uv_tcp_t *)underlying(), (struct sockaddr *)&addr,
+                     &namelen);
+  const AddressHandle address{(struct sockaddr *)&addr};
+  return address;
+};
+
+void TcpStream::keepAlive(bool enable, unsigned int delay) {
+  uv_tcp_keepalive((uv_tcp_t *)&stream(), static_cast<int>(enable), delay);
+}
+
+void TcpStream::noDelay(bool enable) {
+  uv_tcp_nodelay((uv_tcp_t *)&stream(), static_cast<int>(enable));
+}
+
 } // namespace uvco
