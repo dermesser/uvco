@@ -3,8 +3,8 @@
 #include <boost/assert.hpp>
 #include <uv.h>
 
-#include "stream.h"
 #include "close.h"
+#include "stream.h"
 
 namespace uvco {
 
@@ -36,14 +36,8 @@ Promise<StreamBase::uv_status> StreamBase::write(std::string buf) {
   co_return status;
 }
 
-Promise<void> StreamBase::close(void (*uv_close_impl)(uv_handle_t *,
-                                                      uv_close_cb)) {
-  // TODO: schedule closing operation on event loop?
-  CloseAwaiter awaiter{};
-
-  stream().data = &awaiter;
-  uv_close_impl((uv_handle_t *)&stream(), onCloseCallback);
-  co_await awaiter;
+Promise<void> StreamBase::close() {
+  co_await closeHandle(&stream());
   stream_.reset();
 }
 

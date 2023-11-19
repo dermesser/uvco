@@ -21,6 +21,7 @@ add_library(event-loop-lib STATIC
     src/promise.cc
     src/stream.cc
     src/tcp.cc
+    src/timer.cc
     src/udp.cc
 
     src/event_loop.cc)

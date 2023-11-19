@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "promise.h"
+
 #include <coroutine>
 #include <optional>
 
@@ -19,5 +21,18 @@ struct CloseAwaiter {
 };
 
 void onCloseCallback(uv_handle_t *stream);
+
+template<typename T, typename C, typename H = T>
+Promise<void> closeHandle(T* handle, C closer) {
+  CloseAwaiter awaiter{};
+  handle->data = &awaiter;
+  closer((H*)handle, onCloseCallback);
+  co_await awaiter;
+}
+
+template<typename T>
+Promise<void> closeHandle(T* handle) {
+  co_await closeHandle((uv_handle_t*)handle, uv_close);
+}
 
 } // namespace uvco

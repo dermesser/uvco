@@ -54,6 +54,7 @@ Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
   // Any exceptions are thrown in RecvAwaiter_::await_resume
 
   udp_->data = nullptr;
+  BOOST_ASSERT(awaiter.addr_);
   co_return std::make_pair(buffer, *awaiter.addr_);
 }
 
@@ -63,11 +64,13 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
   udp_->data = &awaiter;
 
   int status = uv_udp_recv_start(udp_.get(), allocator, onReceiveOne);
-  if (status != 0)
+  if (status != 0) {
     throw UvcoException(status, "receiveMany(): uv_udp_recv_start()");
+  }
 
   while (true) {
     std::string buffer = co_await awaiter;
+    BOOST_ASSERT(awaiter.addr_);
     co_yield std::make_pair(std::move(buffer), *awaiter.addr_);
     // TODO: a way to stop?
   };
@@ -75,10 +78,7 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
 }
 
 Promise<void> Udp::close() {
-  CloseAwaiter awaiter{};
-  udp_->data = &awaiter;
-  uv_close((uv_handle_t *)udp_.get(), onCloseCallback);
-  co_await awaiter;
+  co_await closeHandle(udp_.get());
   udp_.reset();
   connected_ = false;
 }
@@ -87,23 +87,27 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
                        const struct sockaddr *addr, unsigned int flags) {
 
   auto *awaiter = (RecvAwaiter_ *)handle->data;
-  if (awaiter->stop_receiving_)
+  if (awaiter->stop_receiving_) {
     uv_udp_recv_stop(handle);
+  }
   awaiter->nread_ = nread;
 
   if (addr == nullptr) {
     // Error or asking to free buffers.
-    if (!(flags & UV_UDP_MMSG_CHUNK))
+    if (!(flags & UV_UDP_MMSG_CHUNK)) {
       freeUvBuf(buf);
+    }
     return;
   } else {
     awaiter->addr_ = AddressHandle{addr};
-    if (nread >= 0)
+    if (nread >= 0) {
       awaiter->buffer_ = std::string{buf->base, static_cast<size_t>(nread)};
+    }
   }
 
-  if (0 == (flags & UV_UDP_MMSG_CHUNK))
+  if (0 == (flags & UV_UDP_MMSG_CHUNK)) {
     freeUvBuf(buf);
+  }
 
   if (awaiter->handle_) {
     auto handle = *awaiter->handle_;
@@ -122,8 +126,9 @@ bool Udp::RecvAwaiter_::await_ready() const { return buffer_.has_value(); }
 
 std::string Udp::RecvAwaiter_::await_resume() {
   BOOST_ASSERT(nread_);
-  if (*nread_ < 0)
+  if (*nread_ < 0) {
     throw UvcoException(*nread_, "onReceiveOne");
+  }
   BOOST_ASSERT(buffer_);
   auto b = std::move(*buffer_);
   buffer_.reset();
@@ -133,8 +138,9 @@ std::string Udp::RecvAwaiter_::await_resume() {
 void Udp::onSendDone(uv_udp_send_t *req, int status) {
   auto *awaiter = (SendAwaiter_ *)req->data;
   awaiter->status_ = status;
-  if (awaiter->handle_)
+  if (awaiter->handle_) {
     awaiter->handle_->resume();
+  }
 }
 
 bool Udp::SendAwaiter_::await_ready() const { return status_.has_value(); }

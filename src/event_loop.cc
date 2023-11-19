@@ -9,6 +9,7 @@
 #include "promise.h"
 #include "stream.h"
 #include "tcp.h"
+#include "timer.h"
 #include "udp.h"
 
 #include <algorithm>
@@ -250,19 +251,21 @@ void run_loop() {
   f.fulfill(42);
   */
   Promise<void> p = setupUppercasing(&loop);
+  Promise<void> p3 = wait(&loop, 1024);
 
   Promise<void> p2 = testHttpRequest(&loop);
 
   // auto server = udpServer(&loop);
   // auto client = udpClient(&loop);
 
-  //Promise<void> p = echoTcpServer(&loop);
+  // Promise<void> p = echoTcpServer(&loop);
 
   log(&loop, "Before loop start");
   uv_run(&loop, UV_RUN_DEFAULT);
   log(&loop, "After loop end");
 
   BOOST_ASSERT(p.ready());
+  BOOST_ASSERT(p2.ready());
 
   uv_loop_close(&loop);
 }

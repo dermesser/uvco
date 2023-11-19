@@ -38,6 +38,9 @@ void UvHandleDeleter::del(uv_handle_t *handle) {
   case UV_HANDLE:
     delete (uv_handle_t *)handle;
     break;
+  case UV_TIMER:
+    delete (uv_handle_t *)handle;
+    break;
   default:
     fmt::print("WARN: unhandled handle type {}\n", handle->type);
     delete handle;
