@@ -3,6 +3,7 @@
 #include <boost/assert.hpp>
 
 #include "close.h"
+#include "internal_utils.h"
 #include "udp.h"
 
 namespace uvco {
@@ -74,8 +75,9 @@ Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
   RecvAwaiter_ awaiter{};
   udp_->data = &awaiter;
   int status = uv_udp_recv_start(udp_.get(), allocator, onReceiveOne);
-  if (status != 0)
+  if (status != 0) {
     throw UvcoException(status, "uv_udp_recv_start()");
+}
 
   std::string buffer = co_await awaiter;
 
@@ -87,6 +89,8 @@ Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
 }
 
 MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
+  FlagGuard receivingGuard{is_receiving_};
+
   RecvAwaiter_ awaiter{};
   awaiter.stop_receiving_ = false;
   udp_->data = &awaiter;

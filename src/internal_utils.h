@@ -59,4 +59,18 @@ struct UvHandleDeleter {
   }
 };
 
+class FlagGuard {
+public:
+  FlagGuard(const FlagGuard &) = delete;
+  FlagGuard(FlagGuard &&) = delete;
+  FlagGuard &operator=(const FlagGuard &) = delete;
+  FlagGuard &operator=(FlagGuard &&) = delete;
+
+  explicit FlagGuard(bool &flag);
+  ~FlagGuard() { flag_ = false; }
+
+private:
+  bool &flag_;
+};
+
 } // namespace uvco

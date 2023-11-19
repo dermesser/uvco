@@ -2,6 +2,8 @@
 
 #include "internal_utils.h"
 
+#include <boost/assert.hpp>
+
 namespace uvco {
 
 const bool TRACK_LIFETIMES = false;
@@ -46,4 +48,10 @@ void UvHandleDeleter::del(uv_handle_t *handle) {
     delete handle;
   }
 }
+
+FlagGuard::FlagGuard(bool &flag) : flag_{flag} {
+  BOOST_ASSERT(!flag_);
+  flag = true;
+}
+
 } // namespace uvco
