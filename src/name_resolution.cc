@@ -1,8 +1,7 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include <uv.h>
 #include <boost/assert.hpp>
-
+#include <uv.h>
 
 #include "internal_utils.h"
 #include "name_resolution.h"
@@ -10,9 +9,9 @@
 
 #include <cassert>
 #include <coroutine>
-#include <optional>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 
 namespace uvco {

@@ -28,9 +28,7 @@ public:
     closed_ = true;
   }
 
-  bool await_ready() {
-    return isReady();
-  }
+  bool await_ready() { return isReady(); }
   bool await_suspend(std::coroutine_handle<> handle) {
     resume_ = handle;
     return true;
@@ -47,6 +45,7 @@ public:
       resume_->resume();
     }
   }
+
 private:
   uv_timer_t handle_;
   std::optional<std::coroutine_handle<>> resume_;

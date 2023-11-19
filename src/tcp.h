@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include <uv.h>
 #include <boost/assert.hpp>
+#include <uv.h>
 
 #include "close.h"
 #include "name_resolution.h"

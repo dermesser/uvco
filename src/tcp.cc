@@ -122,7 +122,7 @@ void TcpServer::onNewConnection(uv_stream_t *stream, int status) {
 }
 
 Promise<void> TcpStream::closeReset() {
-  co_await closeHandle((uv_tcp_t*)&stream(), uv_tcp_close_reset);
+  co_await closeHandle((uv_tcp_t *)&stream(), uv_tcp_close_reset);
   destroyStream();
 }
 

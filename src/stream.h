@@ -28,8 +28,7 @@ public:
   [[nodiscard]] Promise<uv_status> write(std::string buf);
 
   // close() must be co_awaited!
-  [[nodiscard]] Promise<void>
-  close();
+  [[nodiscard]] Promise<void> close();
 
   [[nodiscard]] const uv_stream_t *underlying() const { return stream_.get(); }
 
