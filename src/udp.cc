@@ -37,6 +37,34 @@ Promise<void> Udp::connect(std::string_view address, uint16_t port,
   connected_ = true;
 }
 
+Promise<void> Udp::send(std::span<char> buffer,
+                        std::optional<AddressHandle> address) {
+  SendAwaiter_ sendAwaiter{};
+  uv_udp_send_t req;
+  req.data = &sendAwaiter;
+
+  std::array<uv_buf_t, 1> bufs{};
+  bufs[0].base = &(*buffer.begin());
+  bufs[0].len = buffer.size_bytes();
+
+  const struct sockaddr *addr = nullptr;
+  if (address) {
+    addr = address->sockaddr();
+  }
+
+  int status = uv_udp_send(&req, udp_.get(), bufs.begin(), 1, addr, onSendDone);
+  if (status != 0) {
+    throw UvcoException{status, "uv_udp_send() failed immediately"};
+  }
+
+  int status_done = co_await sendAwaiter;
+  if (status_done != 0) {
+    throw UvcoException{status_done, "uv_udp_send() failed while sending"};
+  }
+
+  co_return;
+}
+
 Promise<std::string> Udp::receiveOne() {
   auto p = co_await receiveOneFrom();
   co_return std::move(p.first);
