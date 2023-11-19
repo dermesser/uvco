@@ -242,7 +242,7 @@ void run_loop() {
 
   // Promises are run even if they are not waited on or checked.
 
-  // Promise<void> p = enumerateStdinLines(&loop);
+  //Promise<void> p = enumerateStdinLines(&loop);
   //  Promise<void> p = resolveName(&loop, "borgac.net");
 
   /*
@@ -250,13 +250,13 @@ void run_loop() {
   Promise<int> p2 = fulfillWait(&f.promise());
   f.fulfill(42);
   */
-  Promise<void> p = setupUppercasing(&loop);
-  Promise<void> p3 = wait(&loop, 1024);
+  //Promise<void> p = setupUppercasing(&loop);
+  //Promise<void> p3 = wait(&loop, 1024);
 
-  Promise<void> p2 = testHttpRequest(&loop);
+  //Promise<void> p2 = testHttpRequest(&loop);
 
-  // auto server = udpServer(&loop);
-  // auto client = udpClient(&loop);
+  auto server = udpServer(&loop);
+  auto client = udpClient(&loop);
 
   // Promise<void> p = echoTcpServer(&loop);
 
@@ -264,8 +264,8 @@ void run_loop() {
   uv_run(&loop, UV_RUN_DEFAULT);
   log(&loop, "After loop end");
 
-  BOOST_ASSERT(p.ready());
-  BOOST_ASSERT(p2.ready());
+  //BOOST_ASSERT(p.ready());
+  //BOOST_ASSERT(p2.ready());
 
   uv_loop_close(&loop);
 }

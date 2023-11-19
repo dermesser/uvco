@@ -35,6 +35,7 @@ public:
 
   virtual void resume() {
     if (resume_) {
+      BOOST_ASSERT(state_ == PromiseState::waitedOn);
       state_ = PromiseState::running;
       auto resume = *resume_;
       resume_.reset();
@@ -42,17 +43,29 @@ public:
     } else {
       // This occurs if no co_await has occured until resume. Either the promise
       // was not co_awaited, or the producing coroutine immediately returned a
-      // value.
+      // value. (await_ready() == true)
     }
-    // This can happen if await_ready() is true immediately.
-    state_ = PromiseState::finished;
+
+    switch (state_) {
+    case PromiseState::init:
+    case PromiseState::running:
+      state_ = PromiseState::finished;
+      break;
+    case PromiseState::waitedOn:
+      // It is possible that set_resume() was called in a stack originating at
+      // resume(), thus updating the state. In that case, the state should be
+      // preserved.
+      state_ = PromiseState::waitedOn;
+      break;
+    case PromiseState::finished:
+      BOOST_ASSERT_MSG(false, "unexpected state in PromiseCore state machine: prematurely finished");
+    }
   }
 
   virtual ~PromiseCore() {
-    BOOST_ASSERT(state_ != PromiseState::running);
-    if (state_ == PromiseState::init) {
+    if (state_ != PromiseState::finished) {
       fmt::print(stderr,
-                 "PromiseCore destroyed without ever being waited on ({})\n",
+                 "PromiseCore destroyed without ever being resumed ({})\n",
                  typeid(T).name());
     }
     // This only happens if the awaiting coroutine has never been resumed, but
@@ -84,6 +97,13 @@ public:
     // BOOST_ASSERT(PromiseCore<T>::state_
     // == PromiseState::init || PromiseCore<T>::state_ ==
     // PromiseState::finished);
+    //
+    // state is init or running (latter can occur if set_resume is called from a
+    // stack originating at resume()).
+    BOOST_ASSERT_MSG(PromiseCore<T>::state_ != PromiseState::waitedOn,
+                     "MultiPromise must be co_awaited before next yield");
+    BOOST_ASSERT_MSG(!PromiseCore<T>::resume_,
+                     "MultiPromise must be co_awaited before next yield");
     PromiseCore<T>::resume_ = handle;
     PromiseCore<T>::state_ = PromiseState::waitedOn;
   }
@@ -100,7 +120,7 @@ public:
     resume_ = h;
     state_ = PromiseState::waitedOn;
   }
-  bool has_resume() { return resume_.has_value(); }
+  bool willResume() { return resume_.has_value(); }
   void resume() {
     if (resume_) {
       BOOST_ASSERT(state_ == PromiseState::waitedOn);
@@ -244,7 +264,7 @@ private:
     bool await_ready() const { return core_->ready; }
 
     bool await_suspend(std::coroutine_handle<> handle) {
-      BOOST_ASSERT_MSG(!core_->has_resume(),
+      BOOST_ASSERT_MSG(!core_->willResume(),
                        "promise is already being waited on!\n");
       core_->set_resume(handle);
       return true;
@@ -322,6 +342,7 @@ protected:
 
     bool await_ready() const {
       const bool ready = core_->slot.has_value();
+      fmt::print(stderr, "MP has value: {}\n", ready);
       return ready;
     }
     virtual bool await_suspend(std::coroutine_handle<> handle) {
