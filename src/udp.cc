@@ -96,12 +96,13 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
     throw UvcoException(status, "receiveMany(): uv_udp_recv_start()");
   }
 
-  while (true) {
+  stop_receive_many_ = false;
+  while (!stop_receive_many_) {
     std::string buffer = co_await awaiter;
     BOOST_ASSERT(awaiter.addr_);
     co_yield std::make_pair(std::move(buffer), *awaiter.addr_);
-    // TODO: a way to stop?
   };
+  stop_receive_many_ = false;
   co_return;
 }
 

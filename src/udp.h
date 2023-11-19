@@ -38,6 +38,8 @@ public:
   Promise<std::pair<std::string, AddressHandle>> receiveOneFrom();
 
   MultiPromise<std::pair<std::string, AddressHandle>> receiveMany();
+  // Stop receiving after the next packet.
+  void stopReceiveMany() { stop_receive_many_ = true; }
 
   Promise<void> close();
 
@@ -45,6 +47,7 @@ private:
   uv_loop_t *loop_;
   std::unique_ptr<uv_udp_t> udp_;
   bool connected_ = false;
+  bool stop_receive_many_ = false;
 
   static void onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
                            const struct sockaddr *addr, unsigned int flags);
