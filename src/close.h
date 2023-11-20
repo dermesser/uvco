@@ -22,11 +22,11 @@ struct CloseAwaiter {
 
 void onCloseCallback(uv_handle_t *stream);
 
-template <typename T, typename C, typename H = T>
+template <typename T, typename C>
 Promise<void> closeHandle(T *handle, C closer) {
   CloseAwaiter awaiter{};
   handle->data = &awaiter;
-  closer((H *)handle, onCloseCallback);
+  closer(handle, onCloseCallback);
   co_await awaiter;
 }
 

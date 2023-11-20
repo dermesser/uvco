@@ -74,18 +74,21 @@ Promise<std::string> Udp::receiveOne() {
 Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
   RecvAwaiter_ awaiter{};
   udp_->data = &awaiter;
-  int status = uv_udp_recv_start(udp_.get(), allocator, onReceiveOne);
+  int status = udpStartReceive();
   if (status != 0) {
     throw UvcoException(status, "uv_udp_recv_start()");
-}
+  }
 
-  std::string buffer = co_await awaiter;
+  std::optional<std::string> buffer = co_await awaiter;
+  if (!buffer) {
+    throw UvcoException(UV_EINTR, "receive process interrupted");
+  }
 
   // Any exceptions are thrown in RecvAwaiter_::await_resume
 
   udp_->data = nullptr;
   BOOST_ASSERT(awaiter.addr_);
-  co_return std::make_pair(buffer, *awaiter.addr_);
+  co_return std::make_pair(*buffer, *awaiter.addr_);
 }
 
 MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
@@ -95,18 +98,21 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
   awaiter.stop_receiving_ = false;
   udp_->data = &awaiter;
 
-  int status = uv_udp_recv_start(udp_.get(), allocator, onReceiveOne);
+  int status = udpStartReceive();
   if (status != 0) {
     throw UvcoException(status, "receiveMany(): uv_udp_recv_start()");
   }
 
-  stop_receive_many_ = false;
-  while (!stop_receive_many_) {
-    std::string buffer = co_await awaiter;
+  while (true) {
+    // Awaiter returns empty optional on requested stop (stopReceiveMany()).
+    std::optional<std::string> buffer = co_await awaiter;
+    if (!buffer) {
+      udpStopReceive();
+      break;
+    }
     BOOST_ASSERT(awaiter.addr_);
-    co_yield std::make_pair(std::move(buffer), *awaiter.addr_);
+    co_yield std::make_pair(std::move(*buffer), *awaiter.addr_);
   };
-  stop_receive_many_ = false;
   co_return;
 }
 
@@ -157,7 +163,11 @@ bool Udp::RecvAwaiter_::await_suspend(std::coroutine_handle<> h) {
 
 bool Udp::RecvAwaiter_::await_ready() const { return buffer_.has_value(); }
 
-std::string Udp::RecvAwaiter_::await_resume() {
+std::optional<std::string> Udp::RecvAwaiter_::await_resume() {
+  // Woken up without read packet: stop receiving.
+  if (!nread_ && !buffer_) {
+    return {};
+  }
   BOOST_ASSERT(nread_);
   if (*nread_ < 0) {
     throw UvcoException(*nread_, "onReceiveOne");
@@ -189,4 +199,14 @@ int Udp::SendAwaiter_::await_resume() {
   return *status_;
 }
 
+void Udp::stopReceiveMany() {
+  auto *currentAwaiter = (RecvAwaiter_ *)udp_->data;
+  currentAwaiter->nread_.reset();
+  currentAwaiter->buffer_.reset();
+  currentAwaiter->resume();
+}
+void Udp::udpStopReceive() { uv_udp_recv_stop(udp_.get()); }
+int Udp::udpStartReceive() {
+  return uv_udp_recv_start(udp_.get(), allocator, onReceiveOne);
+}
 } // namespace uvco

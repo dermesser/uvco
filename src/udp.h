@@ -37,10 +37,11 @@ public:
 
   Promise<std::pair<std::string, AddressHandle>> receiveOneFrom();
 
-  // Generate packets received on socket.
+  // Generate packets received on socket. Call stopReceiveMany() when no more
+  // packets are desired; otherwise this will continue indefinitely.
   MultiPromise<std::pair<std::string, AddressHandle>> receiveMany();
   // Stop receiving after the next packet.
-  void stopReceiveMany() { stop_receive_many_ = true; }
+  void stopReceiveMany();
 
   Promise<void> close();
 
@@ -50,7 +51,9 @@ private:
   bool connected_ = false;
 
   bool is_receiving_ = false;
-  bool stop_receive_many_ = false;
+
+  int udpStartReceive();
+  void udpStopReceive();
 
   static void onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
                            const struct sockaddr *addr, unsigned int flags);
@@ -58,7 +61,13 @@ private:
   struct RecvAwaiter_ {
     [[nodiscard]] bool await_ready() const;
     bool await_suspend(std::coroutine_handle<> h);
-    std::string await_resume();
+    std::optional<std::string> await_resume();
+
+    void resume() {
+      if (handle_) {
+        handle_->resume();
+      }
+    }
 
     std::optional<std::string> buffer_;
     std::optional<std::coroutine_handle<>> handle_;

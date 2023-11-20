@@ -58,7 +58,9 @@ public:
       state_ = PromiseState::waitedOn;
       break;
     case PromiseState::finished:
-      BOOST_ASSERT_MSG(false, "unexpected state in PromiseCore state machine: prematurely finished");
+      // Happens in MultiPromiseCore on co_return if the co_awaiter has lost interest.
+      // Harmless if !resume_ (asserted above).
+      break;
     }
   }
 
@@ -342,7 +344,6 @@ protected:
 
     bool await_ready() const {
       const bool ready = core_->slot.has_value();
-      fmt::print(stderr, "MP has value: {}\n", ready);
       return ready;
     }
     virtual bool await_suspend(std::coroutine_handle<> handle) {

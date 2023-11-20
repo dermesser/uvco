@@ -176,11 +176,15 @@ Promise<void> udpServer(uv_loop_t *loop) {
 
     ++counter;
   }
+  // Necessary for the receiver promise to return and not leak memory!
+  server.stopReceiveMany();
   co_await server.close();
   co_return;
 }
 
 Promise<void> udpClient(uv_loop_t *loop) {
+  // Ensure server has started.
+  co_await wait(loop, 50);
   constexpr static uint32_t max = 50;
   std::string msg = "Hello there!";
 
@@ -190,7 +194,6 @@ Promise<void> udpClient(uv_loop_t *loop) {
   for (uint32_t i = 0; i < max; ++i) {
     co_await client.send(std::span{msg}, {});
     auto response = co_await client.receiveOne();
-    fmt::print("Response: {}\n", response);
   }
 
   co_await client.close();
