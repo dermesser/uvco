@@ -53,7 +53,6 @@ private:
 };
 
 void onTimerDone(uv_timer_t *handle) {
-  fmt::print("timer done\n");
   auto *awaiter = (TimerAwaiter *)handle->data;
   awaiter->stop();
   awaiter->resume();

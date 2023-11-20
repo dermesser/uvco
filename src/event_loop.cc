@@ -107,17 +107,6 @@ Promise<void> resolveName(uv_loop_t *loop, std::string_view name) {
   co_return;
 }
 
-// DANGER: due to the C++ standard definition, it is invalid to call a
-// function returning Promise<T> with an argument accepted by a constructor of
-// Promise<T>
-// -- because then, the coroutine returns to itself!
-Promise<int> fulfillWait(Promise<int> *p) {
-  fmt::print("fulfill before await\n");
-  int result = co_await *p;
-  fmt::print("fulfill after await: {}\n", result);
-  co_return result;
-}
-
 Promise<void> testHttpRequest(uv_loop_t *loop) {
   TcpClient client{loop, "borgac.net", 80, AF_INET};
   TcpStream stream = co_await client.connect();
