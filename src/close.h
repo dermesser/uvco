@@ -28,6 +28,7 @@ Promise<void> closeHandle(T *handle, C closer) {
   handle->data = &awaiter;
   closer(handle, onCloseCallback);
   co_await awaiter;
+  BOOST_ASSERT(awaiter.closed_);
 }
 
 template <typename T> Promise<void> closeHandle(T *handle) {

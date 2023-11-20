@@ -136,7 +136,7 @@ Promise<void> udpServer(uv_loop_t *loop) {
   MultiPromise<std::pair<std::string, AddressHandle>> packets =
       server.receiveMany();
 
-  while (counter < 50) {
+  while (counter < 10) {
     /*
      * Can also be written as:
      *
@@ -174,17 +174,22 @@ Promise<void> udpServer(uv_loop_t *loop) {
 Promise<void> udpClient(uv_loop_t *loop) {
   // Ensure server has started.
   co_await wait(loop, 50);
-  constexpr static uint32_t max = 50;
+  constexpr static uint32_t max = 10;
   std::string msg = "Hello there!";
+
+  auto ticker = tick(loop, 50, max);
+  MultiPromise<uint64_t> tickerPromise = ticker->ticker();
 
   Udp client{loop};
   co_await client.connect("::1", 9999);
 
   for (uint32_t i = 0; i < max; ++i) {
+    co_await tickerPromise;
     co_await client.send(std::span{msg}, {});
     auto response = co_await client.receiveOne();
   }
 
+  co_await ticker->stop();
   co_await client.close();
 }
 
