@@ -25,6 +25,10 @@ enum class PromiseState {
 template <typename T>
 class PromiseCore : public LifetimeTracker<PromiseCore<T>> {
 public:
+  PromiseCore() = default;
+  explicit PromiseCore(T &&value)
+      : slot{std::move(value)}, state_{PromiseState::finished} {}
+
   virtual void set_resume(std::coroutine_handle<> handle) {
     BOOST_ASSERT(state_ == PromiseState::init);
     resume_ = handle;
@@ -58,8 +62,8 @@ public:
       state_ = PromiseState::waitedOn;
       break;
     case PromiseState::finished:
-      // Happens in MultiPromiseCore on co_return if the co_awaiter has lost interest.
-      // Harmless if !resume_ (asserted above).
+      // Happens in MultiPromiseCore on co_return if the co_awaiter has lost
+      // interest. Harmless if !resume_ (asserted above).
       break;
     }
   }
@@ -116,6 +120,8 @@ public:
 template <>
 class PromiseCore<void> : public LifetimeTracker<PromiseCore<void>> {
 public:
+  PromiseCore() = default;
+
   bool ready = false;
   void set_resume(std::coroutine_handle<> h) {
     BOOST_ASSERT(state_ == PromiseState::init);
@@ -145,6 +151,12 @@ public:
     }
   }
 
+  // To construct a Promise<void> that immediately returns.
+  void immediateFulfill() {
+    ready = true;
+    state_ = PromiseState::finished;
+  }
+
 private:
   std::optional<std::coroutine_handle<>> resume_;
   PromiseState state_ = PromiseState::init;
@@ -160,6 +172,8 @@ public:
   using promise_type = Promise<T>;
 
   Promise() : core_{std::make_shared<PromiseCore_>()} {}
+  explicit Promise(T &&result)
+      : core_{std::make_shared<PromiseCore_>(std::move(result))} {}
   Promise(Promise<T> &&) noexcept = default;
   Promise &operator=(const Promise<T> &) = default;
   Promise &operator=(Promise<T> &&) noexcept = default;
@@ -238,6 +252,13 @@ public:
   Promise(const Promise<void> &other) = default;
   ~Promise() {}
 
+  // Construct a Promise<void> that is immediately ready.
+  static Promise<void> immediate() {
+    Promise<void> imm{};
+    imm.core_->immediateFulfill();
+    return imm;
+  }
+
   Promise<void> get_return_object() { return *this; }
   std::suspend_never initial_suspend() noexcept { return {}; }
   std::suspend_never final_suspend() noexcept { return {}; }
@@ -286,6 +307,7 @@ protected:
 
 public:
   using promise_type = MultiPromise<T>;
+  static_assert(!std::is_void_v<T>);
 
   MultiPromise() : core_{std::make_shared<PromiseCore_>()} {}
   MultiPromise(MultiPromise<T> &&) noexcept = default;
@@ -293,8 +315,6 @@ public:
   MultiPromise &operator=(MultiPromise<T> &&) noexcept = default;
   MultiPromise(const MultiPromise<T> &other) = default;
   ~MultiPromise() = default;
-
-  static_assert(!std::is_void_v<T>);
 
   MultiPromise<T> get_return_object() { return *this; }
 
@@ -342,10 +362,7 @@ protected:
     MultiPromiseAwaiter_ &operator=(const MultiPromiseAwaiter_ &) = delete;
     ~MultiPromiseAwaiter_() = default;
 
-    bool await_ready() const {
-      const bool ready = core_->slot.has_value();
-      return ready;
-    }
+    bool await_ready() const { return core_->slot.has_value(); }
     virtual bool await_suspend(std::coroutine_handle<> handle) {
       BOOST_ASSERT_MSG(!core_->willResume(),
                        "promise is already being waited on!\n");

@@ -107,6 +107,9 @@ Promise<void> resolveName(uv_loop_t *loop, std::string_view name) {
   co_return;
 }
 
+Promise<uint64_t> testImmediateValue() { return Promise<uint64_t>{1234}; }
+Promise<void> testImmediateVoid() { return Promise<void>::immediate(); }
+
 Promise<void> testHttpRequest(uv_loop_t *loop) {
   TcpClient client{loop, "borgac.net", 80, AF_INET};
   TcpStream stream = co_await client.connect();
@@ -135,6 +138,10 @@ Promise<void> udpServer(uv_loop_t *loop) {
   std::chrono::time_point last = zero;
   MultiPromise<std::pair<std::string, AddressHandle>> packets =
       server.receiveMany();
+
+  uint64_t testResult = co_await testImmediateValue();
+  fmt::print("got testResult (immediate): {}\n", testResult);
+  co_await testImmediateVoid();
 
   while (counter < 10) {
     /*
@@ -193,8 +200,6 @@ Promise<void> udpClient(uv_loop_t *loop) {
   co_await client.close();
 }
 
-Promise<void> testFunc(Promise<void> a) { co_await a; }
-
 Promise<void> echoReceived(TcpStream stream) {
   const AddressHandle peerAddress = stream.getPeerName();
   const std::string addressStr = peerAddress.toString();
@@ -239,18 +244,18 @@ void run_loop() {
 
   // Promises are run even if they are not waited on or checked.
 
-  //Promise<void> p = enumerateStdinLines(&loop);
-  //  Promise<void> p = resolveName(&loop, "borgac.net");
+  // Promise<void> p = enumerateStdinLines(&loop);
+  //   Promise<void> p = resolveName(&loop, "borgac.net");
 
   /*
   Fulfillable<int> f{};
   Promise<int> p2 = fulfillWait(&f.promise());
   f.fulfill(42);
   */
-  //Promise<void> p = setupUppercasing(&loop);
-  //Promise<void> p3 = wait(&loop, 1024);
+  // Promise<void> p = setupUppercasing(&loop);
+  // Promise<void> p3 = wait(&loop, 1024);
 
-  //Promise<void> p2 = testHttpRequest(&loop);
+  // Promise<void> p2 = testHttpRequest(&loop);
 
   auto server = udpServer(&loop);
   auto client = udpClient(&loop);
@@ -261,8 +266,8 @@ void run_loop() {
   uv_run(&loop, UV_RUN_DEFAULT);
   log(&loop, "After loop end");
 
-  //BOOST_ASSERT(p.ready());
-  //BOOST_ASSERT(p2.ready());
+  // BOOST_ASSERT(p.ready());
+  // BOOST_ASSERT(p2.ready());
 
   uv_loop_close(&loop);
 }
