@@ -22,7 +22,9 @@ public:
   Udp &operator=(Udp &&other) = default;
   Udp(const Udp &) = delete;
   Udp &operator=(const Udp &) = delete;
-  ~Udp() { BOOST_ASSERT(!udp_); }
+  ~Udp() {
+    BOOST_ASSERT_MSG(!udp_, "UDP protocol must be close()d before destruction");
+  }
 
   Promise<void> bind(std::string_view address, uint16_t port,
                      unsigned int flag = 0);
