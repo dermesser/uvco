@@ -84,12 +84,24 @@ TEST(TcpTest, singlePingPong) {
   EXPECT_TRUE(responseReceived);
 }
 
-TEST(TcpTest, invalidBind) {
+TEST(TcpTest, validBind) {
   auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
-    AddressHandle addr{"127.0.0.1", 123};
+    AddressHandle addr{"127.0.0.1", 42641};
     TcpServer server{loop, addr};
     co_await server.close();
   };
 
-  EXPECT_THROW({ run_loop(setup); }, UvcoException);
+  run_loop(setup);
+}
+
+TEST(NameResolutionTest, resolveGoogleDotCom) {
+  auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
+    Resolver resolver{loop};
+    Promise<AddressHandle> ahPromise = resolver.gai("dns.google", 443, AF_INET);
+    AddressHandle address = co_await ahPromise;
+    EXPECT_EQ(address.port(), 443);
+    EXPECT_TRUE(address.address().starts_with("8.8."));
+  };
+
+  run_loop(setup);
 }

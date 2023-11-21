@@ -130,6 +130,11 @@ AddressHandle::AddressHandle(const struct sockaddr *sa) {
 }
 
 Promise<AddressHandle> Resolver::gai(std::string_view host,
+                                     uint16_t port, int af_hint) {
+  const std::string portStr = std::to_string(port);
+  return gai(host, portStr, af_hint);
+}
+Promise<AddressHandle> Resolver::gai(std::string_view host,
                                      std::string_view port, int af_hint) {
   AddrinfoAwaiter_ awaiter;
   awaiter.req_.data = &awaiter;

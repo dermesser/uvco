@@ -62,6 +62,8 @@ public:
 
   Promise<AddressHandle> gai(std::string_view host, std::string_view port,
                              int af_hint = AF_UNSPEC);
+  Promise<AddressHandle> gai(std::string_view host, uint16_t port,
+                             int af_hint = AF_UNSPEC);
 
 private:
   uv_loop_t *loop_;
