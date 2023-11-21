@@ -5,7 +5,7 @@
 
 #include <functional>
 
-void run_loop(const std::function<uvco::Promise<void>(uv_loop_t *)>& setup) {
+void run_loop(const std::function<uvco::Promise<void>(uv_loop_t *)> &setup) {
   uv_loop_t loop;
   uv_loop_init(&loop);
 
