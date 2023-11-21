@@ -135,3 +135,17 @@ In order to use it from your code, I suggest vendoring the entire source tree.
 It is currently simple enough for that. This counts as static linking and falls
 under the terms of the license (GNU LGPL 2.1).
 
+## Testing
+
+Some unit tests exist. They make the most sense when built and run with
+`-DENABLE_ASAN=1`, detecting memory leaks and illegal accesses - the most
+frequent bugs when writing asynchronous code.
+
+Generally, run like this:
+
+```
+make && ctest --output-on-failure && make coverage
+```
+
+You can obtain coverage information using `make coverage` or `ninja coverage`.
+The report is stored in `build/coverage/index.html`.
