@@ -174,13 +174,16 @@ bool Resolver::AddrinfoAwaiter_::await_suspend(std::coroutine_handle<> handle) {
 
 std::string AddressHandle::NtopHelper_::ntop(int family, void *addr) {
   std::string dst{};
-  if (family == AF_INET)
+  if (family == AF_INET) {
     dst.resize(4 * 3 + 3 + 1);
-  else if (family == AF_INET6)
+  } else if (family == AF_INET6) {
     dst.resize(8 * 4 + 7 + 1);
+  }
   const char *result = inet_ntop(family, addr, dst.data(), dst.size());
-  if (!result)
+  if (result == nullptr) {
     throw UvcoException(fmt::format("inet_ntop(): {}", strerror(errno)));
+  }
+  dst.resize(strlen(result));
   return dst;
 }
 
