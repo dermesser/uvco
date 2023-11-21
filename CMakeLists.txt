@@ -48,6 +48,11 @@ target_include_directories(timer-test PRIVATE src/)
 target_link_libraries(timer-test PRIVATE event-loop-lib test-util GTest::gtest_main)
 add_test(NAME timer-test COMMAND timer-test)
 
+add_executable(udp-test test/udp_test.cc)
+target_include_directories(udp-test PRIVATE src/)
+target_link_libraries(udp-test PRIVATE event-loop-lib test-util GTest::gtest_main)
+add_test(NAME udp-test COMMAND udp-test)
+
 # Coverage
 add_custom_target(coverage
     COMMAND lcov --directory . --capture --include */uv-co/* --output-file app.info
