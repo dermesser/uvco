@@ -105,6 +105,15 @@ MultiPromise<TcpStream> TcpServer::listen(int backlog) {
   }
 }
 
+Promise<void> TcpServer::close() {
+  auto *awaiter = (ConnectionAwaiter_ *)tcp_.data;
+  // Resume listener coroutine.
+  if (awaiter && awaiter->handle_) {
+    awaiter->stop();
+  }
+  co_await closeHandle(&tcp_);
+}
+
 void TcpServer::onNewConnection(uv_stream_t *stream, int status) {
   const auto *server = (uv_tcp_t *)stream;
   auto *awaiter = (ConnectionAwaiter_ *)server->data;
@@ -151,5 +160,4 @@ void TcpStream::keepAlive(bool enable, unsigned int delay) {
 void TcpStream::noDelay(bool enable) {
   uv_tcp_nodelay((uv_tcp_t *)&stream(), static_cast<int>(enable));
 }
-
 } // namespace uvco
