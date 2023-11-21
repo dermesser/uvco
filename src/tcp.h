@@ -37,8 +37,9 @@ public:
 
 class TcpClient {
 public:
-  explicit TcpClient(uv_loop_t *loop, std::string target_host_address,
-                     uint16_t target_host_port, int af_hint = AF_UNSPEC);
+  // TODO: more constructors.
+  TcpClient(uv_loop_t *loop, std::string target_host_address,
+            uint16_t target_host_port, int af_hint = AF_UNSPEC);
 
   TcpClient(TcpClient &&other) noexcept;
   TcpClient(const TcpClient &) = delete;
@@ -70,7 +71,6 @@ private:
 };
 
 class TcpServer {
-  // TODO...
 public:
   // Sets up and binds socket to address.
   TcpServer(uv_loop_t *loop, AddressHandle bindAddress, bool ipv6Only = false);
@@ -84,6 +84,8 @@ public:
   // Libuv does not appear to offer a way to stop listening and accepting
   // connections: so we won't either.
   MultiPromise<TcpStream> listen(int backlog = 128);
+
+  Promise<void> close();
 
 private:
   void bind(const struct sockaddr *addr, int flags);
@@ -101,8 +103,14 @@ private:
       return true;
     }
     std::optional<TcpStream> await_resume() {
-      if (stopped_)
+      // !status_ if close() resumed us.
+      if (stopped_) {
         return {};
+      }
+      if (!status_) {
+        return {};
+      }
+
       BOOST_ASSERT(status_);
 
       if (*status_ == 0) {
