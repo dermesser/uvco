@@ -123,39 +123,14 @@ public:
   PromiseCore() = default;
 
   bool ready = false;
-  void set_resume(std::coroutine_handle<> h) {
-    BOOST_ASSERT(state_ == PromiseState::init);
-    resume_ = h;
-    state_ = PromiseState::waitedOn;
-  }
-  bool willResume() { return resume_.has_value(); }
-  void resume() {
-    if (resume_) {
-      BOOST_ASSERT(state_ == PromiseState::waitedOn);
-      auto resume = *resume_;
-      resume_.reset();
-      state_ = PromiseState::running;
-      resume();
-    } else {
-      // If a coroutine returned immediately, or nobody co_awaited for results.
-    }
-    state_ = PromiseState::finished;
-  }
-  ~PromiseCore() {
-    BOOST_ASSERT(state_ != PromiseState::running);
-    if (state_ == PromiseState::init) {
-      fmt::print(stderr, "void Promise not finished\n");
-    }
-    if (resume_) {
-      resume_->destroy();
-    }
-  }
+  void set_resume(std::coroutine_handle<> h);
+  bool willResume();
+  void resume();
+  ~PromiseCore();
 
-  // To construct a Promise<void> that immediately returns.
-  void immediateFulfill() {
-    ready = true;
-    state_ = PromiseState::finished;
-  }
+  // Immediately marks a core as fulfilled (but does not resume); used for
+  // Promise<void>::imediate().
+  void immediateFulfill();
 
 private:
   std::optional<std::coroutine_handle<>> resume_;
@@ -253,23 +228,14 @@ public:
   ~Promise() {}
 
   // Construct a Promise<void> that is immediately ready.
-  static Promise<void> immediate() {
-    Promise<void> imm{};
-    imm.core_->immediateFulfill();
-    return imm;
-  }
+  static Promise<void> immediate();
 
   Promise<void> get_return_object() { return *this; }
   std::suspend_never initial_suspend() noexcept { return {}; }
   std::suspend_never final_suspend() noexcept { return {}; }
 
-  void return_void() {
-    core_->ready = true;
-    core_->resume();
-  }
-  void unhandled_exception() {
-    std::rethrow_exception(std::current_exception());
-  }
+  void return_void();
+  void unhandled_exception();
 
   PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
 
@@ -284,15 +250,9 @@ private:
     PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
     PromiseAwaiter_ &operator=(const PromiseAwaiter_ &) = delete;
 
-    bool await_ready() const { return core_->ready; }
-
-    bool await_suspend(std::coroutine_handle<> handle) {
-      BOOST_ASSERT_MSG(!core_->willResume(),
-                       "promise is already being waited on!\n");
-      core_->set_resume(handle);
-      return true;
-    }
-    void await_resume() {}
+    bool await_ready() const;
+    bool await_suspend(std::coroutine_handle<> handle);
+    void await_resume();
 
     std::shared_ptr<PromiseCore<void>> core_;
   };
