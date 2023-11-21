@@ -14,6 +14,9 @@ TcpClient::TcpClient(uv_loop_t *loop, std::string target_host_address,
     : loop_{loop}, host_{std::move(target_host_address)}, af_hint_{af_hint},
       port_{target_host_port} {}
 
+TcpClient::TcpClient(uv_loop_t *loop, AddressHandle address)
+    : loop_{loop}, host_{address.address()}, port_{address.port()} {}
+
 TcpClient::TcpClient(TcpClient &&other) noexcept
     : loop_{other.loop_}, host_{std::move(other.host_)},
       af_hint_{other.af_hint_}, port_{other.port_} {}

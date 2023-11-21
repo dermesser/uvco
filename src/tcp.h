@@ -37,9 +37,11 @@ public:
 
 class TcpClient {
 public:
-  // TODO: more constructors.
+  // Create a client; call connect() to obtain a TcpStream. Address can be given
+  // as domain name, IP, etc.
   TcpClient(uv_loop_t *loop, std::string target_host_address,
             uint16_t target_host_port, int af_hint = AF_UNSPEC);
+  TcpClient(uv_loop_t *loop, AddressHandle address);
 
   TcpClient(TcpClient &&other) noexcept;
   TcpClient(const TcpClient &) = delete;
@@ -52,6 +54,7 @@ public:
 private:
   uv_loop_t *loop_;
 
+  // May be a name or address; resolved upon connect().
   std::string host_;
   int af_hint_;
   uint16_t port_;
