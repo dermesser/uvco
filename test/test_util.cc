@@ -13,7 +13,7 @@ void run_loop(const std::function<uvco::Promise<void>(uv_loop_t *)>& setup) {
 
   uv_run(&loop, UV_RUN_DEFAULT);
 
-  //BOOST_ASSERT(promise.ready());
+  BOOST_ASSERT(promise.ready());
 
   uv_loop_close(&loop);
 }
