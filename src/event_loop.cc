@@ -180,6 +180,7 @@ Promise<void> udpClient(uv_loop_t *loop) {
   constexpr static uint32_t max = 10;
   std::string msg = "Hello there!";
 
+  // Ticker stopped automatically after `max` ticks.
   auto ticker = tick(loop, 50, max);
   MultiPromise<uint64_t> tickerPromise = ticker->ticker();
 
@@ -192,10 +193,8 @@ Promise<void> udpClient(uv_loop_t *loop) {
     auto response = co_await client.receiveOne();
   }
 
-  // Last co_await returns an empty optional value, indicating the timer is
-  // cleaned up.
-  BOOST_ASSERT(!co_await tickerPromise);
   co_await client.close();
+  co_return;
 }
 
 Promise<void> echoReceived(TcpStream stream) {

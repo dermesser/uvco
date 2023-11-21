@@ -117,6 +117,8 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
 }
 
 Promise<void> Udp::close() {
+  BOOST_ASSERT(udp_);
+  udpStopReceive();
   co_await closeHandle(udp_.get());
   udp_.reset();
   connected_ = false;
@@ -205,8 +207,11 @@ void Udp::stopReceiveMany() {
   currentAwaiter->buffer_.reset();
   currentAwaiter->resume();
 }
+
 void Udp::udpStopReceive() { uv_udp_recv_stop(udp_.get()); }
+
 int Udp::udpStartReceive() {
   return uv_udp_recv_start(udp_.get(), allocator, onReceiveOne);
 }
+
 } // namespace uvco

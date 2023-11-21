@@ -41,10 +41,15 @@ public:
       uv_timer_start(timer_.get(), onSingleTimerDone, millis, 0);
     }
   }
-  ~TimerAwaiter() { BOOST_ASSERT(closed_); }
+  ~TimerAwaiter() {
+    BOOST_ASSERT_MSG(
+        closed_, "Timer still active: please close explicitly using close()");
+  }
 
   Promise<void> close() {
-    BOOST_ASSERT(timer_);
+    if (!timer_) {
+      co_return;
+    }
     stop();
     co_await closeHandle(timer_.get());
     closed_ = true;
@@ -63,8 +68,10 @@ public:
     return due == 0;
   }
   void stop() {
-    uv_timer_stop(timer_.get());
-    stopped_ = true;
+    if (!stopped_) {
+      uv_timer_stop(timer_.get());
+      stopped_ = true;
+    }
   }
   void resume() {
     if (resume_) {
@@ -106,7 +113,7 @@ public:
       : awaiter_{std::move(awaiter)}, count_max_{max} {}
 
   MultiPromise<uint64_t> ticker() override;
-  Promise<void> stop() override;
+  Promise<void> close() override;
 
 private:
   TimerAwaiter awaiter_;
@@ -120,23 +127,27 @@ MultiPromise<uint64_t> TickerImpl::ticker() {
 
   uint64_t counter = 0;
   while (!stopped_ && (count_max_ == 0 || counter < count_max_)) {
+    // Resumed from onMultiTimerFired():
     if (co_await awaiter_) {
       co_yield std::move(counter);
       ++counter;
     }
   }
-  if (count_max_ != 0 && counter >= count_max_) {
-    co_await stop();
+  // Clean up if not stopped manually from stop().
+  if (!stopped_) {
+    stopped_ = true;
+    awaiter_.stop();
+    co_await awaiter_.close();
   }
 }
 
-Promise<void> TickerImpl::stop() {
+Promise<void> TickerImpl::close() {
   stopped_ = true;
-  awaiter_.stop();
   // The stopped awaiter will yield a false event, and then break out of the
   // loop (ticker() method).
   awaiter_.resume();
-  return {};
+  awaiter_.stop();
+  co_await awaiter_.close();
 }
 
 std::unique_ptr<Ticker> tick(uv_loop_t *loop, uint64_t millis, uint64_t count) {

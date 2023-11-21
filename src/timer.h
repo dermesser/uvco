@@ -21,7 +21,7 @@ public:
   Ticker() = default;
   virtual ~Ticker() = default;
   virtual MultiPromise<uint64_t> ticker() = 0;
-  virtual Promise<void> stop() = 0;
+  virtual Promise<void> close() = 0;
 };
 
 // Yields a counter value, counting up from 0, at interval `millis`. If count is
@@ -29,7 +29,7 @@ public:
 //
 // The returned ticker must be stoped using `co_await stop()` in order to avoid
 // leaking resources. If `count` is not 0 (the ticker ends), it must be
-// co_awaited until it returns an empty optional, indicating proper clean-up of
+// co_awaited until it returns UINT64_MAX, indicating proper clean-up of
 // all resources.
 std::unique_ptr<Ticker> tick(uv_loop_t *loop, uint64_t millis, uint64_t count);
 

@@ -24,6 +24,7 @@ void onCloseCallback(uv_handle_t *stream);
 
 template <typename T, typename C>
 Promise<void> closeHandle(T *handle, C closer) {
+  BOOST_ASSERT(handle != nullptr);
   CloseAwaiter awaiter{};
   handle->data = &awaiter;
   closer(handle, onCloseCallback);
@@ -32,7 +33,7 @@ Promise<void> closeHandle(T *handle, C closer) {
 }
 
 template <typename T> Promise<void> closeHandle(T *handle) {
-  co_await closeHandle((uv_handle_t *)handle, uv_close);
+  return closeHandle((uv_handle_t *)handle, uv_close);
 }
 
 } // namespace uvco
