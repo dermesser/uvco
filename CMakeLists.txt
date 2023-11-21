@@ -30,6 +30,11 @@ add_library(event-loop-lib STATIC
 target_link_libraries(event-loop-lib PRIVATE ${UV_LIBRARIES} ${FMT_LIBRARIES})
 target_include_directories(event-loop-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
 
+if(ENABLE_COVERAGE)
+    target_compile_options(event-loop-lib PRIVATE "--coverage")
+    target_link_libraries(event-loop-lib PRIVATE gcov)
+endif()
+
 add_executable(test-event-loop src/test_event_loop.cc)
 target_link_libraries(test-event-loop event-loop-lib)
 
@@ -42,3 +47,10 @@ add_executable(timer-test test/timer_test.cc)
 target_include_directories(timer-test PRIVATE src/)
 target_link_libraries(timer-test PRIVATE event-loop-lib test-util GTest::gtest_main)
 add_test(NAME timer-test COMMAND timer-test)
+
+# Coverage
+add_custom_target(coverage
+    COMMAND lcov --directory . --capture --include */uv-co/* --output-file app.info
+    COMMAND genhtml -o coverage app.info
+    COMMAND lcov --directory . --zerocounters
+    )
