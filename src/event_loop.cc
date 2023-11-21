@@ -139,10 +139,6 @@ Promise<void> udpServer(uv_loop_t *loop) {
   MultiPromise<std::pair<std::string, AddressHandle>> packets =
       server.receiveMany();
 
-  uint64_t testResult = co_await testImmediateValue();
-  fmt::print("got testResult (immediate): {}\n", testResult);
-  co_await testImmediateVoid();
-
   while (counter < 10) {
     /*
      * Can also be written as:
@@ -196,7 +192,9 @@ Promise<void> udpClient(uv_loop_t *loop) {
     auto response = co_await client.receiveOne();
   }
 
-  co_await ticker->stop();
+  // Last co_await returns an empty optional value, indicating the timer is
+  // cleaned up.
+  BOOST_ASSERT(!co_await tickerPromise);
   co_await client.close();
 }
 
@@ -255,7 +253,7 @@ void run_loop() {
   // Promise<void> p = setupUppercasing(&loop);
   // Promise<void> p3 = wait(&loop, 1024);
 
-  // Promise<void> p2 = testHttpRequest(&loop);
+  Promise<void> p2 = testHttpRequest(&loop);
 
   auto server = udpServer(&loop);
   auto client = udpClient(&loop);
@@ -267,7 +265,9 @@ void run_loop() {
   log(&loop, "After loop end");
 
   // BOOST_ASSERT(p.ready());
-  // BOOST_ASSERT(p2.ready());
+  BOOST_ASSERT(p2.ready());
+  BOOST_ASSERT(server.ready());
+  BOOST_ASSERT(client.ready());
 
   uv_loop_close(&loop);
 }

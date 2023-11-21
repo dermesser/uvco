@@ -24,7 +24,13 @@ public:
   virtual Promise<void> stop() = 0;
 };
 
-// Yields a counter value, counting up from 0, at interval `millis`.
+// Yields a counter value, counting up from 0, at interval `millis`. If count is
+// 0, the ticker will tick indefinitely.
+//
+// The returned ticker must be stoped using `co_await stop()` in order to avoid
+// leaking resources. If `count` is not 0 (the ticker ends), it must be
+// co_awaited until it returns an empty optional, indicating proper clean-up of
+// all resources.
 std::unique_ptr<Ticker> tick(uv_loop_t *loop, uint64_t millis, uint64_t count);
 
 } // namespace uvco

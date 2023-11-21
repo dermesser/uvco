@@ -122,7 +122,11 @@ MultiPromise<uint64_t> TickerImpl::ticker() {
   while (!stopped_ && (count_max_ == 0 || counter < count_max_)) {
     if (co_await awaiter_) {
       co_yield std::move(counter);
+      ++counter;
     }
+  }
+  if (count_max_ != 0 && counter >= count_max_) {
+    co_await stop();
   }
 }
 
@@ -132,7 +136,7 @@ Promise<void> TickerImpl::stop() {
   // The stopped awaiter will yield a false event, and then break out of the
   // loop (ticker() method).
   awaiter_.resume();
-  co_await awaiter_.close();
+  return {};
 }
 
 std::unique_ptr<Ticker> tick(uv_loop_t *loop, uint64_t millis, uint64_t count) {
