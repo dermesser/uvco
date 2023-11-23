@@ -5,10 +5,13 @@
 
 #include "test_util.h"
 
+#include <optional>
+#include <string>
+
 #include <gtest/gtest.h>
 
 namespace {
-  using namespace uvco;
+using namespace uvco;
 }
 
 TEST(NameResolutionTest, resolveGoogleDotCom) {
@@ -36,4 +39,18 @@ TEST(TtyTest, stdinTest) {
 
   run_loop(setup);
   EXPECT_EQ(counter, 2);
+}
+
+TEST(PipeTest, pipePingPong) {
+  auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
+    auto [read, write] = pipe(loop);
+
+    co_await write.write("Hello\n");
+    co_await write.write("Hello");
+    EXPECT_EQ(co_await read.read(), std::make_optional("Hello\nHello"));
+    co_await read.close();
+    co_await write.close();
+  };
+
+  run_loop(setup);
 }
