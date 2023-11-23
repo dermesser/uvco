@@ -58,6 +58,11 @@ target_include_directories(tcp-test PRIVATE src/)
 target_link_libraries(tcp-test PRIVATE event-loop-lib test-util GTest::gtest_main)
 add_test(NAME tcp-test COMMAND tcp-test)
 
+add_executable(misc-test test/misc_test.cc)
+target_include_directories(misc-test PRIVATE src/)
+target_link_libraries(misc-test PRIVATE event-loop-lib test-util GTest::gtest_main)
+add_test(NAME misc-test COMMAND misc-test)
+
 # Coverage
 add_custom_target(coverage
     COMMAND lcov --directory . --capture --include */uv-co/* --output-file app.info

@@ -93,15 +93,3 @@ TEST(TcpTest, validBind) {
 
   run_loop(setup);
 }
-
-TEST(NameResolutionTest, resolveGoogleDotCom) {
-  auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
-    Resolver resolver{loop};
-    Promise<AddressHandle> ahPromise = resolver.gai("dns.google", 443, AF_INET);
-    AddressHandle address = co_await ahPromise;
-    EXPECT_EQ(address.port(), 443);
-    EXPECT_TRUE(address.address().starts_with("8.8."));
-  };
-
-  run_loop(setup);
-}
