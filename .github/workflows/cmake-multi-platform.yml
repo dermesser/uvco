@@ -46,7 +46,7 @@ jobs:
     - name: Install dependencies
       shell: bash
       run: |
-        sudo apt-get install libgtest-dev libuv-dev libboost-all-dev libfmt-dev
+        sudo apt-get install libgtest-dev libuv1-dev libboost-all-dev libfmt-dev
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
