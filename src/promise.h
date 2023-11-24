@@ -23,7 +23,7 @@ enum class PromiseState {
 };
 
 template <typename T>
-class PromiseCore : public LifetimeTracker<PromiseCore<T>> {
+class PromiseCore {
 public:
   PromiseCore() = default;
   explicit PromiseCore(T &&value)
@@ -118,7 +118,7 @@ public:
 };
 
 template <>
-class PromiseCore<void> : public LifetimeTracker<PromiseCore<void>> {
+class PromiseCore<void> {
 public:
   PromiseCore() = default;
 
