@@ -92,7 +92,7 @@ TEST(ChannelTest, blockingRead) {
   run_loop(setup);
 }
 
-TEST(ChannelTest, blockingWrite) {
+TEST(ChannelTest, blockingWriteBench) {
 
   auto source = [](Channel<int> &ch, int n) -> Promise<void> {
     for (int i = 1; i < n + 1; ++i) {
@@ -101,13 +101,13 @@ TEST(ChannelTest, blockingWrite) {
   };
   auto setup = [&](uv_loop_t *) -> Promise<void> {
     Channel<int> ch{2};
+    constexpr static int N = 1000;
 
-    Promise<void> sourcer = source(ch, 4);
+    Promise<void> sourcer = source(ch, N);
 
-    EXPECT_EQ(co_await ch.get(), 1);
-    EXPECT_EQ(co_await ch.get(), 2);
-    EXPECT_EQ(co_await ch.get(), 3);
-    EXPECT_EQ(co_await ch.get(), 4);
+    for (int i = 1; i < N; ++i) {
+      EXPECT_EQ(co_await ch.get(), i);
+    }
   };
 
   run_loop(setup);
