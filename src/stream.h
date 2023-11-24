@@ -87,7 +87,7 @@ private:
 
 // Creates a pipe pair. Data can be written to the second stream and read from
 // the first.
-std::pair<StreamBase, StreamBase> pipe(uv_loop_t*);
+std::pair<StreamBase, StreamBase> pipe(uv_loop_t *);
 
 class TtyStream : public StreamBase {
 public:

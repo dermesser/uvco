@@ -35,7 +35,7 @@ void UvHandleDeleter::del(uv_handle_t *handle) {
     delete (uv_udp_t *)handle;
     break;
   case UV_NAMED_PIPE:
-    delete (uv_pipe_t*)handle;
+    delete (uv_pipe_t *)handle;
     break;
   case UV_TTY:
     delete (uv_tty_t *)handle;
