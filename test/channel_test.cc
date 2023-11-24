@@ -112,3 +112,19 @@ TEST(ChannelTest, blockingWriteBench) {
 
   run_loop(setup);
 }
+
+TEST(ChannelTest, multipleWaiters) {
+
+  auto reader = [](Channel<int> &ch) -> Promise<void> { co_await ch.get(); };
+
+  auto setup = [&](uv_loop_t *) -> Promise<void> {
+    Channel<int> ch{2};
+
+    Promise<void> p1 = reader(ch);
+    EXPECT_THROW({ Promise<void> p2 = reader(ch); }, UvcoException);
+    co_await ch.put(1);
+    co_await ch.put(2);
+  };
+
+  run_loop(setup);
+}

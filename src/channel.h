@@ -99,6 +99,8 @@ private:
   }
 
   BoundedQueue<T> queue_;
+  // TODO: a multi-reader/writer queue is easily achieved by converting the
+  // optionals into queues. This may be interesting in future.
   std::optional<std::coroutine_handle<>> read_waiting_;
   std::optional<std::coroutine_handle<>> write_waiting_;
 
@@ -108,7 +110,12 @@ private:
         : queue_{queue}, slot_{slot} {}
     bool await_ready() { return false; }
     bool await_suspend(std::coroutine_handle<> handle) {
-      BOOST_ASSERT(!slot_);
+      // BOOST_ASSERT(!slot_);
+      if (slot_) {
+        throw UvcoException(
+            UV_EBUSY,
+            "only one coroutine can wait for reading/writing a channel");
+      }
       slot_ = handle;
       return true;
     }
