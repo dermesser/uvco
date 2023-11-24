@@ -17,6 +17,7 @@ if(ENABLE_ASAN)
 endif()
 
 add_library(event-loop-lib STATIC
+    src/channel.cc
     src/close.cc
     src/internal_utils.cc
     src/name_resolution.cc
@@ -43,25 +44,12 @@ target_link_libraries(test-event-loop event-loop-lib)
 add_library(test-util STATIC test/test_util.cc)
 target_include_directories(test-util PRIVATE src/)
 
-add_executable(timer-test test/timer_test.cc)
-target_include_directories(timer-test PRIVATE src/)
-target_link_libraries(timer-test PRIVATE event-loop-lib test-util GTest::gtest_main)
-add_test(NAME timer-test COMMAND timer-test)
-
-add_executable(udp-test test/udp_test.cc)
-target_include_directories(udp-test PRIVATE src/)
-target_link_libraries(udp-test PRIVATE event-loop-lib test-util GTest::gtest_main)
-add_test(NAME udp-test COMMAND udp-test)
-
-add_executable(tcp-test test/tcp_test.cc)
-target_include_directories(tcp-test PRIVATE src/)
-target_link_libraries(tcp-test PRIVATE event-loop-lib test-util GTest::gtest_main)
-add_test(NAME tcp-test COMMAND tcp-test)
-
-add_executable(misc-test test/misc_test.cc)
-target_include_directories(misc-test PRIVATE src/)
-target_link_libraries(misc-test PRIVATE event-loop-lib test-util GTest::gtest_main)
-add_test(NAME misc-test COMMAND misc-test)
+foreach(TESTCASE IN ITEMS channel timer udp tcp misc)
+    add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
+    target_include_directories(${TESTCASE}-test PRIVATE src/)
+    target_link_libraries(${TESTCASE}-test PRIVATE event-loop-lib test-util GTest::gtest_main)
+    add_test(NAME ${TESTCASE}-test COMMAND ${TESTCASE}-test)
+endforeach()
 
 # Coverage
 add_custom_target(coverage
