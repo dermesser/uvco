@@ -49,6 +49,12 @@ foreach(TESTCASE IN ITEMS channel timer udp tcp misc)
     target_include_directories(${TESTCASE}-test PRIVATE src/)
     target_link_libraries(${TESTCASE}-test PRIVATE event-loop-lib test-util GTest::gtest_main)
     add_test(NAME ${TESTCASE}-test COMMAND ${TESTCASE}-test)
+
+    if(ENABLE_COVERAGE)
+        target_compile_options(${TESTCASE}-test PRIVATE "--coverage")
+        target_link_libraries(${TESTCASE}-test PRIVATE gcov)
+    endif()
+
 endforeach()
 
 # Coverage
