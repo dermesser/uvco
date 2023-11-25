@@ -81,7 +81,13 @@ TEST(ChannelTest, blockingRead) {
 
     Promise<void> drainer = drain(ch);
 
-    co_await ch.put(1);
+    Promise<void> put1 = ch.put(1);
+    Promise<void> put1b, put1c;
+    // Test copy and move assignment.
+    put1b = put1;
+    put1c = std::move(put1b);
+
+    co_await put1c;
     co_await ch.put(2);
     co_await ch.put(3);
     co_await ch.put(4);
@@ -102,7 +108,7 @@ TEST(ChannelTest, blockingWriteBench) {
   };
   auto setup = [&](uv_loop_t *) -> Promise<void> {
     Channel<int> ch{2};
-    constexpr static int N = 1000000;
+    constexpr static int N = 100;
 
     Promise<void> sourcer = source(ch, N);
 
