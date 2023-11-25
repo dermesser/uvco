@@ -15,6 +15,10 @@
 
 namespace uvco {
 
+/// \addtogroup Promise Core Promise code
+/// @addtogroup Promise
+/// @{
+
 /// Valid states for a promise to be in:
 ///
 /// Initially, `init` marks a newly constructed promise. Once a coroutine waits
@@ -500,4 +504,6 @@ protected:
   SharedCore_ core_;
 };
 
+/// @}
 } // namespace uvco
+

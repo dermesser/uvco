@@ -7,10 +7,21 @@
 
 namespace uvco {
 
+/// @addtogroup Channels Buffered channels for inter-coroutine communication
+/// A `Channel` is similar to a Go channel: buffered, and blocking for reading
+/// and writing if empty/full respectively.
+/// @{
+
+/// A bounded FIFO queue based on a contiguous array.
+///
+/// Warning: only for internal use. The `push()/pop()` interface is not safe in
+/// `Release` mode binaries; `BoundedQueue` is only intended to be used as part
+/// of `Channel<T>`.
 template <typename T> class BoundedQueue {
 public:
   explicit BoundedQueue(size_t capacity) { queue_.reserve(capacity); }
 
+  /// Push an item to the queue.
   template <typename U> void push(U &&elem) {
     BOOST_ASSERT(hasSpace());
     if (queue_.size() < capacity()) {
@@ -22,6 +33,7 @@ public:
     head_ = (head_ + 1) % capacity();
     ++size_;
   }
+  /// Pop an item from the queue.
   T pop() {
     BOOST_ASSERT(!empty());
     T t = std::move(queue_.at(tail_++));
@@ -29,9 +41,13 @@ public:
     --size_;
     return t;
   }
+  /// Current number of contained items.
   size_t size() const { return size_; }
+  /// Maximum number of contained items.
   size_t capacity() const { return queue_.capacity(); }
+  /// `size() == 0`
   bool empty() const { return size() == 0; }
+  /// `size() < capacity()`
   bool hasSpace() const { return size() < capacity(); }
 
 private:
@@ -43,16 +59,31 @@ private:
   size_t size_ = 0;
 };
 
-// A bounded-capacity channel for items of type 'T'.
-// Can only be written to or read from by one coroutine at a time; more than one
-// coroutine waiting is forbidden.
-//
-// A reader waits while the channel is empty, and is awoken by the first writer.
-// A writer waits while the channel is full, and is awoken by the first reader.
+/// A bounded-capacity channel for items of type `T`.
+/// Can only be written to or read from by one coroutine at a time; more than
+/// one coroutine waiting is forbidden.
+///
+/// A reader waits while the channel is empty, and is awoken by the first
+/// writer. A writer waits while the channel is full, and is awoken by the first
+/// reader.
+///
+/// When only using a channel to communicate small objects between coroutines,
+/// it takes about 500 ns per send/receive opreation on a slightly older
+/// *i5-7300U CPU @ 2.60GHz* CPU. This includes the entire coroutine dance.
 template <typename T> class Channel {
 public:
+  /// Create a channel for up to `capacity` items.
   explicit Channel(size_t capacity) : queue_{capacity} {}
 
+  /// Put an item into the channel.
+  ///
+  /// Suspends if no space is available in the channel. The suspended coroutine
+  /// is resumed by the next reader taking out an item.
+  ///
+  /// Template method: implements perfect forwarding for both copy and move
+  /// insertion.
+  ///
+  /// TODO: add template argument restriction.
   template <typename U> Promise<void> put(U &&value) {
     if (!queue_.hasSpace()) {
       // Block until a reader has popped an item.
@@ -70,6 +101,10 @@ public:
     co_return;
   }
 
+  /// Take an item from the channel.
+  ///
+  /// Suspends if no items are available. The suspended coroutine is resumed by
+  /// the next writer adding an item.
   Promise<T> get() {
     if (queue_.empty()) {
       ChannelAwaiter_ awaiter{queue_, read_waiting_};
@@ -125,5 +160,7 @@ private:
     std::optional<std::coroutine_handle<>> &slot_;
   };
 };
+
+/// @}
 
 } // namespace uvco

@@ -8,6 +8,9 @@
 
 namespace uvco {
 
+/// @addtogroup Internal Utilities used internally
+/// @{
+
 /// `RefCounted<T>` is an intrusive refcounting approach, which shaves up to 50%
 /// performance off of low-overhead high frequency promise code (such as
 /// buffered channel ping-pong scenarios). This is where `shared_ptr` performs badly;
@@ -102,4 +105,7 @@ private:
   bool &flag_;
 };
 
+/// @}
+
 } // namespace uvco
+
