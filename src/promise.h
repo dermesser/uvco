@@ -340,9 +340,9 @@ private:
     bool await_suspend(std::coroutine_handle<> handle);
     void await_resume();
 
-    std::shared_ptr<PromiseCore<void>> core_;
+    SharedCore_ core_;
   };
-  std::shared_ptr<PromiseCore<void>> core_;
+  SharedCore_ core_;
 };
 
 /// A `MultiPromise` is like a `Promise`, except that it can resolve more than
