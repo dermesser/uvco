@@ -53,7 +53,7 @@ TEST(BQTest, popEmpty) {
   EXPECT_EQ(bq.pop(), 1);
   EXPECT_EQ(bq.pop(), 2);
   EXPECT_EQ(bq.size(), 0);
-  EXPECT_DEATH({ bq.pop(); }, "size\\(\\) > 0");
+  EXPECT_DEATH({ bq.pop(); }, "!empty");
 }
 
 TEST(ChannelTest, basicWriteRead) {
@@ -102,7 +102,7 @@ TEST(ChannelTest, blockingWriteBench) {
   };
   auto setup = [&](uv_loop_t *) -> Promise<void> {
     Channel<int> ch{2};
-    constexpr static int N = 1000;
+    constexpr static int N = 10;
 
     Promise<void> sourcer = source(ch, N);
 

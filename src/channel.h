@@ -23,7 +23,7 @@ public:
     ++size_;
   }
   T pop() {
-    BOOST_ASSERT(size() > 0);
+    BOOST_ASSERT(!empty());
     T t = std::move(queue_.at(tail_++));
     tail_ = tail_ % capacity();
     --size_;
@@ -57,7 +57,7 @@ public:
     if (!queue_.hasSpace()) {
       // Block until a reader has popped an item.
       ChannelAwaiter_ awaiter{queue_, write_waiting_};
-      BOOST_ASSERT(co_await awaiter);
+      BOOST_VERIFY(co_await awaiter);
     }
     queue_.push(std::forward<U>(value));
 
@@ -73,7 +73,7 @@ public:
   Promise<T> get() {
     if (queue_.empty()) {
       ChannelAwaiter_ awaiter{queue_, read_waiting_};
-      BOOST_ASSERT(co_await awaiter);
+      BOOST_VERIFY(co_await awaiter);
     }
     T item{queue_.pop()};
     // NOTE: this will switch control to the writer until it suspends; keep this
