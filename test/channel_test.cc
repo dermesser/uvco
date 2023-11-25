@@ -102,7 +102,7 @@ TEST(ChannelTest, blockingWriteBench) {
   };
   auto setup = [&](uv_loop_t *) -> Promise<void> {
     Channel<int> ch{2};
-    constexpr static int N = 10;
+    constexpr static int N = 1000000;
 
     Promise<void> sourcer = source(ch, N);
 

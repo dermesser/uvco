@@ -34,7 +34,15 @@ enum class PromiseState {
 /// coroutine. It contains a state, a result (of type `T`), and potentially a
 /// `coroutine_handle` of the coroutine waiting on it. Only one coroutine may
 /// await a promise, this is enforced here.
-template <typename T> class PromiseCore {
+///
+/// A PromiseCore is `RefCounted`; this reduces the overhead of `shared_ptr` by
+/// as much as 50% in Debug mode and 30% in clang Release mode. However, this is
+/// only expected to occur in promise-heavy code without involvement of libuv
+/// (such as pure channels).
+///
+/// The canonical way would be just using `shared_ptr`, which is likely fast
+/// enough. But we're experimenting, so let's have fun.
+template <typename T> class PromiseCore : public RefCounted<PromiseCore<T>> {
 public:
   PromiseCore() = default;
   explicit PromiseCore(T &&value)
@@ -132,7 +140,7 @@ public:
   void resume() override { PromiseCore<T>::resume(); }
 };
 
-template <> class PromiseCore<void> {
+template <> class PromiseCore<void> : public RefCounted<PromiseCore<void>> {
 public:
   PromiseCore() = default;
 
@@ -163,7 +171,7 @@ protected:
   struct PromiseAwaiter_;
   /// PromiseCore_ handles the inner mechanics of resumption and suspension.
   using PromiseCore_ = PromiseCore<T>;
-  using SharedCore_ = std::shared_ptr<PromiseCore_>;
+  using SharedCore_ = PromiseCore_ *;
 
 public:
   /// Part of the coroutine protocol: specifies which class will define the
@@ -174,16 +182,37 @@ public:
   using promise_type = Promise<T>;
 
   /// Unfulfilled, empty promise.
-  Promise() : core_{std::make_shared<PromiseCore_>()} {}
+  Promise() : core_{new PromiseCore_{}} {}
   /// Fulfilled promise; resolves immediately.
-  explicit Promise(T &&result)
-      : core_{std::make_shared<PromiseCore_>(std::move(result))} {}
+  explicit Promise(T &&result) : core_{new PromiseCore_{std::move(result)}} {}
 
-  Promise(Promise<T> &&) noexcept = default;
-  Promise &operator=(const Promise<T> &) = default;
-  Promise &operator=(Promise<T> &&) noexcept = default;
-  Promise(const Promise<T> &other) = default;
-  ~Promise() = default;
+  Promise(Promise<T> &&other) noexcept : core_{other.core_} {
+    other.core_ = nullptr;
+  }
+  Promise &operator=(const Promise<T> &other) {
+    if (this == &other) {
+      return *this;
+    }
+    core_ = other.core_->addRef();
+    return *this;
+  }
+  Promise &operator=(Promise<T> &&other) noexcept {
+    if (this == &other) {
+      return *this;
+    }
+    if (core_ != nullptr) {
+      core_->delRef();
+    }
+    core_ = other.core_;
+    other.core_ = nullptr;
+    return *this;
+  }
+  Promise(const Promise<T> &other) : core_{other.core_->addRef()} {}
+  ~Promise() {
+    if (core_ != nullptr) {
+      core_->delRef();
+    }
+  }
 
   /// Part of the coroutine protocol: Called on first suspension point
   /// (`co_await`) or `co_return`.
@@ -241,12 +270,13 @@ protected:
   struct PromiseAwaiter_ {
     /// The `core` is shared with the promise and contains the resumption
     /// handle, and ultimately the returned value.
-    explicit PromiseAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
+    explicit PromiseAwaiter_(SharedCore_ core)
+        : core_{std::move(core->addRef())} {}
     PromiseAwaiter_(PromiseAwaiter_ &&) = delete;
     PromiseAwaiter_(const PromiseAwaiter_ &) = delete;
     PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
     PromiseAwaiter_ &operator=(const PromiseAwaiter_ &) = delete;
-    ~PromiseAwaiter_() = default;
+    ~PromiseAwaiter_() { core_->delRef(); }
 
     /// Part of the coroutine protocol: returns `true` if the promise is already
     /// fulfilled.
@@ -279,7 +309,7 @@ protected:
 /// implemented instead of `return_value()`, the mechanics are identical.
 template <> class Promise<void> {
   struct PromiseAwaiter_;
-  using SharedCore_ = std::shared_ptr<PromiseCore<void>>;
+  using SharedCore_ = PromiseCore<void> *;
 
 public:
   /// Part of the coroutine protocol: `Promise<void>` is both return type and
@@ -287,12 +317,12 @@ public:
   using promise_type = Promise<void>;
 
   /// Promise ready to be awaited or fulfilled.
-  Promise() : core_{std::make_shared<PromiseCore<void>>()} {}
-  Promise(Promise<void> &&) noexcept = default;
-  Promise &operator=(const Promise<void> &) = default;
-  Promise &operator=(Promise<void> &&) noexcept = default;
-  Promise(const Promise<void> &other) = default;
-  ~Promise() = default;
+  Promise() : core_{new PromiseCore<void>{}} {}
+  Promise(Promise<void> &&other) noexcept;
+  Promise &operator=(const Promise<void> &other);
+  Promise &operator=(Promise<void> &&other) noexcept;
+  Promise(const Promise<void> &other);
+  ~Promise();
 
   /// Construct a Promise<void> that is immediately ready. Usually not
   /// necessary: just use a coroutine which immediately `co_return`s.

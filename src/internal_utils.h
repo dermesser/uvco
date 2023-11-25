@@ -8,6 +8,35 @@
 
 namespace uvco {
 
+/// `RefCounted<T>` is an intrusive refcounting approach, which shaves up to 50%
+/// performance off of low-overhead high frequency promise code (such as
+/// buffered channel ping-pong scenarios). This is where `shared_ptr` performs badly;
+/// in turn, manual refcounting is required by objects owning a refcounted object.
+template <typename T> class RefCounted {
+public:
+  RefCounted() = default;
+  // Assignment doesn't change count.
+  RefCounted(const RefCounted &other) = default;
+  RefCounted &operator=(const RefCounted &other) = default;
+  RefCounted(RefCounted &&other) noexcept {}
+  RefCounted &operator=(RefCounted &&other) noexcept {}
+  virtual ~RefCounted() = default;
+
+  T *addRef() {
+    ++count_;
+    return static_cast<T *>(this);
+  }
+  void delRef() {
+    --count_;
+    if (count_ == 0) {
+      delete static_cast<T *>(this);
+    }
+  }
+
+private:
+  size_t count_ = 1;
+};
+
 extern const bool TRACK_LIFETIMES;
 
 template <typename T> class LifetimeTracker {
