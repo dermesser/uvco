@@ -14,6 +14,15 @@ namespace {
 using namespace uvco;
 }
 
+TEST(PromiseTest, voidImmediate) {
+  auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
+    Promise<void> p = Promise<void>::immediate();
+    co_await p;
+  };
+
+  run_loop(setup);
+}
+
 TEST(NameResolutionTest, resolveGoogleDotCom) {
   auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
     Resolver resolver{loop};
