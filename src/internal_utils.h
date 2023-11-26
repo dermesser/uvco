@@ -2,11 +2,11 @@
 
 #pragma once
 
-#include <fmt/format.h>
-#include <utility>
 #include <uv.h>
 
-#include <concepts>
+#include <coroutine>
+#include <fmt/format.h>
+#include <utility>
 
 namespace uvco {
 
@@ -18,6 +18,11 @@ namespace uvco {
 /// buffered channel ping-pong scenarios). This is where `shared_ptr` performs
 /// badly; in turn, manual refcounting is required by objects owning a
 /// refcounted object.
+///
+/// Use `makeRefCounted<T>(ctor_args...)` to allocate a new reference-counted
+/// object.
+///
+/// This type currently doesn't work well with inheritance.
 template <typename T> class RefCounted {
 public:
   // Assignment doesn't change count.
@@ -45,13 +50,14 @@ private:
   size_t count_ = 1;
 };
 
-/// Create a new refcounted value.
+/// Create a new refcounted value. `T` must derive from `RefCounted<T>`.
 template <typename T, typename... Args>
 T *makeRefCounted(Args... args)
   requires std::derived_from<T, RefCounted<T>>
 {
   return new T{std::forward<Args...>(args...)};
 }
+
 template <typename T>
 T *makeRefCounted()
   requires std::derived_from<T, RefCounted<T>>

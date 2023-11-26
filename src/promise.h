@@ -454,6 +454,16 @@ public:
     BOOST_ASSERT(!core_->slot);
     core_->slot = std::move(value);
     // TODO: schedule resume on event loop.
+    // However, this makes it less certain when the value will be taken from the
+    // slot. At the moment, the consumer is run directly here, and will receive
+    // the slot value; with a scheduled resume, the generator must not yield
+    // another value, i.e. this method to return `suspend_always`. But that
+    // doesn't jibe well (yet) with the event loop run model.
+    //
+    // TODO 2: invert the model by using the event loop scheduler: let the
+    // generator always suspend; schedule consumer on event loop; add "generator
+    // resume" to multipromise core and let consumer schedule generator for
+    // resumption.
     core_->resume();
     return {};
   }

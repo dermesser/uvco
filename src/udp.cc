@@ -4,6 +4,7 @@
 
 #include "close.h"
 #include "internal_utils.h"
+#include "scheduler.h"
 #include "udp.h"
 
 namespace uvco {
@@ -151,9 +152,10 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
   }
 
   if (awaiter->handle_) {
-    auto handle = *awaiter->handle_;
+    auto resumeHandle = *awaiter->handle_;
     awaiter->handle_.reset();
-    handle.resume();
+    // Prototype; resume on central callback dispatcher.
+    LoopData::enqueue(handle, resumeHandle);
   }
 }
 

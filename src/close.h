@@ -2,12 +2,12 @@
 
 #pragma once
 
+#include <uv.h>
+
 #include "promise.h"
 
 #include <coroutine>
 #include <optional>
-
-#include <uv.h>
 
 namespace uvco {
 

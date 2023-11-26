@@ -7,6 +7,7 @@
 #include "close.h"
 #include "name_resolution.h"
 #include "promise.h"
+#include "scheduler.h"
 #include "stream.h"
 #include "tcp.h"
 #include "timer.h"
@@ -39,10 +40,6 @@ public:
 
 private:
   Promise<T> promise_;
-};
-class Data {
-public:
-  Data() = default;
 };
 
 // Some demo and test functions.
@@ -233,11 +230,12 @@ Promise<void> echoTcpServer(uv_loop_t *loop) {
 }
 
 void run_loop() {
-  Data data;
+  LoopData data;
 
   uv_loop_t loop;
   uv_loop_init(&loop);
   uv_loop_set_data(&loop, &data);
+  data.setUpLoop(&loop);
 
   // Promises are run even if they are not waited on or checked.
 
