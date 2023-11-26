@@ -15,10 +15,10 @@ bool PromiseCore<void>::willResume() { return resume_.has_value(); }
 void PromiseCore<void>::resume() {
   if (resume_) {
     BOOST_ASSERT(state_ == PromiseState::waitedOn);
-    auto resume = *resume_;
+    auto resumeHandle = *resume_;
     resume_.reset();
     state_ = PromiseState::running;
-    resume();
+    resumeHandle.resume();
   } else {
     // If a coroutine returned immediately, or nobody co_awaited for results.
   }

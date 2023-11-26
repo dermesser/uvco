@@ -49,17 +49,28 @@ enum class PromiseState {
 template <typename T> class PromiseCore : public RefCounted<PromiseCore<T>> {
 public:
   PromiseCore() = default;
+  PromiseCore(const PromiseCore &) = delete;
+  PromiseCore(PromiseCore &&) = delete;
+  PromiseCore &operator=(const PromiseCore &) = delete;
+  PromiseCore &operator=(PromiseCore &&) = delete;
   explicit PromiseCore(T &&value)
       : slot{std::move(value)}, state_{PromiseState::finished} {}
 
+  /// Set the coroutine to be resumed once a result is ready.
   virtual void set_resume(std::coroutine_handle<> handle) {
     BOOST_ASSERT(state_ == PromiseState::init);
     resume_ = handle;
     state_ = PromiseState::waitedOn;
   }
 
+  /// Checks if a coroutine is waiting on this core.
   bool willResume() { return resume_.has_value(); }
 
+  /// Resume a suspended coroutine by directly running it on the current stack.
+  /// Upon encountering the first suspension point, or returning, control is
+  /// transferred back here.
+  ///
+  /// A promise core can only be resumed once.
   virtual void resume() {
     if (resume_) {
       BOOST_ASSERT(state_ == PromiseState::waitedOn);
@@ -91,6 +102,9 @@ public:
     }
   }
 
+  /// Destroys a promise core. Also destroys a coroutine if there is one
+  /// suspended and has not been resumed yet. In that case, a warning is
+  /// emitted ("PromiseCore destroyed without ever being resumed").
   virtual ~PromiseCore() {
     if (state_ != PromiseState::finished) {
       fmt::print(stderr,
@@ -106,6 +120,7 @@ public:
     }
   }
 
+  /// The slot contains the result once obtained.
   std::optional<T> slot;
 
 protected:
@@ -119,10 +134,17 @@ protected:
 /// generator-like type.
 template <typename T> class MultiPromiseCore : public PromiseCore<T> {
 public:
+  MultiPromiseCore() = default;
+  MultiPromiseCore(const MultiPromiseCore &) = delete;
+  MultiPromiseCore(MultiPromiseCore &&) = delete;
+  MultiPromiseCore &operator=(const MultiPromiseCore &) = delete;
+  MultiPromiseCore &operator=(MultiPromiseCore &&) = delete;
   static_assert(!std::is_void_v<T>);
 
   ~MultiPromiseCore() override = default;
 
+  /// See `PromiseCore::set_resume`. In contrast, a finished multipromise core
+  /// can be reset to the waiting state, in order to yield the next value.
   void set_resume(std::coroutine_handle<> handle) override {
     // Once an external scheduler works, Promises will not be nested anymore
     // (resume called by resume down in the stack)
@@ -140,23 +162,35 @@ public:
     PromiseCore<T>::resume_ = handle;
     PromiseCore<T>::state_ = PromiseState::waitedOn;
   }
-  // For better stacktraces.
+  /// See `Promise::resume`. Implemented here to provide a distinction in stack
+  /// traces.
   void resume() override { PromiseCore<T>::resume(); }
 };
 
+/// A `void` PromiseCore works like a normal `PromiseCore`, but with the
+/// specialization of not transferring values - only control is switched from
+/// the yielding to the awaiting coroutine.
 template <> class PromiseCore<void> : public RefCounted<PromiseCore<void>> {
 public:
   PromiseCore() = default;
+  PromiseCore(const PromiseCore &) = delete;
+  PromiseCore(PromiseCore &&) = delete;
+  PromiseCore<void> &operator=(const PromiseCore &) = delete;
+  PromiseCore<void> &operator=(PromiseCore &&) = delete;
 
-  bool ready = false;
+  /// See `PromiseCore::set_resume`.
   void set_resume(std::coroutine_handle<> h);
+  /// See `PromiseCore::will_resume`.
   bool willResume();
+  /// See `PromiseCore::resume`.
   void resume();
-  ~PromiseCore();
+  ~PromiseCore() override;
 
   // Immediately marks a core as fulfilled (but does not resume); used for
   // Promise<void>::imediate().
   void immediateFulfill();
+
+  bool ready = false;
 
 private:
   std::optional<std::coroutine_handle<>> resume_;
@@ -170,6 +204,17 @@ private:
 /// A Promise can be awaited on; for this the inner type `PromiseAwaiter_` is
 /// used. The `PromiseCore` manages the low-level resumption while the `Promise`
 /// and `PromiseAwaiter_` types fulfill the C++ standard coroutine protocol.
+///
+/// A Promise that is being awaited (`co_await promise;`) registers the state of
+/// the awaiting coroutine. Once it is fulfilled from elsewhere - almost always
+/// another coroutine reaching `co_return` -- the awaiting coroutine is resumed
+/// immediately on the stack of the returning coroutine.
+///
+/// This may lead to a relatively deep stack. The root of the stack
+/// is either a libuv callback, or `LoopData::runAll` (the scheduler's run
+/// method). As rule of thumb, once a libuv suspension point is reached, e.g. a
+/// socket read, the entire stack will be collapsed and control is transferred
+/// back to libuv.
 template <typename T> class Promise {
 protected:
   struct PromiseAwaiter_;
@@ -194,6 +239,7 @@ public:
   Promise(Promise<T> &&other) noexcept : core_{other.core_} {
     other.core_ = nullptr;
   }
+  /// A promise can be copied at low cost.
   Promise &operator=(const Promise<T> &other) {
     if (this == &other) {
       return *this;
@@ -212,6 +258,7 @@ public:
     other.core_ = nullptr;
     return *this;
   }
+  // A promise can be copied at low cost.
   Promise(const Promise<T> &other) : core_{other.core_->addRef()} {}
   ~Promise() {
     if (core_ != nullptr) {
