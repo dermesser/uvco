@@ -22,7 +22,10 @@ public:
   explicit BoundedQueue(size_t capacity) { queue_.reserve(capacity); }
 
   /// Push an item to the queue.
-  template <typename U> void push(U &&elem) {
+  template <typename U>
+  void push(U &&elem)
+    requires Convertible<typename std::remove_cv<U>::type, T>
+  {
     BOOST_ASSERT(hasSpace());
     if (queue_.size() < capacity()) {
       BOOST_ASSERT(tail_ <= head_);
@@ -83,8 +86,11 @@ public:
   /// Template method: implements perfect forwarding for both copy and move
   /// insertion.
   ///
-  /// TODO: add template argument restriction.
-  template <typename U> Promise<void> put(U &&value) {
+  /// NOTE: template argument restriction may not be entirely correct?
+  template <typename U>
+  Promise<void> put(U &&value)
+    requires Convertible<typename std::remove_cv<U>::type, T>
+  {
     if (!queue_.hasSpace()) {
       // Block until a reader has popped an item.
       ChannelAwaiter_ awaiter{queue_, write_waiting_};
