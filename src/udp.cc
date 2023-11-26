@@ -211,8 +211,10 @@ void Udp::stopReceiveMany() {
   currentAwaiter->buffer_.reset();
   // currentAwaiter->resume();
   if (currentAwaiter->handle_) {
-    LoopData::enqueue(udp_.get(), *currentAwaiter->handle_);
-    currentAwaiter->handle_.reset();
+    // TODO: using the scheduler here leads to a memory leak of two allocatoins
+    // in receiveMany(). Likely: receiveMany() is not resumed anymore before the
+    // process exits, leaking the memory.
+    currentAwaiter->handle_->resume();
   }
 }
 

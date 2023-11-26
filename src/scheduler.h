@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "close.h"
+#include "promise.h"
 #include <boost/assert.hpp>
 #include <uv.h>
 
@@ -68,7 +70,8 @@ public:
     uv_check_init(loop, &check_);
   }
 
-  /// Schedule a coroutine for resumption with the scheduler associated with `handle`.
+  /// Schedule a coroutine for resumption with the scheduler associated with
+  /// `handle`.
   template <typename UvHandle>
   static void enqueue(const UvHandle *handle,
                       std::coroutine_handle<> corohandle) {
@@ -93,6 +96,16 @@ public:
     uv_check_stop(&check_);
   }
 
+  /// close() should be called once the main promise has finished, and the
+  /// process is preparing to exit; however, while the event loop is still
+  /// running. Example: Once a user has pressed Ctrl-D in a tty application.
+  Promise<void> close() { co_await closeHandle(&check_); }
+
+  /// Helper method for `close`,; can be called on any
+  static Promise<void> close(const uv_loop_t *loop) {
+    return ((LoopData *)loop->data)->close();
+  }
+
 private:
   std::vector<std::coroutine_handle<>> resumable_ = {};
   uv_check_t check_ = {};
@@ -102,7 +115,6 @@ private:
     LoopData &loopData = ofHandle(check);
     loopData.runAll();
   }
-
 };
 
 } // namespace uvco

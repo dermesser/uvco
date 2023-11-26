@@ -130,8 +130,8 @@ private:
     if (read_waiting_) {
       auto resume = *read_waiting_;
       read_waiting_.reset();
-      // Not using LoopData for two reasons: #1 Channel doesn't know about the loop.
-      // #2: It is considerably slower at no tangible benefit yet.
+      // Not using LoopData for two reasons: #1 Channel doesn't know about the
+      // loop. #2: It is considerably slower at no tangible benefit yet.
       resume.resume();
     }
   }

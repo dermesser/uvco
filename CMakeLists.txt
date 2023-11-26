@@ -43,6 +43,7 @@ target_link_libraries(test-event-loop event-loop-lib)
 
 add_library(test-util STATIC test/test_util.cc)
 target_include_directories(test-util PRIVATE src/)
+target_link_libraries(test-util PRIVATE event-loop-lib)
 
 foreach(TESTCASE IN ITEMS channel timer udp tcp misc)
     add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
