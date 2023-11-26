@@ -7,7 +7,7 @@
 #include <functional>
 
 void run_loop(const std::function<uvco::Promise<void>(uv_loop_t *)> &setup) {
-  LoopData loopData;
+  uvco::LoopData loopData;
 
   uv_loop_t loop;
   uv_loop_init(&loop);
