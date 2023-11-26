@@ -188,7 +188,8 @@ public:
   /// Unfulfilled, empty promise.
   Promise() : core_{makeRefCounted<PromiseCore_>()} {}
   /// Fulfilled promise; resolves immediately.
-  explicit Promise(T &&result) : core_{makeRefCounted<PromiseCore_>(std::move(result))} {}
+  explicit Promise(T &&result)
+      : core_{makeRefCounted<PromiseCore_>(std::move(result))} {}
 
   Promise(Promise<T> &&other) noexcept : core_{other.core_} {
     other.core_ = nullptr;
