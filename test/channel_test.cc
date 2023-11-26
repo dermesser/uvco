@@ -15,45 +15,45 @@ TEST(BQTest, basicPushPop) {
   EXPECT_EQ(bq.size(), 0);
   EXPECT_TRUE(bq.empty());
 
-  bq.push(1);
-  bq.push(2);
+  bq.put(1);
+  bq.put(2);
 
   EXPECT_EQ(bq.size(), 2);
-  EXPECT_EQ(bq.pop(), 1);
+  EXPECT_EQ(bq.get(), 1);
 
-  bq.push(3);
-  bq.push(4);
+  bq.put(3);
+  bq.put(4);
 
   EXPECT_EQ(bq.size(), 3);
-  EXPECT_EQ(bq.pop(), 2);
+  EXPECT_EQ(bq.get(), 2);
 
-  bq.push(5);
-  bq.push(6);
-
-  EXPECT_EQ(bq.size(), 4);
-  EXPECT_EQ(bq.pop(), 3);
-
-  bq.push(7);
+  bq.put(5);
+  bq.put(6);
 
   EXPECT_EQ(bq.size(), 4);
-  EXPECT_EQ(bq.pop(), 4);
+  EXPECT_EQ(bq.get(), 3);
+
+  bq.put(7);
+
+  EXPECT_EQ(bq.size(), 4);
+  EXPECT_EQ(bq.get(), 4);
 }
 
 TEST(BQTest, pushTooMany) {
   BoundedQueue<int> bq(2);
-  bq.push(1);
-  bq.push(2);
-  EXPECT_DEATH({ bq.push(3); }, "hasSpace");
+  bq.put(1);
+  bq.put(2);
+  EXPECT_DEATH({ bq.put(3); }, "hasSpace");
 }
 
 TEST(BQTest, popEmpty) {
   BoundedQueue<int> bq(2);
-  bq.push(1);
-  bq.push(2);
-  EXPECT_EQ(bq.pop(), 1);
-  EXPECT_EQ(bq.pop(), 2);
+  bq.put(1);
+  bq.put(2);
+  EXPECT_EQ(bq.get(), 1);
+  EXPECT_EQ(bq.get(), 2);
   EXPECT_EQ(bq.size(), 0);
-  EXPECT_DEATH({ bq.pop(); }, "!empty");
+  EXPECT_DEATH({ bq.get(); }, "!empty");
 }
 
 TEST(ChannelTest, basicWriteRead) {
@@ -108,7 +108,7 @@ TEST(ChannelTest, blockingWriteBench) {
   };
   auto setup = [&](uv_loop_t *) -> Promise<void> {
     Channel<int> ch{2};
-    constexpr static int N = 100;
+    constexpr static int N = 1000000;
 
     Promise<void> sourcer = source(ch, N);
 

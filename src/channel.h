@@ -23,7 +23,7 @@ public:
 
   /// Push an item to the queue.
   template <typename U>
-  void push(U &&elem)
+  void put(U &&elem)
     requires Convertible<typename std::remove_cv<U>::type, T>
   {
     BOOST_ASSERT(hasSpace());
@@ -37,7 +37,7 @@ public:
     ++size_;
   }
   /// Pop an item from the queue.
-  T pop() {
+  T get() {
     BOOST_ASSERT(!empty());
     T t = std::move(queue_.at(tail_++));
     tail_ = tail_ % capacity();
@@ -96,7 +96,7 @@ public:
       ChannelAwaiter_ awaiter{queue_, write_waiting_};
       BOOST_VERIFY(co_await awaiter);
     }
-    queue_.push(std::forward<U>(value));
+    queue_.put(std::forward<U>(value));
 
     // NOTE: this will switch control to the reader until it suspends; keep this
     // in mind.
@@ -116,7 +116,7 @@ public:
       ChannelAwaiter_ awaiter{queue_, read_waiting_};
       BOOST_VERIFY(co_await awaiter);
     }
-    T item{queue_.pop()};
+    T item{queue_.get()};
     // NOTE: this will switch control to the writer until it suspends; keep this
     // in mind.
     awake_writer();
