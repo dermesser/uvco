@@ -186,9 +186,9 @@ public:
   using promise_type = Promise<T>;
 
   /// Unfulfilled, empty promise.
-  Promise() : core_{PromiseCore_::make()} {}
+  Promise() : core_{makeRefCounted<PromiseCore_>()} {}
   /// Fulfilled promise; resolves immediately.
-  explicit Promise(T &&result) : core_{PromiseCore_::make(std::move(result))} {}
+  explicit Promise(T &&result) : core_{makeRefCounted<PromiseCore_>(std::move(result))} {}
 
   Promise(Promise<T> &&other) noexcept : core_{other.core_} {
     other.core_ = nullptr;
@@ -321,7 +321,7 @@ public:
   using promise_type = Promise<void>;
 
   /// Promise ready to be awaited or fulfilled.
-  Promise() : core_{PromiseCore<void>::make()} {}
+  Promise() : core_{makeRefCounted<PromiseCore<void>>()} {}
   Promise(Promise<void> &&other) noexcept;
   Promise &operator=(const Promise<void> &other);
   Promise &operator=(Promise<void> &&other) noexcept;

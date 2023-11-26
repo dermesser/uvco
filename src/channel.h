@@ -4,6 +4,7 @@
 #include "promise.h"
 
 #include <cstdlib>
+#include <concepts>
 
 namespace uvco {
 
@@ -24,7 +25,7 @@ public:
   /// Push an item to the queue.
   template <typename U>
   void put(U &&elem)
-    requires Convertible<typename std::remove_cv<U>::type, T>
+    requires std::convertible_to<U, T>
   {
     BOOST_ASSERT(hasSpace());
     if (queue_.size() < capacity()) {
@@ -89,7 +90,7 @@ public:
   /// NOTE: template argument restriction may not be entirely correct?
   template <typename U>
   Promise<void> put(U &&value)
-    requires Convertible<typename std::remove_cv<U>::type, T>
+    requires std::convertible_to<U, T>
   {
     if (!queue_.hasSpace()) {
       // Block until a reader has popped an item.

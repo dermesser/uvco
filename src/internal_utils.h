@@ -6,13 +6,12 @@
 #include <utility>
 #include <uv.h>
 
+#include <concepts>
+
 namespace uvco {
 
 /// @addtogroup Internal Utilities used internally
 /// @{
-
-template <typename From, typename To>
-concept Convertible = std::is_convertible_v<From, To>;
 
 /// `RefCounted<T>` is an intrusive refcounting approach, which shaves up to 50%
 /// performance off of low-overhead high frequency promise code (such as
@@ -21,10 +20,6 @@ concept Convertible = std::is_convertible_v<From, To>;
 /// refcounted object.
 template <typename T> class RefCounted {
 public:
-  static T *make() { return new T{}; }
-  template <typename... Args> static T *make(Args... args) {
-    return new T{std::forward<Args...>(args...)};
-  }
   // Assignment doesn't change count.
   RefCounted(const RefCounted &other) = default;
   RefCounted &operator=(const RefCounted &other) = default;
@@ -49,6 +44,20 @@ protected:
 private:
   size_t count_ = 1;
 };
+
+/// Create a new refcounted value.
+template <typename T, typename... Args>
+T *makeRefCounted(Args... args)
+  requires std::derived_from<T, RefCounted<T>>
+{
+  return new T{std::forward<Args...>(args...)};
+}
+template <typename T>
+T *makeRefCounted()
+  requires std::derived_from<T, RefCounted<T>>
+{
+  return new T{};
+}
 
 extern const bool TRACK_LIFETIMES;
 
