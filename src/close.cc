@@ -1,6 +1,7 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
 #include "close.h"
+#include "scheduler.h"
 
 namespace uvco {
 
@@ -18,6 +19,12 @@ void onCloseCallback(uv_handle_t *stream) {
   awaiter->closed_ = true;
   if (awaiter->handle_) {
     awaiter->handle_->resume();
+    // Doesn't work reliably, because close callbacks are called at the very
+    // end. The event loop doesn't turn until a new i/o event occurs.
+    // For now, run close coroutines synchronously.
+    //
+    // LoopData::enqueue(stream, *awaiter->handle_);
+    awaiter->handle_.reset();
   }
 }
 

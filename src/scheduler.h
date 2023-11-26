@@ -2,9 +2,8 @@
 
 #pragma once
 
+#include <boost/assert.hpp>
 #include <uv.h>
-
-#include <fmt/format.h>
 
 #include <coroutine>
 #include <vector>
@@ -31,14 +30,13 @@ public:
 
   template <typename UvHandle>
   static LoopData &ofHandle(const UvHandle *uvhandle) {
+    BOOST_ASSERT(uvhandle != nullptr);
     return *(LoopData *)(uvhandle->loop->data);
   }
 
   static void onCheck(uv_check_t *check) {
-    fmt::print(stderr, "before runAll\n");
     LoopData &loopData = ofHandle(check);
     loopData.runAll();
-    fmt::print(stderr, "after runAll\n");
   }
 
   void setUpLoop(uv_loop_t *loop) {
@@ -52,6 +50,8 @@ public:
     ofHandle(handle).enqueue(corohandle);
   }
   void enqueue(std::coroutine_handle<> handle) {
+    // Use of moved-out LoopData.
+    BOOST_ASSERT(resumable_.capacity() != 0);
     if (resumable_.empty()) {
       uv_check_start(&check_, onCheck);
     }

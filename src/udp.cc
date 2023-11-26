@@ -20,8 +20,9 @@ Promise<void> Udp::bind(std::string_view address, uint16_t port,
       co_await resolver.gai(address, fmt::format("{}", port), hint);
 
   int status = uv_udp_bind(udp_.get(), addressHandle.sockaddr(), flag);
-  if (status != 0)
+  if (status != 0) {
     throw UvcoException{status, "binding UDP socket"};
+  }
 }
 
 Promise<void> Udp::connect(std::string_view address, uint16_t port,
@@ -33,7 +34,6 @@ Promise<void> Udp::connect(std::string_view address, uint16_t port,
 
   int status = uv_udp_connect(udp_.get(), addressHandle.sockaddr());
   if (status != 0) {
-
     throw UvcoException{status, "connecting UDP socket"};
   }
   connected_ = true;
@@ -186,7 +186,9 @@ void Udp::onSendDone(uv_udp_send_t *req, int status) {
   auto *awaiter = (SendAwaiter_ *)req->data;
   awaiter->status_ = status;
   if (awaiter->handle_) {
-    awaiter->handle_->resume();
+    // awaiter->handle_->resume();
+    LoopData::enqueue(req->handle, *awaiter->handle_);
+    awaiter->handle_.reset();
   }
 }
 
@@ -207,7 +209,11 @@ void Udp::stopReceiveMany() {
   auto *currentAwaiter = (RecvAwaiter_ *)udp_->data;
   currentAwaiter->nread_.reset();
   currentAwaiter->buffer_.reset();
-  currentAwaiter->resume();
+  // currentAwaiter->resume();
+  if (currentAwaiter->handle_) {
+    LoopData::enqueue(udp_.get(), *currentAwaiter->handle_);
+    currentAwaiter->handle_.reset();
+  }
 }
 
 void Udp::udpStopReceive() { uv_udp_recv_stop(udp_.get()); }

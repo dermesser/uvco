@@ -247,13 +247,13 @@ void run_loop() {
   Promise<int> p2 = fulfillWait(&f.promise());
   f.fulfill(42);
   */
-  // Promise<void> p = setupUppercasing(&loop);
+  Promise<void> p = setupUppercasing(&loop);
   // Promise<void> p3 = wait(&loop, 1024);
 
   Promise<void> p2 = testHttpRequest(&loop);
 
-  auto server = udpServer(&loop);
-  auto client = udpClient(&loop);
+  // auto server = udpServer(&loop);
+  // auto client = udpClient(&loop);
 
   // Promise<void> p = echoTcpServer(&loop);
 
@@ -263,8 +263,8 @@ void run_loop() {
 
   // BOOST_ASSERT(p.ready());
   BOOST_ASSERT(p2.ready());
-  BOOST_ASSERT(server.ready());
-  BOOST_ASSERT(client.ready());
+  // BOOST_ASSERT(server.ready());
+  // BOOST_ASSERT(client.ready());
 
   uv_loop_close(&loop);
 }
