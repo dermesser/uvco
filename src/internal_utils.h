@@ -11,13 +11,20 @@ namespace uvco {
 /// @addtogroup Internal Utilities used internally
 /// @{
 
+template <typename From, typename To>
+concept Convertible = std::is_convertible_v<From, To>;
+
 /// `RefCounted<T>` is an intrusive refcounting approach, which shaves up to 50%
 /// performance off of low-overhead high frequency promise code (such as
-/// buffered channel ping-pong scenarios). This is where `shared_ptr` performs badly;
-/// in turn, manual refcounting is required by objects owning a refcounted object.
+/// buffered channel ping-pong scenarios). This is where `shared_ptr` performs
+/// badly; in turn, manual refcounting is required by objects owning a
+/// refcounted object.
 template <typename T> class RefCounted {
 public:
-  RefCounted() = default;
+  static T *make() { return new T{}; }
+  template <typename... Args> static T *make(Args... args) {
+    return new T{std::forward<Args...>(args...)};
+  }
   // Assignment doesn't change count.
   RefCounted(const RefCounted &other) = default;
   RefCounted &operator=(const RefCounted &other) = default;
@@ -35,6 +42,9 @@ public:
       delete static_cast<T *>(this);
     }
   }
+
+protected:
+  RefCounted() = default;
 
 private:
   size_t count_ = 1;
@@ -108,4 +118,3 @@ private:
 /// @}
 
 } // namespace uvco
-

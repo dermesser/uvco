@@ -186,9 +186,9 @@ public:
   using promise_type = Promise<T>;
 
   /// Unfulfilled, empty promise.
-  Promise() : core_{new PromiseCore_{}} {}
+  Promise() : core_{PromiseCore_::make()} {}
   /// Fulfilled promise; resolves immediately.
-  explicit Promise(T &&result) : core_{new PromiseCore_{std::move(result)}} {}
+  explicit Promise(T &&result) : core_{PromiseCore_::make(std::move(result))} {}
 
   Promise(Promise<T> &&other) noexcept : core_{other.core_} {
     other.core_ = nullptr;
@@ -321,7 +321,7 @@ public:
   using promise_type = Promise<void>;
 
   /// Promise ready to be awaited or fulfilled.
-  Promise() : core_{new PromiseCore<void>{}} {}
+  Promise() : core_{PromiseCore<void>::make()} {}
   Promise(Promise<void> &&other) noexcept;
   Promise &operator=(const Promise<void> &other);
   Promise &operator=(Promise<void> &&other) noexcept;
@@ -392,6 +392,10 @@ private:
 /// first `co_await` e.g. some socket operation, then `co_yield`, and repeat.
 /// That way the coroutine will return upon the next suspension point and giving
 /// an opportunity to the "receiving" coroutine to process the yielded value.
+///
+/// NOTE: currently uses a `shared_ptr` PromiseCore, due to issues with
+/// inheritance. It is expected that normal `Promise<T>` will be used most
+/// frequently, therefore the lack of optimization is not as grave.
 template <typename T> class MultiPromise {
 protected:
   struct MultiPromiseAwaiter_;
@@ -506,4 +510,3 @@ protected:
 
 /// @}
 } // namespace uvco
-
