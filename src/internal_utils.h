@@ -13,16 +13,19 @@ namespace uvco {
 /// @addtogroup Internal Utilities used internally
 /// @{
 
-/// `RefCounted<T>` is an intrusive refcounting approach, which shaves up to 50%
-/// performance off of low-overhead high frequency promise code (such as
-/// buffered channel ping-pong scenarios). This is where `shared_ptr` performs
-/// badly; in turn, manual refcounting is required by objects owning a
-/// refcounted object.
-///
-/// Use `makeRefCounted<T>(ctor_args...)` to allocate a new reference-counted
+/// `RefCounted<T>` is an intrusive refcounting approach, which reduces the
+/// run-time of low-overhead high frequency promise code (such as buffered
+/// channel ping-pong scenarios) by as much as 50% compared to `shared_ptr` use.
+/// However, manual refcounting is required by objects owning a refcounted
 /// object.
 ///
-/// This type currently doesn't work well with inheritance.
+/// Use `makeRefCounted()` to allocate a new reference-counted object, and
+/// store it as part of your class. Use `addRef()` and `delRef()` to keep track
+/// of the current number of references.
+///
+/// This type currently doesn't work well with inheritance: only a class
+/// directly inheriting from `RefCounted` can be managed. This is caused by the
+/// current API approach.
 template <typename T> class RefCounted {
 public:
   // Assignment doesn't change count.
@@ -32,10 +35,15 @@ public:
   RefCounted &operator=(RefCounted &&other) noexcept {}
   virtual ~RefCounted() = default;
 
+  /// Use in e.g. copy constructors, when creating a new reference to the same
+  /// object.
   T *addRef() {
     ++count_;
     return static_cast<T *>(this);
   }
+  /// Use in e.g. destructors, when an existing pointer goes out of
+  /// scope. Once the reference count has dropped to 0, the referred object will
+  /// be deleted.
   void delRef() {
     --count_;
     if (count_ == 0) {

@@ -49,6 +49,7 @@ public:
   TcpClient &operator=(const TcpClient &) = delete;
   ~TcpClient() = default;
 
+  // TODO: maybe replace with static connect function.
   Promise<TcpStream> connect();
 
 private:

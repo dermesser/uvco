@@ -130,7 +130,7 @@ protected:
 
 /// A `MultiPromiseCore` works like a `PromiseCore`, but with an adapted state
 /// machine: it can transition from `finished` back to `waitedOn`, and therefore
-/// yield more than one value. Therefore it's used by `MultiPromise`, a
+/// yield more than one value. It is used by `MultiPromise`, a
 /// generator-like type.
 template <typename T> class MultiPromiseCore : public PromiseCore<T> {
 public:

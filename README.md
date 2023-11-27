@@ -146,8 +146,8 @@ under the terms of the license (GNU LGPL 2.1).
 ## Testing
 
 Some unit tests exist. They make the most sense when built and run with
-`-DENABLE_ASAN=1`, detecting memory leaks and illegal accesses - the most
-frequent bugs when writing asynchronous code.
+`-DENABLE_ASAN=1 -DENABLE_COVERAGE=1`, detecting memory leaks and illegal
+accesses - the most frequent bugs when writing asynchronous code.
 
 Generally, run like this:
 
