@@ -1,11 +1,16 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include <uv.h>
+
 #include <boost/assert.hpp>
+#include <fmt/format.h>
 
 #include "close.h"
 #include "internal_utils.h"
 #include "scheduler.h"
 #include "udp.h"
+
+#include <array>
 
 namespace uvco {
 

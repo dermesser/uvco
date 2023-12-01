@@ -1,6 +1,6 @@
 # uvco
 
-C++ coroutines running on `libuv`.
+C++20 standard library coroutines running on `libuv`.
 
 Currently, more of an experiment - but it works for real! I am aiming for an
 ergonomic, intuitive, asynchronous experience.
@@ -28,7 +28,8 @@ For specific examples, take a look at `src/event_loop.cc` (which sets up an
 
 ## Goal
 
-Provide ergonomic asynchronous abstractions of all libuv functionality.
+Provide ergonomic asynchronous abstractions of all libuv functionality, at
+satisfactory performance.
 
 ## Example
 

@@ -2,10 +2,12 @@
 
 #pragma once
 
+#include <uv.h>
+
 #include "close.h"
 #include "promise.h"
+
 #include <boost/assert.hpp>
-#include <uv.h>
 
 #include <coroutine>
 #include <vector>

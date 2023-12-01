@@ -2,13 +2,21 @@
 
 #pragma once
 
-#include <boost/assert.hpp>
 #include <uv.h>
+
+#include <boost/assert.hpp>
 
 #include "name_resolution.h"
 #include "promise.h"
 
+#include <coroutine>
+#include <cstdint>
+#include <memory>
+#include <optional>
 #include <span>
+#include <string>
+#include <string_view>
+#include <utility>
 
 namespace uvco {
 

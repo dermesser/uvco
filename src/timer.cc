@@ -2,11 +2,17 @@
 
 #include <uv.h>
 
+#include <boost/assert.hpp>
+
 #include "close.h"
+#include "internal_utils.h"
 #include "promise.h"
 #include "timer.h"
 
+#include <coroutine>
 #include <cstdint>
+#include <optional>
+#include <utility>
 
 namespace uvco {
 

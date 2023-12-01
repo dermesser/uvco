@@ -2,6 +2,7 @@
 
 #include "internal_utils.h"
 
+#include <algorithm>
 #include <boost/assert.hpp>
 
 namespace uvco {

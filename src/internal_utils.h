@@ -4,8 +4,13 @@
 
 #include <uv.h>
 
-#include <coroutine>
 #include <fmt/format.h>
+
+#include <concepts>
+#include <cstddef>
+#include <exception>
+#include <string>
+#include <string_view>
 #include <utility>
 
 namespace uvco {

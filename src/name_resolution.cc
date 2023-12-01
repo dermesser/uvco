@@ -1,15 +1,16 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include <boost/assert.hpp>
 #include <uv.h>
+
+#include <boost/assert.hpp>
 
 #include "internal_utils.h"
 #include "name_resolution.h"
 #include "promise.h"
 
-#include <cassert>
+#include <algorithm>
+#include <cstring>
 #include <coroutine>
-#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -186,9 +187,9 @@ std::string AddressHandle::NtopHelper_::ntop(int family, void *addr) {
   }
   const char *result = inet_ntop(family, addr, dst.data(), dst.size());
   if (result == nullptr) {
-    throw UvcoException(fmt::format("inet_ntop(): {}", strerror(errno)));
+    throw UvcoException(fmt::format("inet_ntop(): {}", std::strerror(errno)));
   }
-  dst.resize(strlen(result));
+  dst.resize(std::strlen(result));
   return dst;
 }
 

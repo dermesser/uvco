@@ -1,11 +1,15 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include <boost/assert.hpp>
 #include <uv.h>
 
+#include <boost/assert.hpp>
+#include <fmt/format.h>
+
+#include "close.h"
 #include "name_resolution.h"
-#include "stream.h"
 #include "tcp.h"
+
+#include <memory>
 
 namespace uvco {
 

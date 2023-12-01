@@ -1,10 +1,8 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include <boost/assert.hpp>
-#include <fmt/format.h>
 #include <uv.h>
 
-#include "close.h"
+#include "internal_utils.h"
 #include "name_resolution.h"
 #include "promise.h"
 #include "scheduler.h"
@@ -13,15 +11,22 @@
 #include "timer.h"
 #include "udp.h"
 
+#include <boost/assert.hpp>
+#include <fmt/format.h>
+
 #include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <coroutine>
+#include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
-#include <typeinfo>
+#include <utility>
+#include <vector>
 
 namespace {} // namespace
 

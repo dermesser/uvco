@@ -6,6 +6,7 @@
 
 #include "promise.h"
 
+#include <boost/assert.hpp>
 #include <coroutine>
 #include <optional>
 
