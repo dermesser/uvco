@@ -30,6 +30,7 @@ add_library(event-loop-lib STATIC
     src/event_loop.cc)
 target_link_libraries(event-loop-lib PRIVATE ${UV_LIBRARIES} ${FMT_LIBRARIES})
 target_include_directories(event-loop-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
+target_include_directories(event-loop-lib PUBLIC src/)
 
 if(ENABLE_COVERAGE)
     target_compile_options(event-loop-lib PRIVATE "--coverage")
@@ -47,7 +48,6 @@ target_link_libraries(test-util PRIVATE event-loop-lib)
 
 foreach(TESTCASE IN ITEMS channel timer udp tcp misc)
     add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
-    target_include_directories(${TESTCASE}-test PRIVATE src/)
     target_link_libraries(${TESTCASE}-test PRIVATE event-loop-lib test-util GTest::gtest_main)
     add_test(NAME ${TESTCASE}-test COMMAND ${TESTCASE}-test)
 
@@ -57,6 +57,9 @@ foreach(TESTCASE IN ITEMS channel timer udp tcp misc)
     endif()
 
 endforeach()
+
+add_executable(test-tcp-broadcaster test/broadcaster.exe.cc)
+target_link_libraries(test-tcp-broadcaster PRIVATE event-loop-lib boost_program_options)
 
 # Coverage
 add_custom_target(coverage
