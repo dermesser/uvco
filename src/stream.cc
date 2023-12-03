@@ -38,8 +38,8 @@ Promise<uv_status> StreamBase::write(std::string buf) {
 }
 
 Promise<void> StreamBase::close() {
-  auto *stream = stream_.release();
-  co_await closeHandle(stream);
+  auto stream = std::move(stream_);
+  co_await closeHandle(stream.get());
   if (reader_) {
     reader_->resume();
     reader_.reset();

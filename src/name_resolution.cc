@@ -26,7 +26,7 @@ AddressHandle::AddressHandle(std::span<const uint8_t> ipv4_or_6, uint16_t port,
     ipAddr.s_addr = *(uint32_t *)ipv4_or_6.data();
 
     addr.sin_family = AF_INET;
-    addr.sin_port = port;
+    addr.sin_port = htons(port);
     addr.sin_addr = ipAddr;
     addr_ = addr;
   } else if (ipv4_or_6.size() == ipv6Length) {
@@ -37,7 +37,7 @@ AddressHandle::AddressHandle(std::span<const uint8_t> ipv4_or_6, uint16_t port,
               static_cast<uint8_t *>(ipAddr.s6_addr));
 
     addr.sin6_family = AF_INET6;
-    addr.sin6_port = port;
+    addr.sin6_port = htons(port);
     addr.sin6_addr = ipAddr;
     addr.sin6_scope_id = v6scope;
     addr_ = addr;
