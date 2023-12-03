@@ -54,7 +54,7 @@ public:
 
   Promise<void> broadcast(std::string_view from, std::string_view what) {
     const std::string message = fmt::format("{} says: {}", from, what);
-    std::vector<Promise<StreamBase::uv_status>> promises;
+    std::vector<Promise<uv_status>> promises;
     promises.reserve(clients_.size());
 
     for (const auto &clientPtr : clients_) {
@@ -107,18 +107,17 @@ Promise<void> copyIncomingToStdout(uv_loop_t *loop,
   TtyStream out = TtyStream::stdout(loop);
 
   while (true) {
-    try {
-      std::optional<std::string> maybeChunk = co_await conn->read();
-      if (!maybeChunk) {
-        break;
-      }
-      co_await out.write(std::move(*maybeChunk));
-    } catch (const UvcoException &e) {
+    std::optional<std::string> maybeChunk = co_await conn->read();
+    if (!maybeChunk) {
+      fmt::print(stderr, "> EOF from connection\n");
       break;
     }
+    co_await out.write(std::move(*maybeChunk));
   }
 
+  fmt::print(stderr, "> copier done\n");
   co_await out.close();
+  fmt::print(stderr, "> copier really done\n");
 }
 
 Promise<void> client(Options opt) {
@@ -128,19 +127,21 @@ Promise<void> client(Options opt) {
 
   Promise<void> copier = copyIncomingToStdout(opt.loop, conn);
   while (true) {
-    try {
-      std::optional<std::string> maybeChunk = co_await input.read();
-      if (!maybeChunk) {
-        break;
-      }
-      co_await conn->write(std::move(*maybeChunk));
-    } catch (const UvcoException &e) {
+    std::optional<std::string> maybeChunk = co_await input.read();
+    if (!maybeChunk) {
+      fmt::print(stderr, "> EOF from stdin\n");
       break;
     }
+    co_await conn->write(std::move(*maybeChunk));
   }
-  co_await conn->closeReset();
-  co_await uvco::wait(opt.loop, 100);
+  fmt::print(stderr, "> loop left\n");
+  co_await conn->close();
+  fmt::print(stderr, "> conn closed\n");
+  co_await copier;
+  fmt::print(stderr, "> copier caught\n");
   co_await input.close();
+
+  fmt::print(stderr, "> client done\n");
 }
 
 void run(Options opt) {
