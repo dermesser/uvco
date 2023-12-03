@@ -20,6 +20,9 @@
 
 namespace uvco {
 
+/// @ingroup TCP
+/// @ingroup Stream
+/// A stream referring to a TCP connection.
 class TcpStream : public StreamBase {
 public:
   // Takes ownership of tcp. tcp must be dynamically allocated.
@@ -31,25 +34,34 @@ public:
 
   ~TcpStream() override = default;
 
+  /// Return address of peer.
   [[nodiscard]] AddressHandle getPeerName() const;
 
+  /// Return bound address of socket.
   [[nodiscard]] AddressHandle getSockName() const;
 
-  // Sends RST to TCP peer.
-  // Must be awaited.
+  /// Sends RST to TCP peer and closes stream, frees associated memory.
+  /// Must be awaited to avoid resource leaks.
   [[nodiscard]] Promise<void> closeReset();
 
+  /// Set keep-alive delay in seconds.
   void keepAlive(bool enable, unsigned int delay = 10);
 
+  /// Enable Nagle's algorithm.
   void noDelay(bool enable);
 };
 
+/// @addtogroup TCP
+/// @{
+
+/// A client for connecting to a TCP peer.
 class TcpClient {
 public:
-  // Create a client; call connect() to obtain a TcpStream. Address can be given
-  // as domain name, IP, etc.
+  /// Create a client; call `connect()` to obtain a `TcpStream`. Address can be
+  /// given as domain name, IP, etc.
   TcpClient(uv_loop_t *loop, std::string target_host_address,
             uint16_t target_host_port, int af_hint = AF_UNSPEC);
+  /// Create a TCP client connecting to the given address.
   TcpClient(uv_loop_t *loop, AddressHandle address);
 
   TcpClient(TcpClient &&other) noexcept;
@@ -58,7 +70,8 @@ public:
   TcpClient &operator=(const TcpClient &) = delete;
   ~TcpClient() = default;
 
-  // TODO: maybe replace with static connect function.
+  /// Connect to the peer specified in the constructor. The `TcpClient` object
+  /// is meaningless after this call and can be destroyed.
   Promise<TcpStream> connect();
 
 private:
@@ -83,9 +96,11 @@ private:
   };
 };
 
+/// A TCP server accepts client connections by listening on a specific bind
+/// address.
 class TcpServer {
 public:
-  // Sets up and binds socket to address.
+  /// Sets up and bind socket to address.
   TcpServer(uv_loop_t *loop, AddressHandle bindAddress, bool ipv6Only = false);
 
   TcpServer(const TcpServer &) = delete;
@@ -94,10 +109,13 @@ public:
   TcpServer &operator=(TcpServer &&) = default;
   ~TcpServer() = default;
 
-  // Libuv does not appear to offer a way to stop listening and accepting
-  // connections: so we won't either.
+  /// Return client connections as clients connect.
+  ///
+  /// Libuv does not appear to offer a way to stop listening and accepting
+  /// connections: so we won't either.
   MultiPromise<TcpStream> listen(int backlog = 128);
 
+  /// Close server and stop accepting client connections; must be awaited.
   Promise<void> close();
 
 private:
@@ -154,5 +172,7 @@ private:
     bool stopped_ = false;
   };
 };
+
+/// @}
 
 } // namespace uvco

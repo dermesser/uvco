@@ -16,7 +16,6 @@
 #include <utility>
 
 namespace uvco {
-/// \addtogroup Promise Core Promise code
 /// @addtogroup Promise
 /// @{
 

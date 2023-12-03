@@ -20,9 +20,13 @@
 
 namespace uvco {
 
+/// @addtogroup Stream
+/// @{
+
+/// A plain stream, permitting reading, writing, and closing.
 class StreamBase {
 public:
-  // Takes ownership of stream.
+  /// Takes ownership of stream.
   explicit StreamBase(uv_stream_t *stream) : stream_{stream} {}
   StreamBase(const StreamBase &) = delete;
   StreamBase(StreamBase &&) = default;
@@ -40,13 +44,14 @@ public:
   /// long as the process keeps running).
   [[nodiscard]] Promise<uv_status> write(std::string buf);
 
-  /// The result of `close()` must be `co_await`ed; otherwise memory may be
+  /// The result of `close()` *must be `co_await`ed*; otherwise memory may be
   /// leaked. (this is not an issue just before termination of a process)
   ///
   /// Informs pending readers and writers of the close and causes them to return
   /// an empty optional.
   [[nodiscard]] Promise<void> close();
 
+  /// Return the underlying UV stream object.
   [[nodiscard]] const uv_stream_t *underlying() const { return stream_.get(); }
 
 protected:
@@ -104,10 +109,16 @@ private:
   };
 };
 
-// Creates a pipe pair. Data can be written to the second stream and read from
-// the first.
+/// Creates a pipe pair. Data can be written to the second stream and read from
+/// the first.
 std::pair<StreamBase, StreamBase> pipe(uv_loop_t *);
 
+/// A stream referring to stdin/stdout/stderr. Should be created using one of
+/// the static member functions, each of which creates a TTY stream referring to
+/// the respective standard stream.
+///
+/// Note: these must be TTYs; input/output redirection may cause failures in
+/// libuv. Normal files are not yet implemented.
 class TtyStream : public StreamBase {
 public:
   // Takes ownership of stream.
@@ -125,5 +136,7 @@ public:
 private:
   explicit TtyStream(uv_stream_t *stream) : StreamBase{stream} {}
 };
+
+/// @}
 
 } // namespace uvco

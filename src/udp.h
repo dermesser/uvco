@@ -20,8 +20,14 @@
 
 namespace uvco {
 
+/// @addtogroup UDP
+/// @{
+
+/// Interface to UDP functionality: can be connected or disconnected datagram
+/// client/server.
 class Udp {
 public:
+  /// Set up a UDP object.
   explicit Udp(uv_loop_t *loop)
       : loop_{loop}, udp_{std::make_unique<uv_udp_t>()} {
     uv_udp_init(loop, udp_.get());
@@ -34,25 +40,38 @@ public:
     BOOST_ASSERT_MSG(!udp_, "UDP protocol must be close()d before destruction");
   }
 
+  /// Bind UDP socket to address.
+  ///
+  /// TODO: provide `AddressHandle` interface.
   Promise<void> bind(std::string_view address, uint16_t port,
                      unsigned int flag = 0);
 
+  /// Connect UDP socket to address.
+  ///
+  /// TODO: provide `AddressHandle` interface.
   Promise<void> connect(std::string_view address, uint16_t port,
                         bool ipv6only = false);
 
+  /// Send to address, or send to connected peer.
   Promise<void> send(std::span<char> buffer,
-                     std::optional<AddressHandle> address);
+                     std::optional<AddressHandle> address = {});
 
+  /// Receive a single UDP packet.
+  ///
+  /// TODO: use a better-suited buffer type.
   Promise<std::string> receiveOne();
 
+  /// Receive a single UDP packet and also return the sender's address.
   Promise<std::pair<std::string, AddressHandle>> receiveOneFrom();
 
-  // Generate packets received on socket. Call stopReceiveMany() when no more
-  // packets are desired; otherwise this will continue indefinitely.
+  /// Generate packets received on socket. Call stopReceiveMany() when no more
+  /// packets are desired; otherwise this will continue indefinitely.
   MultiPromise<std::pair<std::string, AddressHandle>> receiveMany();
-  // Stop receiving after the next packet.
+  /// Stop receiving with `receiveMany()` after the next packet.
   void stopReceiveMany();
 
+  /// Close UDP socket. Await on the returned promise to ensure that the socket
+  /// is fully closed.
   Promise<void> close();
 
 private:
@@ -97,5 +116,7 @@ private:
     std::optional<int> status_;
   };
 };
+
+/// @}
 
 } // namespace uvco

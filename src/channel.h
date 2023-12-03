@@ -18,9 +18,7 @@
 
 namespace uvco {
 
-/// @addtogroup Channels Buffered channels for inter-coroutine communication
-/// A `Channel` is similar to a Go channel: buffered, and blocking for reading
-/// and writing if empty/full respectively.
+/// @addtogroup Channels
 /// @{
 
 /// A bounded FIFO queue based on a contiguous array.
@@ -73,6 +71,9 @@ private:
   size_t size_ = 0;
 };
 
+/// A `Channel` is similar to a Go channel: buffered, and blocking for reading
+/// and writing if empty/full respectively.
+///
 /// A bounded-capacity channel for items of type `T`.
 /// Can only be written to or read from by one coroutine at a time; more than
 /// one coroutine waiting is forbidden.
