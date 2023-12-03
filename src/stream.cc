@@ -4,6 +4,7 @@
 #include <uv.h>
 
 #include "close.h"
+#include "exception.h"
 #include "stream.h"
 
 namespace uvco {
@@ -30,15 +31,23 @@ Promise<std::optional<std::string>> StreamBase::read() {
   co_return buf;
 }
 
-Promise<StreamBase::uv_status> StreamBase::write(std::string buf) {
+Promise<uv_status> StreamBase::write(std::string buf) {
   OutStreamAwaiter_ awaiter{*this, std::move(buf)};
   uv_status status = co_await awaiter;
   co_return status;
 }
 
 Promise<void> StreamBase::close() {
-  co_await closeHandle(&stream());
-  stream_.reset();
+  auto *stream = stream_.release();
+  co_await closeHandle(stream);
+  if (reader_) {
+    reader_->resume();
+    reader_.reset();
+  }
+  if (writer_) {
+    writer_->resume();
+    writer_.reset();
+  }
 }
 
 bool StreamBase::InStreamAwaiter_::await_ready() {
@@ -55,14 +64,19 @@ bool StreamBase::InStreamAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
   stream_.stream().data = this;
   handle_ = handle;
+  stream_.reader_ = handle;
   start_read();
   return true;
 }
 
 std::optional<std::string> StreamBase::InStreamAwaiter_::await_resume() {
+  if (!slot_ && !stream_.stream_) {
+    return {};
+  }
   BOOST_ASSERT(slot_);
   std::optional<std::string> result = std::move(*slot_);
   slot_.reset();
+  stream_.reader_.reset();
   return result;
 }
 
@@ -118,6 +132,7 @@ bool StreamBase::OutStreamAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
   write_.data = this;
   handle_ = handle;
+  stream_.writer_ = handle;
   auto bufs = prepare_buffers();
   // TODO: move before suspension point.
   uv_write(&write_, &stream_.stream(), bufs.data(), bufs.size(),
@@ -126,8 +141,13 @@ bool StreamBase::OutStreamAwaiter_::await_suspend(
   return true;
 }
 
-StreamBase::uv_status StreamBase::OutStreamAwaiter_::await_resume() {
+uv_status StreamBase::OutStreamAwaiter_::await_resume() {
+  // resumed due to close.
+  if (!stream_.stream_) {
+    return UV_ECANCELED;
+  }
   BOOST_ASSERT(status_);
+  stream_.writer_.reset();
   return *status_;
 }
 

@@ -6,6 +6,7 @@
 
 #include <boost/assert.hpp>
 
+#include "exception.h"
 #include "internal_utils.h"
 #include "promise.h"
 
@@ -21,8 +22,6 @@ namespace uvco {
 
 class StreamBase {
 public:
-  using uv_status = int;
-
   // Takes ownership of stream.
   explicit StreamBase(uv_stream_t *stream) : stream_{stream} {}
   StreamBase(const StreamBase &) = delete;
@@ -31,11 +30,21 @@ public:
   StreamBase &operator=(StreamBase &&) = default;
   virtual ~StreamBase();
 
+  /// Read available data (up to 4 kB) from stream. Returns an empty optional on
+  /// EOF or closed handle (`close()`).
   [[nodiscard]] Promise<std::optional<std::string>> read();
 
+  /// Write a buffer to the stream. A copy of `buf` is taken because it is
+  /// undetermined when the actual write will occur. Await the result if the
+  /// status is important; the write will be executed even without awaiting (as
+  /// long as the process keeps running).
   [[nodiscard]] Promise<uv_status> write(std::string buf);
 
-  // close() must be co_awaited!
+  /// The result of `close()` must be `co_await`ed; otherwise memory may be
+  /// leaked. (this is not an issue just before termination of a process)
+  ///
+  /// Informs pending readers and writers of the close and causes them to return
+  /// an empty optional.
   [[nodiscard]] Promise<void> close();
 
   [[nodiscard]] const uv_stream_t *underlying() const { return stream_.get(); }
@@ -52,6 +61,8 @@ protected:
 
 private:
   std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
+  std::optional<std::coroutine_handle<>> reader_;
+  std::optional<std::coroutine_handle<>> writer_;
 
   struct InStreamAwaiter_ {
     explicit InStreamAwaiter_(StreamBase &stream) : stream_{stream} {}
@@ -82,7 +93,7 @@ private:
 
     uv_status await_resume();
 
-    static void onOutStreamWrite(uv_write_t *write, int status);
+    static void onOutStreamWrite(uv_write_t *write, uv_status status);
 
     StreamBase &stream_;
     std::optional<std::coroutine_handle<>> handle_;

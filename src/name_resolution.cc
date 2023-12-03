@@ -4,6 +4,7 @@
 
 #include <boost/assert.hpp>
 
+#include "exception.h"
 #include "internal_utils.h"
 #include "name_resolution.h"
 #include "promise.h"
@@ -80,7 +81,7 @@ AddressHandle::AddressHandle(std::string_view ip, uint16_t port,
                              uint32_t v6scope) {
   if (ip.contains(':')) {
     struct in6_addr ipAddr {};
-    int status = inet_pton(AF_INET6, ip.data(), &ipAddr);
+    uv_status status = inet_pton(AF_INET6, ip.data(), &ipAddr);
     if (status != 1)
       throw UvcoException(fmt::format("invalid IPv6 address: {}", ip));
 
@@ -92,7 +93,7 @@ AddressHandle::AddressHandle(std::string_view ip, uint16_t port,
     addr_ = addr;
   } else {
     struct in_addr ipAddr;
-    int status = inet_pton(AF_INET, ip.data(), &ipAddr);
+    uv_status status = inet_pton(AF_INET, ip.data(), &ipAddr);
     if (status != 1)
       throw UvcoException(fmt::format("invalid IPv4 address: {}", ip));
 
@@ -148,7 +149,7 @@ Promise<AddressHandle> Resolver::gai(std::string_view host,
   // Npte: we rely on libuv not resuming before awaiting the result.
   struct addrinfo *result = co_await awaiter;
 
-  int status = awaiter.status_.value();
+  uv_status status = awaiter.status_.value();
   if (status != 0) {
     throw UvcoException{status, "getaddrinfo()"};
   }
@@ -159,7 +160,7 @@ Promise<AddressHandle> Resolver::gai(std::string_view host,
   co_return address;
 }
 
-void Resolver::onAddrinfo(uv_getaddrinfo_t *req, int status,
+void Resolver::onAddrinfo(uv_getaddrinfo_t *req, uv_status status,
                           struct addrinfo *result) {
   auto *awaiter = (AddrinfoAwaiter_ *)req->data;
   awaiter->addrinfo_ = result;

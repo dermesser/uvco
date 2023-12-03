@@ -1,6 +1,7 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
 #include "internal_utils.h"
+#include "exception.h"
 
 #include <algorithm>
 #include <boost/assert.hpp>
@@ -14,7 +15,7 @@ void log(uv_loop_t *loop, std::string_view message) {
   fmt::print("[{}] {}: {}\n", count++, uv_now(loop), message);
 }
 void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
-  constexpr static size_t defaultSize = 2048;
+  constexpr static size_t defaultSize = 4096;
   const size_t size = std::min(defaultSize, sugg);
   char *underlying = new char[size];
   buf->base = underlying;

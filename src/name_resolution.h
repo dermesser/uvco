@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "exception.h"
 #include "promise.h"
 
 #include <uv.h>
@@ -68,7 +69,7 @@ public:
 private:
   uv_loop_t *loop_;
 
-  static void onAddrinfo(uv_getaddrinfo_t *req, int status,
+  static void onAddrinfo(uv_getaddrinfo_t *req, uv_status status,
                          struct addrinfo *result);
 
   struct AddrinfoAwaiter_ {

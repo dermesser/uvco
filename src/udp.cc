@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 
 #include "close.h"
+#include "exception.h"
 #include "internal_utils.h"
 #include "scheduler.h"
 #include "udp.h"
@@ -24,7 +25,7 @@ Promise<void> Udp::bind(std::string_view address, uint16_t port,
   AddressHandle addressHandle =
       co_await resolver.gai(address, fmt::format("{}", port), hint);
 
-  int status = uv_udp_bind(udp_.get(), addressHandle.sockaddr(), flag);
+  uv_status status = uv_udp_bind(udp_.get(), addressHandle.sockaddr(), flag);
   if (status != 0) {
     throw UvcoException{status, "binding UDP socket"};
   }
@@ -37,7 +38,7 @@ Promise<void> Udp::connect(std::string_view address, uint16_t port,
   AddressHandle addressHandle =
       co_await r.gai(address, fmt::format("{}", port), hint);
 
-  int status = uv_udp_connect(udp_.get(), addressHandle.sockaddr());
+  uv_status status = uv_udp_connect(udp_.get(), addressHandle.sockaddr());
   if (status != 0) {
     throw UvcoException{status, "connecting UDP socket"};
   }
@@ -59,12 +60,13 @@ Promise<void> Udp::send(std::span<char> buffer,
     addr = address->sockaddr();
   }
 
-  int status = uv_udp_send(&req, udp_.get(), bufs.begin(), 1, addr, onSendDone);
+  uv_status status =
+      uv_udp_send(&req, udp_.get(), bufs.begin(), 1, addr, onSendDone);
   if (status != 0) {
     throw UvcoException{status, "uv_udp_send() failed immediately"};
   }
 
-  int status_done = co_await sendAwaiter;
+  uv_status status_done = co_await sendAwaiter;
   if (status_done != 0) {
     throw UvcoException{status_done, "uv_udp_send() failed while sending"};
   }
@@ -80,7 +82,7 @@ Promise<std::string> Udp::receiveOne() {
 Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
   RecvAwaiter_ awaiter{};
   udp_->data = &awaiter;
-  int status = udpStartReceive();
+  uv_status status = udpStartReceive();
   if (status != 0) {
     throw UvcoException(status, "uv_udp_recv_start()");
   }
@@ -104,7 +106,7 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
   awaiter.stop_receiving_ = false;
   udp_->data = &awaiter;
 
-  int status = udpStartReceive();
+  uv_status status = udpStartReceive();
   if (status != 0) {
     throw UvcoException(status, "receiveMany(): uv_udp_recv_start()");
   }
@@ -187,7 +189,7 @@ std::optional<std::string> Udp::RecvAwaiter_::await_resume() {
   return b;
 }
 
-void Udp::onSendDone(uv_udp_send_t *req, int status) {
+void Udp::onSendDone(uv_udp_send_t *req, uv_status status) {
   auto *awaiter = (SendAwaiter_ *)req->data;
   awaiter->status_ = status;
   if (awaiter->handle_) {

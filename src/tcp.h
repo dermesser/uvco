@@ -7,6 +7,7 @@
 #include <boost/assert.hpp>
 #include <fmt/format.h>
 
+#include "exception.h"
 #include "internal_utils.h"
 #include "name_resolution.h"
 #include "promise.h"
@@ -68,14 +69,14 @@ private:
   int af_hint_;
   uint16_t port_;
 
-  static void onConnect(uv_connect_t *req, int status);
+  static void onConnect(uv_connect_t *req, uv_status status);
 
   struct ConnectAwaiter_ {
     [[nodiscard]] bool await_ready() const;
     bool await_suspend(std::coroutine_handle<> h);
     int await_resume();
 
-    void onConnect(int status);
+    void onConnect(uv_status status);
 
     std::optional<std::coroutine_handle<>> handle_ = {};
     std::optional<int> status_ = {};
@@ -102,7 +103,7 @@ public:
 private:
   void bind(const struct sockaddr *addr, int flags);
 
-  static void onNewConnection(uv_stream_t *server, int status);
+  static void onNewConnection(uv_stream_t *server, uv_status status);
 
   uv_loop_t *loop_;
   uv_tcp_t tcp_;
@@ -132,7 +133,7 @@ private:
         slot_.reset();
         return stream;
       } else {
-        int status = *status_;
+        uv_status status = *status_;
         BOOST_ASSERT(!slot_);
         status_.reset();
         throw UvcoException(status, "TcpServer::listen()");

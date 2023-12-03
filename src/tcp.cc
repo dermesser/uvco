@@ -47,7 +47,7 @@ Promise<TcpStream> TcpClient::connect() {
   uv_tcp_init(loop_, tcp.get());
   uv_tcp_connect(&req, tcp.get(), ah.sockaddr(), onConnect);
 
-  int status = co_await connect;
+  uv_status status = co_await connect;
   if (status < 0) {
     throw UvcoException(status, "connect");
   }
@@ -55,7 +55,7 @@ Promise<TcpStream> TcpClient::connect() {
   co_return TcpStream{tcp.release()};
 }
 
-void TcpClient::onConnect(uv_connect_t *req, int status) {
+void TcpClient::onConnect(uv_connect_t *req, uv_status status) {
   auto *connect = static_cast<ConnectAwaiter_ *>(req->data);
   connect->onConnect(status);
 }
@@ -75,7 +75,7 @@ int TcpClient::ConnectAwaiter_::await_resume() {
   return *status_;
 }
 
-void TcpClient::ConnectAwaiter_::onConnect(int status) {
+void TcpClient::ConnectAwaiter_::onConnect(uv_status status) {
   status_ = status;
   if (handle_) {
     handle_->resume();
@@ -121,7 +121,7 @@ Promise<void> TcpServer::close() {
   co_await closeHandle(&tcp_);
 }
 
-void TcpServer::onNewConnection(uv_stream_t *stream, int status) {
+void TcpServer::onNewConnection(uv_stream_t *stream, uv_status status) {
   const auto *server = (uv_tcp_t *)stream;
   auto *awaiter = (ConnectionAwaiter_ *)server->data;
   uv_loop_t *const loop = awaiter->loop_;

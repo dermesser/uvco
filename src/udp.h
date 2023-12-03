@@ -86,7 +86,7 @@ private:
     bool stop_receiving_ = true;
   };
 
-  static void onSendDone(uv_udp_send_t *req, int status);
+  static void onSendDone(uv_udp_send_t *req, uv_status status);
 
   struct SendAwaiter_ {
     [[nodiscard]] bool await_ready() const;
