@@ -140,7 +140,7 @@ Promise<void> client(Options opt) {
   co_await copier;
   fmt::print(stderr, "> copier caught\n");
   co_await input.close();
-
+  co_await LoopData::close(opt.loop);
   fmt::print(stderr, "> client done\n");
 }
 
@@ -163,6 +163,7 @@ void run(Options opt) {
   uv_run(&loop, UV_RUN_DEFAULT);
   fmt::print(stderr, "> loop done!\n");
   uv_loop_close(&loop);
+  fmt::print(stderr, "> loop closed!\n");
 }
 
 int main(int argc, const char **argv) {

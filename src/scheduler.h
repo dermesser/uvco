@@ -101,6 +101,9 @@ public:
   /// close() should be called once the main promise has finished, and the
   /// process is preparing to exit; however, while the event loop is still
   /// running. Example: Once a user has pressed Ctrl-D in a tty application.
+  ///
+  /// Otherwise, resources may be leaked. (This is usually not super important,
+  /// because the event loop is finishing soon after anyway).
   Promise<void> close() { co_await closeHandle(&check_); }
 
   /// Helper method for `close`,; can be called on any
