@@ -70,6 +70,26 @@ public:
   /// Stop receiving with `receiveMany()` after the next packet.
   void stopReceiveMany();
 
+  /// Enable sending to broadcast addresses.
+  void setBroadcast(bool enabled);
+  /// Set TTL on sent packets. TTL must be between 1 and 255.
+  void setTtl(uint8_t ttl);
+  /// Set multicast interface for sending or receiving data.
+  void setMulticastInterface(const std::string &interfaceAddress);
+  /// If the loop flag is enabled, sent multicast packets will arrive back on
+  /// the sending socket.
+  void setMulticastLoop(bool enabled);
+  /// Join a multicast group.
+  void joinMulticast(const std::string &address, const std::string &interface);
+  /// Leave multicast group.
+  void leaveMulticast(const std::string &address, const std::string &interface);
+
+  /// Obtain locally bound name of socket.
+  [[nodiscard]] AddressHandle getSockname() const;
+
+  /// Obtain peer name if connected.
+  [[nodiscard]] std::optional<AddressHandle> getPeername() const;
+
   /// Close UDP socket. Await on the returned promise to ensure that the socket
   /// is fully closed.
   Promise<void> close();

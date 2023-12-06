@@ -17,7 +17,7 @@ void log(uv_loop_t *loop, std::string_view message) {
 
 /// libuv allocator.
 void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
-  constexpr static size_t defaultSize = 4096;
+  constexpr static size_t defaultSize = 4080;
   const size_t size = std::min(defaultSize, sugg);
   char *underlying = new char[size];
   buf->base = underlying;

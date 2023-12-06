@@ -231,4 +231,58 @@ int Udp::udpStartReceive() {
   return uv_udp_recv_start(udp_.get(), allocator, onReceiveOne);
 }
 
+void Udp::setBroadcast(bool enabled) {
+  uv_udp_set_broadcast(udp_.get(), static_cast<int>(enabled));
+}
+
+void Udp::setTtl(uint8_t ttl) {
+  uv_udp_set_ttl(udp_.get(), static_cast<int>(ttl));
+}
+
+void Udp::setMulticastInterface(const std::string &interfaceAddress) {
+  uv_udp_set_multicast_interface(udp_.get(), interfaceAddress.c_str());
+}
+
+void Udp::setMulticastLoop(bool enabled) {
+  uv_udp_set_multicast_loop(udp_.get(), static_cast<int>(enabled));
+}
+
+void Udp::joinMulticast(const std::string &address,
+                        const std::string &interface) {
+  uv_udp_set_membership(udp_.get(), address.c_str(), interface.c_str(),
+                        UV_JOIN_GROUP);
+}
+
+void Udp::leaveMulticast(const std::string &address,
+                         const std::string &interface) {
+  uv_udp_set_membership(udp_.get(), address.c_str(), interface.c_str(),
+                        UV_LEAVE_GROUP);
+}
+
+AddressHandle Udp::getSockname() const {
+  struct sockaddr_storage address;
+  int ss_size = sizeof(struct sockaddr_storage);
+  uv_status status =
+      uv_udp_getsockname(udp_.get(), (struct sockaddr *)&address, &ss_size);
+  if (status < 0) {
+    throw UvcoException(status, "Error in getsockname");
+  }
+  AddressHandle addressHandle{(struct sockaddr *)&address};
+  return addressHandle;
+}
+
+std::optional<AddressHandle> Udp::getPeername() const {
+  struct sockaddr_storage address;
+  int ss_size = sizeof(struct sockaddr_storage);
+  uv_status status =
+      uv_udp_getpeername(udp_.get(), (struct sockaddr *)&address, &ss_size);
+  if (status < 0) {
+    if (status == UV_ENOTCONN) {
+      return {};
+    }
+    throw UvcoException(status, "Error in getpeername");
+  }
+  AddressHandle addressHandle{(struct sockaddr *)&address};
+  return addressHandle;
+}
 } // namespace uvco
