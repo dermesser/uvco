@@ -161,6 +161,7 @@ void run(Options opt) {
   }
 
   uv_run(&loop, UV_RUN_DEFAULT);
+  fmt::print(stderr, "> loop done!\n");
   uv_loop_close(&loop);
 }
 

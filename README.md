@@ -9,7 +9,7 @@ Supported functionality:
 
 * Name resolution (via `getaddrinfo`)
 * UDP client/server
-* TCP client
+* TCP client/server
 * TTY (stdin/stdout)
 * Anonymous pipes
 * Typed buffered channels (like Go's)
