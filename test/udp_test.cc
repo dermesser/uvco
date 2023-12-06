@@ -50,7 +50,9 @@ Promise<void> udpClient(uv_loop_t *loop, uint64_t &sent) {
 
   Udp client{loop};
 
+  // Before any operation: EBADF.
   EXPECT_THROW({ client.getPeername().value(); }, UvcoException);
+  EXPECT_THROW({ client.getSockname().family(); }, UvcoException);
 
   co_await client.bind("::1", 7777);
 

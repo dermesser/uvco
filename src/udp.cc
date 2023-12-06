@@ -185,7 +185,8 @@ std::optional<std::string> Udp::RecvAwaiter_::await_resume() {
   }
   BOOST_ASSERT(nread_);
   if (*nread_ < 0) {
-    throw UvcoException(*nread_, "onReceiveOne");
+    throw UvcoException(*nread_,
+                        "Udp::RecvAwaiter_::await_resume: error during recv");
   }
   BOOST_ASSERT(buffer_);
   auto b = std::move(*buffer_);
