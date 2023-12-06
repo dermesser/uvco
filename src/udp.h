@@ -36,9 +36,7 @@ public:
   Udp &operator=(Udp &&other) = default;
   Udp(const Udp &) = delete;
   Udp &operator=(const Udp &) = delete;
-  ~Udp() {
-    BOOST_ASSERT_MSG(!udp_, "UDP protocol must be close()d before destruction");
-  }
+  ~Udp();
 
   /// Bind UDP socket to address.
   ///

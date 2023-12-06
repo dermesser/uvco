@@ -15,6 +15,10 @@
 
 namespace uvco {
 
+Udp::~Udp() {
+  BOOST_ASSERT_MSG(!udp_, "UDP protocol must be close()d before destruction");
+}
+
 Promise<void> Udp::bind(std::string_view address, uint16_t port,
                         unsigned int flag) {
   Resolver resolver{loop_};

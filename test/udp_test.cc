@@ -30,6 +30,7 @@ Promise<void> udpServer(uv_loop_t *loop, uint64_t &received) {
     co_await server.send(std::span{buffer.begin(), buffer.end()}, from);
     ++counter;
   }
+  EXPECT_EQ(server.getSockname().toString(), "[::1]:9999");
   // Necessary for the receiver promise to return and not leak memory!
   server.stopReceiveMany();
   co_await server.close();
@@ -48,7 +49,17 @@ Promise<void> udpClient(uv_loop_t *loop, uint64_t &sent) {
   MultiPromise<uint64_t> tickerPromise = ticker->ticker();
 
   Udp client{loop};
+
+  EXPECT_THROW({ client.getPeername().value(); }, UvcoException);
+
+  co_await client.bind("::1", 7777);
+
+  EXPECT_FALSE(client.getPeername());
+
   co_await client.connect("::1", 9999);
+
+  EXPECT_TRUE(client.getPeername());
+  EXPECT_EQ(client.getPeername()->toString(), "[::1]:9999");
 
   for (uint32_t i = 0; i < max; ++i) {
     co_await tickerPromise;
