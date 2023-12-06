@@ -15,8 +15,25 @@
 
 namespace uvco {
 
-/// @addtogroup Internal Utilities used internally
+/// @addtogroup Internal Utilities
 /// @{
+
+/// Result of a libuv operation.
+using uv_status = int;
+
+void log(uv_loop_t *loop, std::string_view message);
+
+void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf);
+
+void freeUvBuf(const uv_buf_t *buf);
+
+struct UvHandleDeleter {
+  static void del(uv_handle_t *handle);
+  template <typename Handle> void operator()(Handle *handle) {
+    del((uv_handle_t *)handle);
+  }
+};
+
 
 /// `RefCounted<T>` is an intrusive refcounting approach, which reduces the
 /// run-time of low-overhead high frequency promise code (such as buffered

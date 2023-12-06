@@ -14,6 +14,8 @@ void log(uv_loop_t *loop, std::string_view message) {
   static unsigned long count = 0;
   fmt::print("[{}] {}: {}\n", count++, uv_now(loop), message);
 }
+
+/// libuv allocator.
 void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
   constexpr static size_t defaultSize = 4096;
   const size_t size = std::min(defaultSize, sugg);
