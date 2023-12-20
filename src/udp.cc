@@ -49,11 +49,6 @@ Promise<void> Udp::connect(std::string_view address, uint16_t port,
   connected_ = true;
 }
 
-Promise<void> Udp::send(std::string_view buffer,
-                        std::optional<AddressHandle> address) {
-  return send(std::span<const char>{buffer.begin(), buffer.size()}, address);
-}
-
 Promise<void> Udp::send(std::span<const char> buffer,
                         std::optional<AddressHandle> address) {
   SendAwaiter_ sendAwaiter{};
@@ -147,9 +142,6 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
                        const struct sockaddr *addr, unsigned int flags) {
 
   auto *awaiter = (RecvAwaiter_ *)handle->data;
-  if (awaiter->stop_receiving_) {
-    uv_udp_recv_stop(handle);
-  }
   awaiter->nread_ = nread;
 
   if (addr == nullptr) {
@@ -158,11 +150,14 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
       freeUvBuf(buf);
     }
     return;
-  } else {
-    awaiter->addr_ = AddressHandle{addr};
-    if (nread >= 0) {
-      awaiter->buffer_ = std::string{buf->base, static_cast<size_t>(nread)};
-    }
+  }
+
+  if (awaiter->stop_receiving_) {
+    uv_udp_recv_stop(handle);
+  }
+  awaiter->addr_ = AddressHandle{addr};
+  if (nread >= 0) {
+    awaiter->buffer_ = std::string{buf->base, static_cast<size_t>(nread)};
   }
 
   if (0 == (flags & UV_UDP_MMSG_CHUNK)) {
@@ -171,9 +166,9 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
 
   if (awaiter->handle_) {
     auto resumeHandle = *awaiter->handle_;
-    awaiter->handle_.reset();
     // Prototype; resume on central callback dispatcher.
     LoopData::enqueue(handle, resumeHandle);
+    awaiter->handle_.reset();
   }
 }
 
@@ -205,7 +200,6 @@ void Udp::onSendDone(uv_udp_send_t *req, uv_status status) {
   auto *awaiter = (SendAwaiter_ *)req->data;
   awaiter->status_ = status;
   if (awaiter->handle_) {
-    // awaiter->handle_->resume();
     LoopData::enqueue(req->handle, *awaiter->handle_);
     awaiter->handle_.reset();
   }
@@ -233,13 +227,20 @@ void Udp::stopReceiveMany() {
     // TODO: using the scheduler here leads to a memory leak of two allocatoins
     // in receiveMany(). Likely: receiveMany() is not resumed anymore before the
     // process exits, leaking the memory.
-    currentAwaiter->handle_->resume();
+    // LoopData::enqueue(udp_.get(), *currentAwaiter->handle_);
+    auto handle = *currentAwaiter->handle_;
+    currentAwaiter->handle_.reset();
+    handle.resume();
   }
 }
 
-void Udp::udpStopReceive() { uv_udp_recv_stop(udp_.get()); }
+void Udp::udpStopReceive() {
+  BOOST_ASSERT(udp_);
+  uv_udp_recv_stop(udp_.get());
+}
 
 int Udp::udpStartReceive() {
+  BOOST_ASSERT(udp_);
   return uv_udp_recv_start(udp_.get(), allocator, onReceiveOne);
 }
 
