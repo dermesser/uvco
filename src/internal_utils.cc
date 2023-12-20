@@ -1,10 +1,10 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
 #include "internal_utils.h"
-#include "exception.h"
 
 #include <algorithm>
 #include <boost/assert.hpp>
+#include <uv.h>
 
 namespace uvco {
 
@@ -50,6 +50,10 @@ void UvHandleDeleter::del(uv_handle_t *handle) {
   case UV_TIMER:
     delete (uv_handle_t *)handle;
     break;
+  case UV_PREPARE:
+    delete (uv_prepare_t *)handle;
+  case UV_CHECK:
+    delete (uv_check_t *)handle;
   default:
     fmt::print("WARN: unhandled handle type {}\n", (int)handle->type);
     delete handle;

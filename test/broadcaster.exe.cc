@@ -15,7 +15,6 @@
 #include "scheduler.h"
 #include "stream.h"
 #include "tcp.h"
-#include "timer.h"
 
 struct Options {
   uv_loop_t *loop;

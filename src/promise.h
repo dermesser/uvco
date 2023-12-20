@@ -177,6 +177,7 @@ public:
   PromiseCore(PromiseCore &&) = delete;
   PromiseCore<void> &operator=(const PromiseCore &) = delete;
   PromiseCore<void> &operator=(PromiseCore &&) = delete;
+  ~PromiseCore() override;
 
   /// See `PromiseCore::set_resume`.
   void set_resume(std::coroutine_handle<> h);
@@ -184,7 +185,6 @@ public:
   bool willResume();
   /// See `PromiseCore::resume`.
   void resume();
-  ~PromiseCore() override;
 
   // Immediately marks a core as fulfilled (but does not resume); used for
   // Promise<void>::imediate().
@@ -531,7 +531,8 @@ protected:
   /// receiving values from a generating (yielding) coroutine. This awaiter is
   /// used when applying the `co_await` operator on a `MultiPromise`.
   struct MultiPromiseAwaiter_ {
-    constexpr explicit MultiPromiseAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
+    constexpr explicit MultiPromiseAwaiter_(SharedCore_ core)
+        : core_{std::move(core)} {}
     MultiPromiseAwaiter_(MultiPromiseAwaiter_ &&) = delete;
     MultiPromiseAwaiter_(const MultiPromiseAwaiter_ &) = delete;
     MultiPromiseAwaiter_ &operator=(MultiPromiseAwaiter_ &&) = delete;

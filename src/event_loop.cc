@@ -2,7 +2,6 @@
 
 #include <uv.h>
 
-#include "exception.h"
 #include "internal_utils.h"
 #include "name_resolution.h"
 #include "promise.h"
@@ -16,14 +15,11 @@
 #include <fmt/format.h>
 
 #include <algorithm>
-#include <cassert>
 #include <chrono>
 #include <coroutine>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <optional>
-#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -156,7 +152,7 @@ Promise<void> udpServer(uv_loop_t *loop) {
     if (!recvd) {
       break;
     }
-    auto &buffer = recvd->first;
+    const auto &buffer = recvd->first;
     auto &from = recvd->second;
 
     const std::chrono::time_point now = clock.now();
@@ -167,7 +163,7 @@ Promise<void> udpServer(uv_loop_t *loop) {
     fmt::print("[{:03d} @ {:d}] Received >> {} << from {}\n", counter,
                passed_micros, buffer, from.toString());
 
-    co_await server.send(std::span{buffer.begin(), buffer.end()}, from);
+    co_await server.send(buffer, from);
 
     ++counter;
   }
@@ -181,7 +177,7 @@ Promise<void> udpClient(uv_loop_t *loop) {
   // Ensure server has started.
   co_await wait(loop, 50);
   constexpr static uint32_t max = 10;
-  std::string msg = "Hello there!";
+  const std::string msg = "Hello there!";
 
   // Ticker stopped automatically after `max` ticks.
   auto ticker = tick(loop, 50, max);
@@ -192,7 +188,7 @@ Promise<void> udpClient(uv_loop_t *loop) {
 
   for (uint32_t i = 0; i < max; ++i) {
     co_await tickerPromise;
-    co_await client.send(std::span{msg}, {});
+    co_await client.send(msg, {});
     auto response = co_await client.receiveOne();
   }
 

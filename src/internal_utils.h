@@ -34,7 +34,6 @@ struct UvHandleDeleter {
   }
 };
 
-
 /// `RefCounted<T>` is an intrusive refcounting approach, which reduces the
 /// run-time of low-overhead high frequency promise code (such as buffered
 /// channel ping-pong scenarios) by as much as 50% compared to `shared_ptr` use.

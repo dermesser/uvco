@@ -1,5 +1,4 @@
 
-#include "internal_utils.h"
 #include "promise.h"
 #include "timer.h"
 #include "udp.h"
@@ -25,9 +24,9 @@ Promise<void> udpServer(uv_loop_t *loop, uint64_t &received) {
       break;
     }
     ++received;
-    auto &buffer = recvd->first;
+    const std::string &buffer = recvd->first;
     auto &from = recvd->second;
-    co_await server.send(std::span{buffer.begin(), buffer.end()}, from);
+    co_await server.send(buffer, from);
     ++counter;
   }
   EXPECT_EQ(server.getSockname().toString(), "[::1]:9999");
@@ -42,7 +41,7 @@ Promise<void> udpClient(uv_loop_t *loop, uint64_t &sent) {
   co_await wait(loop, 10);
   constexpr static uint32_t max = 10;
   // Cannot be const due to mismatch with C library some layers down.
-  std::string msg = "Hello there!";
+  const std::string msg = "Hello there!";
 
   // Ticker stopped automatically after `max` ticks.
   auto ticker = tick(loop, 10, max);
@@ -65,7 +64,7 @@ Promise<void> udpClient(uv_loop_t *loop, uint64_t &sent) {
 
   for (uint32_t i = 0; i < max; ++i) {
     co_await tickerPromise;
-    co_await client.send(std::span{msg}, {});
+    co_await client.send(msg, {});
     ++sent;
     auto response = co_await client.receiveOne();
   }
