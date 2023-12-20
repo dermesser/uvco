@@ -1,5 +1,15 @@
+/*
+* This is a real-world example used to debug a multicast issue.
+*
+* After sending an initial small packet to the --multicast-address,
+* this program will listen for packets on that multicast address,
+* and reply to each incoming packet with a small burst of reply
+* packets to the sender.
+*
+* It is included to serve as example for how to write UDP-based
+* code using uv-co, including interaction with multicast features.
+*/
 
-#include "timer.h"
 #include <boost/program_options.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <cstdint>
@@ -7,12 +17,11 @@
 #include <cstdlib>
 #include <fmt/format.h>
 #include <iostream>
-#include <memory>
 #include <optional>
 #include <string>
-#include <unordered_map>
 
 #include <scheduler.h>
+#include <timer.h>
 #include <udp.h>
 
 using namespace uvco;
@@ -20,7 +29,8 @@ using namespace uvco;
 struct Options {
   uv_loop_t *loop;
 
-  std::string address = "239.253.1.1";
+  std::string listenAddress = "0.0.0.0";
+  std::string multicastAddress = "239.253.1.1";
   uint16_t port = 8012;
 };
 
@@ -29,10 +39,13 @@ Options parseOptions(int argc, const char **argv) {
   Options options{};
   bool help = false;
   po::options_description desc;
-  desc.add_options()("address", po::value<std::string>(&options.address),
+  desc.add_options()("listen-address",
+                     po::value<std::string>(&options.listenAddress),
                      "Listen/connect address")(
-      "port", po::value<uint16_t>(&options.port),
-      "Listen/connect port")("help,h", po::bool_switch(&help), "Display help");
+      "multicast-address", po::value<std::string>(&options.multicastAddress),
+      "Listen/connect address")("port", po::value<uint16_t>(&options.port),
+                                "Listen/connect port")(
+      "help,h", po::bool_switch(&help), "Display help");
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
@@ -43,13 +56,13 @@ Options parseOptions(int argc, const char **argv) {
   return options;
 }
 
-Promise<void> sendSome(const Options &opt, AddressHandle to, size_t n = 5,
+Promise<void> sendSome(const Options &opt, AddressHandle dst, size_t packets = 5,
                        int interval = 1) {
   Udp udp{opt.loop};
 
-  for (size_t i = 0; i < n; i++) {
-    co_await udp.send(std::string_view{"hello back"}, to);
-    //co_await wait(opt.loop, 100 * interval);
+  for (size_t i = 0; i < packets; i++) {
+    co_await udp.send(std::string_view{"hello back"}, dst);
+    co_await wait(opt.loop, 50 * interval);
   }
   co_await udp.close();
 }
@@ -59,16 +72,17 @@ Promise<void> printPackets(const Options &opt) {
   std::vector<Promise<void>> active;
 
   try {
-    co_await udp.bind(opt.address, 8012);
+    co_await udp.bind(opt.multicastAddress, opt.port);
 
-    udp.joinMulticast(opt.address, "192.168.1.66");
+    udp.joinMulticast(opt.multicastAddress, opt.listenAddress);
     udp.setMulticastLoop(false);
-    AddressHandle dst{opt.address, opt.port};
 
+    // Send initial message to multicast group.
+    AddressHandle dst{opt.multicastAddress, opt.port};
     constexpr static std::string_view hello = "hello first";
     udp.send(hello, dst);
 
-      fmt::print(stderr, "waiting for packets\n");
+    fmt::print(stderr, "waiting for packets\n");
     while (true) {
       const auto [packet, from] = co_await udp.receiveOneFrom();
       fmt::print("Received packet: {} from {}\n", packet, from.toString());
