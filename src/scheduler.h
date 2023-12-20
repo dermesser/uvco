@@ -55,7 +55,7 @@ public:
     // Trick: saves us from having to explicitly define move
     // assignment/constructors.
     if (resumable_.capacity() != 0) {
-      uv_check_stop(&check_);
+      uv_prepare_stop(&prepare_);
     }
   }
 
@@ -69,7 +69,7 @@ public:
   /// Set up scheduler with event loop.
   void setUpLoop(uv_loop_t *loop) {
     loop->data = this;
-    uv_check_init(loop, &check_);
+    uv_prepare_init(loop, &prepare_);
   }
 
   /// Schedule a coroutine for resumption with the scheduler associated with
@@ -84,7 +84,7 @@ public:
     // Use of moved-out LoopData.
     BOOST_ASSERT(resumable_.capacity() != 0);
     if (resumable_.empty()) {
-      uv_check_start(&check_, onCheck);
+      uv_prepare_start(&prepare_, onprepare);
     }
     resumable_.push_back(handle);
   }
@@ -95,7 +95,7 @@ public:
       coro.resume();
     }
     resumable_.clear();
-    uv_check_stop(&check_);
+    uv_prepare_stop(&prepare_);
   }
 
   /// close() should be called once the main promise has finished, and the
@@ -104,7 +104,7 @@ public:
   ///
   /// Otherwise, resources may be leaked. (This is usually not super important,
   /// because the event loop is finishing soon after anyway).
-  Promise<void> close() { co_await closeHandle(&check_); }
+  Promise<void> close() { co_await closeHandle(&prepare_); }
 
   /// Helper method for `close`,; can be called on any
   static Promise<void> close(const uv_loop_t *loop) {
@@ -113,11 +113,11 @@ public:
 
 private:
   std::vector<std::coroutine_handle<>> resumable_ = {};
-  uv_check_t check_ = {};
+  uv_prepare_t prepare_ = {};
 
   /// Callback called by the libuv event loop after I/O poll.
-  static void onCheck(uv_check_t *check) {
-    LoopData &loopData = ofHandle(check);
+  static void onprepare(uv_prepare_t *prepare) {
+    LoopData &loopData = ofHandle(prepare);
     loopData.runAll();
   }
 };
