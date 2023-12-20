@@ -79,7 +79,7 @@ public:
                       std::coroutine_handle<> corohandle) {
     ofHandle(handle).enqueue(corohandle);
   }
-  /// Schedule a coroutine for resummption.
+  /// Schedule a coroutine for resumption.
   void enqueue(std::coroutine_handle<> handle) {
     // Use of moved-out LoopData.
     BOOST_ASSERT(resumable_.capacity() != 0);

@@ -31,6 +31,7 @@ PromiseCore<void>::~PromiseCore() {
     fmt::print(stderr, "void Promise not finished\n");
   }
   if (resume_) {
+    fmt::print(stderr, "resumable coroutine destroyed\n");
     resume_->destroy();
   }
 }

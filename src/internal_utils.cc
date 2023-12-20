@@ -51,7 +51,7 @@ void UvHandleDeleter::del(uv_handle_t *handle) {
     delete (uv_handle_t *)handle;
     break;
   default:
-    fmt::print("WARN: unhandled handle type {}\n", handle->type);
+    fmt::print("WARN: unhandled handle type {}\n", (int)handle->type);
     delete handle;
   }
 }

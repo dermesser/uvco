@@ -49,14 +49,21 @@ Promise<void> Udp::connect(std::string_view address, uint16_t port,
   connected_ = true;
 }
 
-Promise<void> Udp::send(std::span<char> buffer,
+Promise<void> Udp::send(std::string_view buffer,
+                        std::optional<AddressHandle> address) {
+  return send(std::span<const char>{buffer.begin(), buffer.size()}, address);
+}
+
+Promise<void> Udp::send(std::span<const char> buffer,
                         std::optional<AddressHandle> address) {
   SendAwaiter_ sendAwaiter{};
   uv_udp_send_t req;
   req.data = &sendAwaiter;
 
   std::array<uv_buf_t, 1> bufs{};
-  bufs[0].base = &(*buffer.begin());
+  // The buffer is never written to, so this is necessary to interface
+  // with the legacy C code.
+  bufs[0].base = const_cast<char *>(&(*buffer.begin()));
   bufs[0].len = buffer.size_bytes();
 
   const struct sockaddr *addr = nullptr;
@@ -237,31 +244,52 @@ int Udp::udpStartReceive() {
 }
 
 void Udp::setBroadcast(bool enabled) {
-  uv_udp_set_broadcast(udp_.get(), static_cast<int>(enabled));
+  uv_status status =
+      uv_udp_set_broadcast(udp_.get(), static_cast<int>(enabled));
+  if (status != 0) {
+    throw UvcoException(status, "join multicast group");
+  }
 }
 
 void Udp::setTtl(uint8_t ttl) {
-  uv_udp_set_ttl(udp_.get(), static_cast<int>(ttl));
+  uv_status status = uv_udp_set_ttl(udp_.get(), static_cast<int>(ttl));
+  if (status != 0) {
+    throw UvcoException(status, "join multicast group");
+  }
 }
 
 void Udp::setMulticastInterface(const std::string &interfaceAddress) {
-  uv_udp_set_multicast_interface(udp_.get(), interfaceAddress.c_str());
+  uv_status status =
+      uv_udp_set_multicast_interface(udp_.get(), interfaceAddress.c_str());
+  if (status != 0) {
+    throw UvcoException(status, "join multicast group");
+  }
 }
 
 void Udp::setMulticastLoop(bool enabled) {
-  uv_udp_set_multicast_loop(udp_.get(), static_cast<int>(enabled));
+  uv_status status =
+      uv_udp_set_multicast_loop(udp_.get(), static_cast<int>(enabled));
+  if (status != 0) {
+    throw UvcoException(status, "join multicast group");
+  }
 }
 
 void Udp::joinMulticast(const std::string &address,
                         const std::string &interface) {
-  uv_udp_set_membership(udp_.get(), address.c_str(), interface.c_str(),
-                        UV_JOIN_GROUP);
+  uv_status status = uv_udp_set_membership(udp_.get(), address.c_str(),
+                                           interface.c_str(), UV_JOIN_GROUP);
+  if (status != 0) {
+    throw UvcoException(status, "join multicast group");
+  }
 }
 
 void Udp::leaveMulticast(const std::string &address,
                          const std::string &interface) {
-  uv_udp_set_membership(udp_.get(), address.c_str(), interface.c_str(),
-                        UV_LEAVE_GROUP);
+  uv_status status = uv_udp_set_membership(udp_.get(), address.c_str(),
+                                           interface.c_str(), UV_LEAVE_GROUP);
+  if (status != 0) {
+    throw UvcoException(status, "join multicast group");
+  }
 }
 
 AddressHandle Udp::getSockname() const {

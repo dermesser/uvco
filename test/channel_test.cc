@@ -94,6 +94,7 @@ TEST(ChannelTest, blockingRead) {
 
     EXPECT_EQ(co_await ch.get(), 3);
     EXPECT_EQ(co_await ch.get(), 4);
+    co_await drainer;
   };
 
   run_loop(setup);

@@ -60,6 +60,8 @@ endforeach()
 
 add_executable(test-tcp-broadcaster test/broadcaster.exe.cc)
 target_link_libraries(test-tcp-broadcaster PRIVATE event-loop-lib boost_program_options)
+add_executable(test-tcp-multicast test/multicast.exe.cc)
+target_link_libraries(test-tcp-multicast PRIVATE event-loop-lib boost_program_options)
 
 # Coverage
 add_custom_target(coverage

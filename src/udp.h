@@ -51,7 +51,9 @@ public:
                         bool ipv6only = false);
 
   /// Send to address, or send to connected peer.
-  Promise<void> send(std::span<char> buffer,
+  Promise<void> send(std::span<const char> buffer,
+                     std::optional<AddressHandle> address = {});
+  Promise<void> send(std::string_view buffer,
                      std::optional<AddressHandle> address = {});
 
   /// Receive a single UDP packet.
