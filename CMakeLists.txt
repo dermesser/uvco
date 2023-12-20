@@ -58,10 +58,10 @@ foreach(TESTCASE IN ITEMS channel timer udp tcp misc)
 
 endforeach()
 
-add_executable(test-tcp-broadcaster test/broadcaster.exe.cc)
-target_link_libraries(test-tcp-broadcaster PRIVATE event-loop-lib boost_program_options)
-add_executable(test-tcp-multicast test/multicast.exe.cc)
-target_link_libraries(test-tcp-multicast PRIVATE event-loop-lib boost_program_options)
+foreach(TESTBINARY IN ITEMS tcp-broadcaster multicast)
+    add_executable(test-${TESTBINARY} test/${TESTBINARY}.exe.cc)
+    target_link_libraries(test-${TESTBINARY} PRIVATE event-loop-lib boost_program_options)
+endforeach()
 
 # Coverage
 add_custom_target(coverage
