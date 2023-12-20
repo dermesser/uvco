@@ -3,17 +3,18 @@
 C++20 standard library coroutines running on `libuv`.
 
 Currently, more of an experiment - but it works for real! I am aiming for an
-ergonomic, intuitive, asynchronous experience.
+ergonomic, intuitive, asynchronous experience. In some parts, `uvco` implements
+the bare minimum to still be joyful to use. Eventually, all of `libuv`'s
+functionality should be available with low overhead.
 
 Supported functionality:
 
 * Name resolution (via `getaddrinfo`)
-* UDP client/server
+* UDP client/server, multicast, broadcast
 * TCP client/server
 * TTY (stdin/stdout)
-* Anonymous pipes
-* Typed buffered channels (like Go's)
-* Timer functionality (`wait`, `tick`)
+* Anonymous pipes (operating-system-backed) and typed buffered channels (like Go's)
+* Timer functionality (`sleep`, `tick`)
 
 No scheduler is currently used: ready coroutines are run directly from libuv
 callbacks. This works well, but a scheduler will probably be introduced at some
@@ -122,6 +123,10 @@ int main(void) {
 }
 
 ```
+
+Some more examples can be found in the `test/` directory. Those test files
+ending in `.exe.cc` are end-to-end binaries which also show how to set up
+the event loop.
 
 ## Dependencies
 
