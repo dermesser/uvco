@@ -62,7 +62,7 @@ Promise<void> sendSome(const Options &opt, AddressHandle dst, size_t packets = 5
 
   for (size_t i = 0; i < packets; i++) {
     co_await udp.send(std::string_view{"hello back"}, dst);
-    co_await wait(opt.loop, 50 * interval);
+    co_await sleep(opt.loop, 50 * interval);
   }
   co_await udp.close();
 }

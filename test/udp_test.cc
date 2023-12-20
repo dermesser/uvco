@@ -38,7 +38,7 @@ Promise<void> udpServer(uv_loop_t *loop, uint64_t &received) {
 
 Promise<void> udpClient(uv_loop_t *loop, uint64_t &sent) {
   // Ensure server has started.
-  co_await wait(loop, 10);
+  co_await sleep(loop, 10);
   constexpr static uint32_t max = 10;
   // Cannot be const due to mismatch with C library some layers down.
   const std::string msg = "Hello there!";

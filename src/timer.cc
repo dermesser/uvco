@@ -105,7 +105,7 @@ void onMultiTimerFired(uv_timer_t *handle) {
   awaiter->resume();
 }
 
-Promise<void> wait(uv_loop_t *loop, uint64_t millis) {
+Promise<void> sleep(uv_loop_t *loop, uint64_t millis) {
   TimerAwaiter awaiter{loop, millis};
   co_await awaiter;
   co_await awaiter.close();
@@ -135,6 +135,9 @@ MultiPromise<uint64_t> TickerImpl::ticker() {
   while (!stopped_ && (count_max_ == 0 || counter < count_max_)) {
     // Resumed from onMultiTimerFired():
     if (co_await awaiter_) {
+      if (stopped_) {
+        break;
+      }
       co_yield std::move(counter);
       ++counter;
     }

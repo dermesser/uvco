@@ -175,7 +175,7 @@ Promise<void> udpServer(uv_loop_t *loop) {
 
 Promise<void> udpClient(uv_loop_t *loop) {
   // Ensure server has started.
-  co_await wait(loop, 50);
+  co_await sleep(loop, 50);
   constexpr static uint32_t max = 10;
   const std::string msg = "Hello there!";
 
