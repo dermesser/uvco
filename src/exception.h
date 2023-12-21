@@ -22,7 +22,7 @@ namespace uvco {
 /// using `what()`.
 struct UvcoException : public std::exception {
   explicit UvcoException(std::string message) : message{std::move(message)} {}
-  explicit UvcoException(uv_status status, std::string_view where)
+  UvcoException(uv_status status, std::string_view where)
       : message{fmt::format("UV error {} ({})", uv_err_name(status), where)}, status{status} {}
 
   /// Provide information about the error.

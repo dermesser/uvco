@@ -114,9 +114,9 @@ Promise<void> sleep(uv_loop_t *loop, uint64_t millis) {
 
 class TickerImpl : public Ticker {
 public:
-  ~TickerImpl() override = default;
-  explicit TickerImpl(TimerAwaiter awaiter, uint64_t max)
+  TickerImpl(TimerAwaiter awaiter, uint64_t max)
       : awaiter_{std::move(awaiter)}, count_max_{max} {}
+  ~TickerImpl() override = default;
 
   MultiPromise<uint64_t> ticker() override;
   Promise<void> close() override;
