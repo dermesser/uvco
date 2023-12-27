@@ -32,9 +32,9 @@ Promise<void> echoTcpServer(uv_loop_t *loop, bool &received, bool &responded) {
   client->noDelay(true);
 
   AddressHandle peer = client->getPeerName();
-  AddressHandle me = client->getSockName();
+  AddressHandle ours = client->getSockName();
 
-  EXPECT_EQ(me.toString(), "127.0.0.1:8090");
+  EXPECT_EQ(ours.toString(), "127.0.0.1:8090");
   EXPECT_EQ(peer.address(), "127.0.0.1");
 
   Promise<void> clientLoop =
@@ -86,7 +86,7 @@ TEST(TcpTest, singlePingPong) {
 
 TEST(TcpTest, validBind) {
   auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
-    AddressHandle addr{"127.0.0.1", 42641};
+    AddressHandle addr{"127.0.0.1", 0};
     TcpServer server{loop, addr};
     co_await server.close();
   };

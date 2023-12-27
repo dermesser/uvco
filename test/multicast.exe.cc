@@ -1,14 +1,14 @@
 /*
-* This is a real-world example used to debug a multicast issue.
-*
-* After sending an initial small packet to the --multicast-address,
-* this program will listen for packets on that multicast address,
-* and reply to each incoming packet with a small burst of reply
-* packets to the sender.
-*
-* It is included to serve as example for how to write UDP-based
-* code using uv-co, including interaction with multicast features.
-*/
+ * This is a real-world example used to debug a multicast issue.
+ *
+ * After sending an initial small packet to the --multicast-address,
+ * this program will listen for packets on that multicast address,
+ * and reply to each incoming packet with a small burst of reply
+ * packets to the sender.
+ *
+ * It is included to serve as example for how to write UDP-based
+ * code using uv-co, including interaction with multicast features.
+ */
 
 #include <boost/program_options.hpp>
 #include <boost/program_options/variables_map.hpp>
@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 
+#include <exception.h>
 #include <scheduler.h>
 #include <timer.h>
 #include <udp.h>
@@ -56,8 +57,8 @@ Options parseOptions(int argc, const char **argv) {
   return options;
 }
 
-Promise<void> sendSome(const Options &opt, AddressHandle dst, size_t packets = 5,
-                       int interval = 1) {
+Promise<void> sendSome(const Options &opt, AddressHandle dst,
+                       size_t packets = 5, int interval = 1) {
   Udp udp{opt.loop};
 
   for (size_t i = 0; i < packets; i++) {
@@ -79,14 +80,14 @@ Promise<void> printPackets(const Options &opt) {
 
     // Send initial message to multicast group.
     AddressHandle dst{opt.multicastAddress, opt.port};
-    constexpr static std::string_view hello = "hello first";
-    udp.send(hello, dst);
+    // constexpr static std::string_view hello = "hello first";
+    // udp.send(hello, dst);
 
     fmt::print(stderr, "waiting for packets\n");
     while (true) {
       const auto [packet, from] = co_await udp.receiveOneFrom();
       fmt::print("Received packet: {} from {}\n", packet, from.toString());
-      sendSome(opt, from);
+      // sendSome(opt, from);
     }
   } catch (const UvcoException &e) {
     fmt::print(stderr, "exception: {}\n", e.what());

@@ -67,7 +67,7 @@ public:
     resume_ = handle;
     return true;
   }
-  bool await_resume() { return !stopped_; }
+  bool await_resume() const { return !stopped_; }
 
   bool isReady() {
     uint64_t due = uv_timer_get_due_in(timer_.get());
@@ -112,9 +112,14 @@ Promise<void> sleep(uv_loop_t *loop, uint64_t millis) {
   co_return;
 }
 
+/// Non-movable, non-copyable: because the awaiter is called by a callback.
 class TickerImpl : public Ticker {
 public:
-  TickerImpl(TimerAwaiter awaiter, uint64_t max)
+  TickerImpl(const TickerImpl &) = delete;
+  TickerImpl(TickerImpl &&) = default;
+  TickerImpl &operator=(const TickerImpl &) = delete;
+  TickerImpl &operator=(TickerImpl &&) = default;
+  TickerImpl(std::unique_ptr<TimerAwaiter> awaiter, uint64_t max)
       : awaiter_{std::move(awaiter)}, count_max_{max} {}
   ~TickerImpl() override = default;
 
@@ -122,7 +127,7 @@ public:
   Promise<void> close() override;
 
 private:
-  TimerAwaiter awaiter_;
+  std::unique_ptr<TimerAwaiter> awaiter_;
   uint64_t count_max_;
   bool stopped_ = false;
   bool running_ = false;
@@ -134,7 +139,7 @@ MultiPromise<uint64_t> TickerImpl::ticker() {
   uint64_t counter = 0;
   while (!stopped_ && (count_max_ == 0 || counter < count_max_)) {
     // Resumed from onMultiTimerFired():
-    if (co_await awaiter_) {
+    if (co_await *awaiter_) {
       if (stopped_) {
         break;
       }
@@ -145,8 +150,8 @@ MultiPromise<uint64_t> TickerImpl::ticker() {
   // Clean up if not stopped manually from stop().
   if (!stopped_) {
     stopped_ = true;
-    awaiter_.stop();
-    co_await awaiter_.close();
+    awaiter_->stop();
+    co_await awaiter_->close();
   }
 }
 
@@ -154,13 +159,13 @@ Promise<void> TickerImpl::close() {
   stopped_ = true;
   // The stopped awaiter will yield a false event, and then break out of the
   // loop (ticker() method).
-  awaiter_.resume();
-  awaiter_.stop();
-  co_await awaiter_.close();
+  awaiter_->resume();
+  awaiter_->stop();
+  co_await awaiter_->close();
 }
 
 std::unique_ptr<Ticker> tick(uv_loop_t *loop, uint64_t millis, uint64_t count) {
-  TimerAwaiter awaiter{loop, millis, true};
+  auto awaiter = std::make_unique<TimerAwaiter>(loop, millis, true);
   return std::make_unique<TickerImpl>(std::move(awaiter), count);
 }
 

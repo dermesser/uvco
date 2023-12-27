@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "exception.h"
 #include "promise.h"
 
 #include <uv.h>
