@@ -4,6 +4,7 @@
 
 #include <uv.h>
 
+#include "multipromise.h"
 #include "promise.h"
 
 #include <cstdint>

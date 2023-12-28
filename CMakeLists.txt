@@ -20,8 +20,10 @@ add_library(event-loop-lib STATIC
     src/channel.cc
     src/close.cc
     src/internal_utils.cc
+    src/multipromise.cc
     src/name_resolution.cc
     src/promise.cc
+    src/promise_core.cc
     src/pipe.cc
     src/stream.cc
     src/tcp.cc

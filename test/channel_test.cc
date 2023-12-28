@@ -1,6 +1,5 @@
 
 #include "channel.h"
-#include "internal_utils.h"
 #include "test_util.h"
 
 #include <gtest/gtest.h>

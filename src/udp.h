@@ -6,6 +6,7 @@
 
 #include <boost/assert.hpp>
 
+#include "multipromise.h"
 #include "name_resolution.h"
 #include "promise.h"
 

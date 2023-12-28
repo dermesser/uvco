@@ -1,5 +1,6 @@
 
 #include "exception.h"
+#include "multipromise.h"
 #include "promise.h"
 #include "timer.h"
 #include "udp.h"

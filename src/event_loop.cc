@@ -1,8 +1,12 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+// This is just a playground, and doesn't provide any useful functionality!
+// Refer to the tests or examples to see how an event loop is set up.
+
 #include <uv.h>
 
 #include "internal_utils.h"
+#include "multipromise.h"
 #include "name_resolution.h"
 #include "promise.h"
 #include "scheduler.h"

@@ -9,6 +9,7 @@
 
 #include "exception.h"
 #include "internal_utils.h"
+#include "multipromise.h"
 #include "name_resolution.h"
 #include "promise.h"
 #include "stream.h"
