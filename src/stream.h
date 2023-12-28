@@ -108,10 +108,6 @@ private:
   };
 };
 
-/// Creates a pipe pair. Data can be written to the second stream and read from
-/// the first.
-std::pair<StreamBase, StreamBase> pipe(uv_loop_t *);
-
 /// A stream referring to stdin/stdout/stderr. Should be created using one of
 /// the static member functions, each of which creates a TTY stream referring to
 /// the respective standard stream.

@@ -22,6 +22,7 @@ add_library(event-loop-lib STATIC
     src/internal_utils.cc
     src/name_resolution.cc
     src/promise.cc
+    src/pipe.cc
     src/stream.cc
     src/tcp.cc
     src/timer.cc

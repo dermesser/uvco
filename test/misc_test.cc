@@ -1,7 +1,8 @@
 
-#include "internal_utils.h"
+#include "exception.h"
+#include "name_resolution.h"
+#include "pipe.h"
 #include "promise.h"
-#include "tcp.h"
 
 #include "test_util.h"
 
