@@ -7,7 +7,7 @@
 #include <functional>
 
 void run_loop(const std::function<uvco::Promise<void>(uv_loop_t *)> &setup) {
-  uvco::LoopData loopData;
+  uvco::Scheduler loopData{true};
 
   uv_loop_t loop;
   uv_loop_init(&loop);
@@ -15,7 +15,7 @@ void run_loop(const std::function<uvco::Promise<void>(uv_loop_t *)> &setup) {
 
   auto fixture = [&loop, &setup]() -> uvco::Promise<void> {
     co_await setup(&loop);
-    co_await uvco::LoopData::close(&loop);
+    co_await uvco::Scheduler::close(&loop);
     co_return;
   };
   uvco::Promise<void> promise = fixture();

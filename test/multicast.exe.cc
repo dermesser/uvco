@@ -96,7 +96,7 @@ Promise<void> printPackets(const Options &opt) {
 }
 
 void run(Options opt) {
-  LoopData data;
+  Scheduler data;
 
   uv_loop_t loop;
   uv_loop_init(&loop);

@@ -17,7 +17,7 @@ namespace uvco {
 /// @addtogroup Scheduler
 /// @{
 
-/// LoopData is attached to the UV loop as field `data`, and contains the
+/// The Scheduler is attached to the UV loop as field `data`, and contains the
 /// coroutine scheduler. Currently, it works on a fairly simple basis: callbacks
 /// can add coroutines for resumption to the scheduler, and the scheduler runs
 /// all coroutines once per event loop turn, right after callbacks.
@@ -43,34 +43,38 @@ namespace uvco {
 /// is currently unclear (theoretically, it simplifies the execution stack and
 /// makes bugs less likely, or easier to find due to non-interleaved execution
 /// of coroutines), thus it is not introduced everywhere yet.
-class LoopData {
+class Scheduler {
 public:
-  LoopData() { resumable_.reserve(16); }
-
-  LoopData(const LoopData &) = delete;
-  LoopData(LoopData &&) = default;
-  LoopData &operator=(const LoopData &) = delete;
-  LoopData &operator=(LoopData &&) = default;
-  ~LoopData() {
-    // Trick: saves us from having to explicitly define move
-    // assignment/constructors.
-    if (resumable_.capacity() != 0) {
-      uv_prepare_stop(&prepare_);
-    }
+  /// Construct a scheduler.
+  ///
+  /// If `immediate_resume` is true, resumed coroutines will be run
+  /// immediately in the call stack of the resuming function. Otherwise
+  /// the coroutine will be resumed upon the next turn of the event loop,
+  /// i.e. after all activity has finished and before the next I/O poll,
+  /// by call to `runAll()`.
+  ///
+  /// Call `setUpLoop()` to attach the scheduler to a libuv event loop.
+  explicit Scheduler(bool immediate_resume = false)
+      : immediate_resume_{immediate_resume} {
+    resumable_.reserve(16);
   }
 
-  /// Obtain a reference to `LoopData` from any libuv handle.
+  Scheduler(const Scheduler &) = delete;
+  Scheduler(Scheduler &&) = default;
+  Scheduler &operator=(const Scheduler &) = delete;
+  Scheduler &operator=(Scheduler &&) = default;
+  ~Scheduler();
+
+  /// Obtain a reference to `Scheduler` from any libuv handle.
   template <typename UvHandle>
-  static LoopData &ofHandle(const UvHandle *uvhandle) {
+  static Scheduler &ofHandle(const UvHandle *uvhandle) {
     BOOST_ASSERT(uvhandle != nullptr);
-    return *(LoopData *)(uvhandle->loop->data);
+    return *(Scheduler *)(uvhandle->loop->data);
   }
 
-  /// Set up scheduler with event loop.
-  void setUpLoop(uv_loop_t *loop) {
-    loop->data = this;
-    uv_prepare_init(loop, &prepare_);
-  }
+  /// Set up scheduler with event loop. This is required for all uvco
+  /// code to find the scheduler.
+  void setUpLoop(uv_loop_t *loop);
 
   /// Schedule a coroutine for resumption with the scheduler associated with
   /// `handle`.
@@ -80,23 +84,10 @@ public:
     ofHandle(handle).enqueue(corohandle);
   }
   /// Schedule a coroutine for resumption.
-  void enqueue(std::coroutine_handle<> handle) {
-    // Use of moved-out LoopData.
-    BOOST_ASSERT(resumable_.capacity() != 0);
-    if (resumable_.empty()) {
-      uv_prepare_start(&prepare_, onprepare);
-    }
-    resumable_.push_back(handle);
-  }
+  void enqueue(std::coroutine_handle<> handle);
 
   /// Run all scheduled coroutines sequentially.
-  void runAll() {
-    for (auto coro : resumable_) {
-      coro.resume();
-    }
-    resumable_.clear();
-    uv_prepare_stop(&prepare_);
-  }
+  void runAll();
 
   /// close() should be called once the main promise has finished, and the
   /// process is preparing to exit; however, while the event loop is still
@@ -104,20 +95,19 @@ public:
   ///
   /// Otherwise, resources may be leaked. (This is usually not super important,
   /// because the event loop is finishing soon after anyway).
-  Promise<void> close() { co_await closeHandle(&prepare_); }
+  Promise<void> close();
 
   /// Helper method for `close`,; can be called on any
-  static Promise<void> close(const uv_loop_t *loop) {
-    return ((LoopData *)loop->data)->close();
-  }
+  static Promise<void> close(const uv_loop_t *loop);
 
 private:
   std::vector<std::coroutine_handle<>> resumable_ = {};
   uv_prepare_t prepare_ = {};
+  bool immediate_resume_;
 
   /// Callback called by the libuv event loop after I/O poll.
   static void onprepare(uv_prepare_t *prepare) {
-    LoopData &loopData = ofHandle(prepare);
+    Scheduler &loopData = ofHandle(prepare);
     loopData.runAll();
   }
 };

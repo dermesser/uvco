@@ -140,12 +140,12 @@ Promise<void> client(Options opt) {
   co_await copier;
   fmt::print(stderr, "> copier caught\n");
   co_await input.close();
-  co_await LoopData::close(opt.loop);
+  co_await Scheduler::close(opt.loop);
   fmt::print(stderr, "> client done\n");
 }
 
 void run(Options opt) {
-  LoopData data;
+  Scheduler data;
 
   uv_loop_t loop;
   uv_loop_init(&loop);
