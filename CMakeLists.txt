@@ -32,7 +32,6 @@ target_include_directories(uv-co-promise PRIVATE src/)
 add_library(uv-co-lib STATIC
     src/channel.cc
     src/close.cc
-    src/event_loop.cc
     src/name_resolution.cc
     src/pipe.cc
     src/stream.cc
@@ -49,9 +48,6 @@ if(ENABLE_COVERAGE)
     target_compile_options(uv-co-lib PRIVATE "--coverage")
     target_link_libraries(uv-co-lib PRIVATE gcov)
 endif()
-
-add_executable(test-event-loop src/test_event_loop.cc)
-target_link_libraries(test-event-loop uv-co-lib)
 
 # Unit tests
 
