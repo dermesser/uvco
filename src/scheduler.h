@@ -45,6 +45,15 @@ namespace uvco {
 /// of coroutines), thus it is not introduced everywhere yet.
 class Scheduler {
 public:
+  enum class RunMode {
+    /// Run an enqueued coroutine immediately, in the stack of the
+    /// enqueuing function.
+    Immediate = 0,
+    /// Run all enqueued coroutines sequentially, after all I/O has been
+    /// completed, before the next I/O poll.
+    Deferred = 1,
+  };
+
   /// Construct a scheduler.
   ///
   /// If `immediate_resume` is true, resumed coroutines will be run
@@ -54,8 +63,7 @@ public:
   /// by call to `runAll()`.
   ///
   /// Call `setUpLoop()` to attach the scheduler to a libuv event loop.
-  explicit Scheduler(bool immediate_resume = false)
-      : immediate_resume_{immediate_resume} {
+  explicit Scheduler(RunMode mode = RunMode::Deferred) : run_mode_{mode} {
     resumable_.reserve(16);
   }
 
@@ -103,7 +111,7 @@ public:
 private:
   std::vector<std::coroutine_handle<>> resumable_ = {};
   uv_prepare_t prepare_ = {};
-  bool immediate_resume_;
+  RunMode run_mode_;
 
   /// Callback called by the libuv event loop after I/O poll.
   static void onprepare(uv_prepare_t *prepare) {

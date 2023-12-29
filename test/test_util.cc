@@ -7,7 +7,9 @@
 #include <functional>
 
 void run_loop(const std::function<uvco::Promise<void>(uv_loop_t *)> &setup) {
-  uvco::Scheduler loopData{true};
+  // You can use `Immediate` to run coroutines directly after enqueuing,
+  // instead of later on the event loop.
+  uvco::Scheduler loopData{uvco::Scheduler::RunMode::Deferred};
 
   uv_loop_t loop;
   uv_loop_init(&loop);
