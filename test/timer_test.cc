@@ -1,6 +1,6 @@
 
-#include "multipromise.h"
-#include "promise.h"
+#include "promise/multipromise.h"
+#include "promise/promise.h"
 #include "timer.h"
 
 #include "test_util.h"

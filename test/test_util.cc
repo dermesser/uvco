@@ -1,7 +1,7 @@
 
 #include <uv.h>
 
-#include "promise.h"
+#include "promise/promise.h"
 #include "scheduler.h"
 
 #include <functional>

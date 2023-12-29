@@ -3,7 +3,7 @@
 
 #include <uv.h>
 
-#include "promise.h"
+#include "promise/promise.h"
 
 #include <functional>
 

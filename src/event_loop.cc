@@ -5,10 +5,10 @@
 
 #include <uv.h>
 
-#include "internal_utils.h"
-#include "multipromise.h"
+#include "internal/internal_utils.h"
 #include "name_resolution.h"
-#include "promise.h"
+#include "promise/multipromise.h"
+#include "promise/promise.h"
 #include "scheduler.h"
 #include "stream.h"
 #include "tcp.h"

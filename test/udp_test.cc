@@ -1,7 +1,7 @@
 
 #include "exception.h"
-#include "multipromise.h"
-#include "promise.h"
+#include "promise/multipromise.h"
+#include "promise/promise.h"
 #include "timer.h"
 #include "udp.h"
 

@@ -2,7 +2,7 @@
 
 #include <uv.h>
 
-#include "internal_utils.h"
+#include "internal/internal_utils.h"
 
 #include <fmt/format.h>
 

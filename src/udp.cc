@@ -7,7 +7,7 @@
 
 #include "close.h"
 #include "exception.h"
-#include "internal_utils.h"
+#include "internal/internal_utils.h"
 #include "scheduler.h"
 #include "udp.h"
 

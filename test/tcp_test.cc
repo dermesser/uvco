@@ -1,6 +1,6 @@
 
-#include "multipromise.h"
-#include "promise.h"
+#include "promise/multipromise.h"
+#include "promise/promise.h"
 #include "tcp.h"
 
 #include "test_util.h"

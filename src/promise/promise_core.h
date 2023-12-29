@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "internal_utils.h"
+#include <internal/internal_utils.h>
 
 #include <boost/assert.hpp>
 #include <fmt/format.h>

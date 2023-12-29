@@ -4,8 +4,8 @@
 
 #include <uv.h>
 
-#include "multipromise.h"
-#include "promise.h"
+#include "promise/multipromise.h"
+#include "promise/promise.h"
 
 #include <cstdint>
 #include <memory>

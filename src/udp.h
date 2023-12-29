@@ -6,9 +6,9 @@
 
 #include <boost/assert.hpp>
 
-#include "multipromise.h"
 #include "name_resolution.h"
-#include "promise.h"
+#include "promise/multipromise.h"
+#include "promise/promise.h"
 
 #include <coroutine>
 #include <cstdint>

@@ -11,8 +11,8 @@
 #include <string>
 #include <unordered_map>
 
-#include "multipromise.h"
-#include "promise.h"
+#include "promise/multipromise.h"
+#include "promise/promise.h"
 #include "scheduler.h"
 #include "stream.h"
 #include "tcp.h"

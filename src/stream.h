@@ -6,8 +6,8 @@
 
 #include <boost/assert.hpp>
 
-#include "internal_utils.h"
-#include "promise.h"
+#include "internal/internal_utils.h"
+#include "promise/promise.h"
 
 #include <array>
 #include <coroutine>

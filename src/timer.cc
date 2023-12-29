@@ -5,8 +5,8 @@
 #include <boost/assert.hpp>
 
 #include "close.h"
-#include "internal_utils.h"
-#include "promise.h"
+#include "internal/internal_utils.h"
+#include "promise/promise.h"
 #include "timer.h"
 
 #include <coroutine>

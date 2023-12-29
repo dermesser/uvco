@@ -16,42 +16,52 @@ if(ENABLE_ASAN)
     add_link_options(-fsanitize=address)
 endif()
 
-add_library(event-loop-lib STATIC
+add_library(uv-co-internal STATIC
+    src/internal/internal_utils.cc
+)
+target_include_directories(uv-co-internal PRIVATE ${FMT_INCLUDEDIR})
+
+add_library(uv-co-promise STATIC
+    src/promise/multipromise.cc
+    src/promise/promise.cc
+    src/promise/promise_core.cc
+)
+target_link_libraries(uv-co-promise PRIVATE uv-co-internal)
+target_include_directories(uv-co-promise PRIVATE src/)
+
+add_library(uv-co-lib STATIC
     src/channel.cc
     src/close.cc
-    src/internal_utils.cc
-    src/multipromise.cc
+    src/event_loop.cc
     src/name_resolution.cc
-    src/promise.cc
-    src/promise_core.cc
     src/pipe.cc
     src/stream.cc
     src/tcp.cc
     src/timer.cc
     src/udp.cc
-
-    src/event_loop.cc)
-target_link_libraries(event-loop-lib PRIVATE ${UV_LIBRARIES} ${FMT_LIBRARIES})
-target_include_directories(event-loop-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
-target_include_directories(event-loop-lib PUBLIC src/)
+)
+target_link_libraries(uv-co-lib PRIVATE uv-co-internal ${UV_LIBRARIES} ${FMT_LIBRARIES})
+target_link_libraries(uv-co-lib PUBLIC uv-co-promise)
+target_include_directories(uv-co-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
+target_include_directories(uv-co-lib PUBLIC src/)
 
 if(ENABLE_COVERAGE)
-    target_compile_options(event-loop-lib PRIVATE "--coverage")
-    target_link_libraries(event-loop-lib PRIVATE gcov)
+    target_compile_options(uv-co-lib PRIVATE "--coverage")
+    target_link_libraries(uv-co-lib PRIVATE gcov)
 endif()
 
 add_executable(test-event-loop src/test_event_loop.cc)
-target_link_libraries(test-event-loop event-loop-lib)
+target_link_libraries(test-event-loop uv-co-lib)
 
 # Unit tests
 
 add_library(test-util STATIC test/test_util.cc)
 target_include_directories(test-util PRIVATE src/)
-target_link_libraries(test-util PRIVATE event-loop-lib)
+target_link_libraries(test-util PRIVATE uv-co-lib)
 
 foreach(TESTCASE IN ITEMS channel timer udp tcp misc)
     add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
-    target_link_libraries(${TESTCASE}-test PRIVATE event-loop-lib test-util GTest::gtest_main)
+    target_link_libraries(${TESTCASE}-test PRIVATE uv-co-lib test-util GTest::gtest_main)
     add_test(NAME ${TESTCASE}-test COMMAND ${TESTCASE}-test)
 
     if(ENABLE_COVERAGE)
@@ -63,7 +73,7 @@ endforeach()
 
 foreach(TESTBINARY IN ITEMS tcp-broadcaster multicast)
     add_executable(test-${TESTBINARY} test/${TESTBINARY}.exe.cc)
-    target_link_libraries(test-${TESTBINARY} PRIVATE event-loop-lib boost_program_options)
+    target_link_libraries(test-${TESTBINARY} PRIVATE uv-co-lib boost_program_options)
 endforeach()
 
 # Coverage

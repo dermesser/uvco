@@ -5,7 +5,7 @@
 #include <uv.h>
 
 #include "close.h"
-#include "promise.h"
+#include "promise/promise.h"
 
 #include <boost/assert.hpp>
 

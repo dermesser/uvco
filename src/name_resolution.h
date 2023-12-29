@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "promise.h"
+#include "promise/promise.h"
 
 #include <uv.h>
 

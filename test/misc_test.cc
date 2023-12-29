@@ -2,7 +2,7 @@
 #include "exception.h"
 #include "name_resolution.h"
 #include "pipe.h"
-#include "promise.h"
+#include "promise/promise.h"
 
 #include "test_util.h"
 

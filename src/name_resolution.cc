@@ -5,9 +5,9 @@
 #include <boost/assert.hpp>
 
 #include "exception.h"
-#include "internal_utils.h"
+#include "internal/internal_utils.h"
 #include "name_resolution.h"
-#include "promise.h"
+#include "promise/promise.h"
 
 #include <algorithm>
 #include <coroutine>
