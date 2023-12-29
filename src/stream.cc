@@ -5,6 +5,7 @@
 
 #include "close.h"
 #include "exception.h"
+#include "scheduler.h"
 #include "stream.h"
 
 namespace uvco {
@@ -104,7 +105,9 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
 
   freeUvBuf(buf);
   if (awaiter->handle_) {
-    awaiter->handle_->resume();
+    auto handle = awaiter->handle_.value();
+    awaiter->handle_.reset();
+    Scheduler::enqueue(awaiter->stream_.underlying(), handle);
   }
 }
 
@@ -132,6 +135,7 @@ bool StreamBase::OutStreamAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
   write_.data = this;
   handle_ = handle;
+  // For resumption during close.
   stream_.writer_ = handle;
   auto bufs = prepare_buffers();
   // TODO: move before suspension point.
@@ -153,10 +157,12 @@ uv_status StreamBase::OutStreamAwaiter_::await_resume() {
 
 void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
                                                      uv_status status) {
-  auto *state = (OutStreamAwaiter_ *)write->data;
-  state->status_ = status;
-  BOOST_ASSERT(state->handle_);
-  state->handle_->resume();
+  auto *awaiter = (OutStreamAwaiter_ *)write->data;
+  awaiter->status_ = status;
+  BOOST_ASSERT(awaiter->handle_);
+  auto handle = awaiter->handle_.value();
+  awaiter->handle_.reset();
+  Scheduler::enqueue(awaiter->stream_.underlying(), handle);
 }
 
 } // namespace uvco
