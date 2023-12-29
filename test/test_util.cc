@@ -13,10 +13,12 @@ void run_loop(const std::function<uvco::Promise<void>(uv_loop_t *)> &setup) {
   uv_loop_init(&loop);
   loopData.setUpLoop(&loop);
 
-  uvco::Promise<void> promise = [&]() -> uvco::Promise<void> {
-    setup(&loop);
+  auto fixture = [&loop, &setup]() -> uvco::Promise<void> {
+    co_await setup(&loop);
     co_await uvco::LoopData::close(&loop);
-  }();
+    co_return;
+  };
+  uvco::Promise<void> promise = fixture();
 
   uv_run(&loop, UV_RUN_DEFAULT);
 
