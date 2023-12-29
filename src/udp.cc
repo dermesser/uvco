@@ -166,9 +166,8 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
 
   if (awaiter->handle_) {
     auto resumeHandle = *awaiter->handle_;
-    // Prototype; resume on central callback dispatcher.
-    LoopData::enqueue(handle, resumeHandle);
     awaiter->handle_.reset();
+    Scheduler::enqueue(handle, resumeHandle);
   }
 }
 
@@ -200,8 +199,9 @@ void Udp::onSendDone(uv_udp_send_t *req, uv_status status) {
   auto *awaiter = (SendAwaiter_ *)req->data;
   awaiter->status_ = status;
   if (awaiter->handle_) {
-    LoopData::enqueue(req->handle, *awaiter->handle_);
+    auto handle = *awaiter->handle_;
     awaiter->handle_.reset();
+    Scheduler::enqueue(req->handle, handle);
   }
 }
 
