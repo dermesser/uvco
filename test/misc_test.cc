@@ -72,14 +72,14 @@ TEST(NameResolutionTest, resolveGoogleDotCom) {
   run_loop(setup);
 }
 
-TEST(TtyTest, stdinTest) {
+TEST(TtyTest, stdoutTest) {
   uint64_t counter = 0;
-  auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
-    TtyStream stdin = TtyStream::stdin(loop);
+  auto setup = [&counter](uv_loop_t *loop) -> uvco::Promise<void> {
+    TtyStream stdout = TtyStream::stdout(loop);
 
-    co_await stdin.write(" ");
+    co_await stdout.write(" ");
     ++counter;
-    co_await stdin.close();
+    co_await stdout.close();
     ++counter;
   };
 

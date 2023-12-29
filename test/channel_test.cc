@@ -9,33 +9,33 @@ using namespace uvco;
 }
 
 TEST(BQTest, basicPushPop) {
-  BoundedQueue<int> bq{4};
+  BoundedQueue<int> bque{4};
 
-  EXPECT_EQ(bq.size(), 0);
-  EXPECT_TRUE(bq.empty());
+  EXPECT_EQ(bque.size(), 0);
+  EXPECT_TRUE(bque.empty());
 
-  bq.put(1);
-  bq.put(2);
+  bque.put(1);
+  bque.put(2);
 
-  EXPECT_EQ(bq.size(), 2);
-  EXPECT_EQ(bq.get(), 1);
+  EXPECT_EQ(bque.size(), 2);
+  EXPECT_EQ(bque.get(), 1);
 
-  bq.put(3);
-  bq.put(4);
+  bque.put(3);
+  bque.put(4);
 
-  EXPECT_EQ(bq.size(), 3);
-  EXPECT_EQ(bq.get(), 2);
+  EXPECT_EQ(bque.size(), 3);
+  EXPECT_EQ(bque.get(), 2);
 
-  bq.put(5);
-  bq.put(6);
+  bque.put(5);
+  bque.put(6);
 
-  EXPECT_EQ(bq.size(), 4);
-  EXPECT_EQ(bq.get(), 3);
+  EXPECT_EQ(bque.size(), 4);
+  EXPECT_EQ(bque.get(), 3);
 
-  bq.put(7);
+  bque.put(7);
 
-  EXPECT_EQ(bq.size(), 4);
-  EXPECT_EQ(bq.get(), 4);
+  EXPECT_EQ(bque.size(), 4);
+  EXPECT_EQ(bque.get(), 4);
 }
 
 TEST(BQTest, pushTooMany) {
