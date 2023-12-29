@@ -79,7 +79,6 @@ endforeach()
 
 # Coverage
 add_custom_target(coverage
-    COMMAND lcov --directory . --capture --include */uv-co/* --output-file app.info --ignore-errors mismatch
-    COMMAND genhtml -o coverage app.info
-    COMMAND lcov --directory . --zerocounters
+    COMMAND mkdir -p coverage
+    COMMAND gcovr --html-nested -o coverage/uvco.html -r ..
     )
