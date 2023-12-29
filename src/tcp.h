@@ -26,8 +26,8 @@ namespace uvco {
 /// A stream referring to a TCP connection.
 class TcpStream : public StreamBase {
 public:
-  // Takes ownership of tcp. tcp must be dynamically allocated.
-  explicit TcpStream(uv_tcp_t *tcp) : StreamBase{(uv_stream_t *)tcp} {}
+  explicit TcpStream(std::unique_ptr<uv_tcp_t> tcp)
+      : StreamBase{std::move(tcp)} {}
   TcpStream(const TcpStream &) = delete;
   TcpStream(TcpStream &&) = default;
   TcpStream &operator=(const TcpStream &) = delete;
@@ -122,7 +122,7 @@ public:
 private:
   void bind(const struct sockaddr *addr, int flags);
 
-  static void onNewConnection(uv_stream_t *server, uv_status status);
+  static void onNewConnection(uv_stream_t *stream, uv_status status);
 
   uv_loop_t *loop_;
   uv_tcp_t tcp_;

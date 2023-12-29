@@ -15,7 +15,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <utility>
 
 namespace uvco {
 
@@ -25,8 +24,9 @@ namespace uvco {
 /// A plain stream, permitting reading, writing, and closing.
 class StreamBase {
 public:
-  /// Takes ownership of stream.
-  explicit StreamBase(uv_stream_t *stream) : stream_{stream} {}
+  template <typename Stream>
+  explicit StreamBase(std::unique_ptr<Stream> stream)
+      : stream_{(uv_stream_t *)stream.release()} {}
   StreamBase(const StreamBase &) = delete;
   StreamBase(StreamBase &&) = default;
   StreamBase &operator=(const StreamBase &) = delete;
@@ -129,7 +129,8 @@ public:
   static TtyStream stderr(uv_loop_t *loop) { return tty(loop, 2); }
 
 private:
-  explicit TtyStream(uv_stream_t *stream) : StreamBase{stream} {}
+  explicit TtyStream(std::unique_ptr<uv_tty_t> stream)
+      : StreamBase{std::move(stream)} {}
 };
 
 /// @}

@@ -15,13 +15,13 @@ StreamBase::~StreamBase() {
 }
 
 TtyStream TtyStream::tty(uv_loop_t *loop, int fd) {
-  auto *tty = new uv_tty_t{};
-  uv_status status = uv_tty_init(loop, tty, fd, 0);
-  if (status != 0)
+  auto tty = std::make_unique<uv_tty_t>();
+  uv_status status = uv_tty_init(loop, tty.get(), fd, 0);
+  if (status != 0) {
     throw UvcoException(
         fmt::format("opening TTY failed: {}", uv_err_name(status)));
-  auto *stream = (uv_stream_t *)tty;
-  return TtyStream(stream);
+  }
+  return TtyStream{std::move(tty)};
 }
 
 Promise<std::optional<std::string>> StreamBase::read() {
@@ -157,23 +157,6 @@ void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
   state->status_ = status;
   BOOST_ASSERT(state->handle_);
   state->handle_->resume();
-}
-
-std::pair<StreamBase, StreamBase> pipe(uv_loop_t *loop) {
-  std::array<uv_file, 2> fds;
-  uv_pipe(fds.data(), UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE);
-
-  auto *in = new uv_pipe_t;
-  auto *out = new uv_pipe_t;
-
-  uv_pipe_init(loop, in, 0);
-  uv_pipe_init(loop, out, 0);
-
-  uv_pipe_open(in, fds[1]);
-  uv_pipe_open(out, fds[0]);
-
-  return std::make_pair(StreamBase{(uv_stream_t *)out},
-                        StreamBase{(uv_stream_t *)in});
 }
 
 } // namespace uvco

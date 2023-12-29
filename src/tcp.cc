@@ -19,7 +19,8 @@ TcpClient::TcpClient(uv_loop_t *loop, std::string target_host_address,
       port_{target_host_port} {}
 
 TcpClient::TcpClient(uv_loop_t *loop, AddressHandle address)
-    : loop_{loop}, host_{address.address()}, port_{address.port()} {}
+    : loop_{loop}, host_{address.address()}, af_hint_{AF_UNSPEC},
+      port_{address.port()} {}
 
 TcpClient::TcpClient(TcpClient &&other) noexcept
     : loop_{other.loop_}, host_{std::move(other.host_)},
@@ -35,7 +36,7 @@ TcpClient &TcpClient::operator=(TcpClient &&other) noexcept {
 Promise<TcpStream> TcpClient::connect() {
   Resolver resolver{loop_};
 
-  AddressHandle ah =
+  AddressHandle address =
       co_await resolver.gai(host_, fmt::format("{}", port_), af_hint_);
 
   uv_connect_t req;
@@ -45,14 +46,14 @@ Promise<TcpStream> TcpClient::connect() {
   auto tcp = std::make_unique<uv_tcp_t>();
 
   uv_tcp_init(loop_, tcp.get());
-  uv_tcp_connect(&req, tcp.get(), ah.sockaddr(), onConnect);
+  uv_tcp_connect(&req, tcp.get(), address.sockaddr(), onConnect);
 
   uv_status status = co_await connect;
   if (status < 0) {
     throw UvcoException(status, "connect");
   }
 
-  co_return TcpStream{tcp.release()};
+  co_return TcpStream{std::move(tcp)};
 }
 
 void TcpClient::onConnect(uv_connect_t *req, uv_status status) {
@@ -85,9 +86,9 @@ void TcpClient::ConnectAwaiter_::onConnect(uv_status status) {
 TcpServer::TcpServer(uv_loop_t *loop, AddressHandle bindAddress, bool ipv6Only)
     : loop_{loop}, tcp_{} {
   uv_tcp_init(loop, &tcp_);
-  const auto *sa = bindAddress.sockaddr();
-  const unsigned flags = ipv6Only ? UV_TCP_IPV6ONLY : 0;
-  bind(sa, flags);
+  const auto *sockaddr = bindAddress.sockaddr();
+  const int flags = ipv6Only ? UV_TCP_IPV6ONLY : 0;
+  bind(sockaddr, flags);
 }
 
 void TcpServer::bind(const struct sockaddr *addr, int flags) {
@@ -106,8 +107,9 @@ MultiPromise<TcpStream> TcpServer::listen(int backlog) {
   while (true) {
     // TODO: specialize stream to enable getsockname etc.
     std::optional<TcpStream> stream = co_await awaiter;
-    if (!stream)
+    if (!stream) {
       break;
+    }
     co_yield std::move(*stream);
   }
 }
@@ -115,7 +117,7 @@ MultiPromise<TcpStream> TcpServer::listen(int backlog) {
 Promise<void> TcpServer::close() {
   auto *awaiter = (ConnectionAwaiter_ *)tcp_.data;
   // Resume listener coroutine.
-  if (awaiter && awaiter->handle_) {
+  if (awaiter != nullptr && awaiter->handle_) {
     awaiter->stop();
   }
   co_await closeHandle(&tcp_);
@@ -128,11 +130,11 @@ void TcpServer::onNewConnection(uv_stream_t *stream, uv_status status) {
 
   awaiter->status_ = status;
   if (status == 0) {
-    auto *const clientStream = new uv_tcp_t{};
-    uv_tcp_init(loop, clientStream);
-    uv_accept((uv_stream_t *)server, (uv_stream_t *)clientStream);
+    auto clientStream = std::make_unique<uv_tcp_t>();
+    uv_tcp_init(loop, clientStream.get());
+    uv_accept((uv_stream_t *)server, (uv_stream_t *)clientStream.get());
     BOOST_ASSERT(!awaiter->slot_);
-    awaiter->slot_ = TcpStream{clientStream};
+    awaiter->slot_ = TcpStream{std::move(clientStream)};
   }
   awaiter->handle_->resume();
 }
