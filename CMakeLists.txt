@@ -34,6 +34,7 @@ add_library(uv-co-lib STATIC
     src/close.cc
     src/name_resolution.cc
     src/pipe.cc
+    src/scheduler.cc
     src/stream.cc
     src/tcp.cc
     src/timer.cc
@@ -45,6 +46,10 @@ target_include_directories(uv-co-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
 target_include_directories(uv-co-lib PUBLIC src/)
 
 if(ENABLE_COVERAGE)
+    target_compile_options(uv-co-internal PRIVATE "--coverage")
+    target_link_libraries(uv-co-internal PRIVATE gcov)
+    target_compile_options(uv-co-promise PRIVATE "--coverage")
+    target_link_libraries(uv-co-promise PRIVATE gcov)
     target_compile_options(uv-co-lib PRIVATE "--coverage")
     target_link_libraries(uv-co-lib PRIVATE gcov)
 endif()
@@ -74,7 +79,7 @@ endforeach()
 
 # Coverage
 add_custom_target(coverage
-    COMMAND lcov --directory . --capture --include */uv-co/* --output-file app.info
+    COMMAND lcov --directory . --capture --include */uv-co/* --output-file app.info --ignore-errors mismatch
     COMMAND genhtml -o coverage app.info
     COMMAND lcov --directory . --zerocounters
     )
