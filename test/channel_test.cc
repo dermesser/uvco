@@ -39,30 +39,30 @@ TEST(BQTest, basicPushPop) {
 }
 
 TEST(BQTest, pushTooMany) {
-  BoundedQueue<int> bq(2);
-  bq.put(1);
-  bq.put(2);
-  EXPECT_DEATH({ bq.put(3); }, "hasSpace");
+  BoundedQueue<int> bque(2);
+  bque.put(1);
+  bque.put(2);
+  EXPECT_DEATH({ bque.put(3); }, "hasSpace");
 }
 
 TEST(BQTest, popEmpty) {
-  BoundedQueue<int> bq(2);
-  bq.put(1);
-  bq.put(2);
-  EXPECT_EQ(bq.get(), 1);
-  EXPECT_EQ(bq.get(), 2);
-  EXPECT_EQ(bq.size(), 0);
-  EXPECT_DEATH({ bq.get(); }, "!empty");
+  BoundedQueue<int> bque(2);
+  bque.put(1);
+  bque.put(2);
+  EXPECT_EQ(bque.get(), 1);
+  EXPECT_EQ(bque.get(), 2);
+  EXPECT_EQ(bque.size(), 0);
+  EXPECT_DEATH({ bque.get(); }, "!empty");
 }
 
 TEST(ChannelTest, basicWriteRead) {
 
   auto setup = [&](uv_loop_t *) -> Promise<void> {
-    Channel<int> ch{3};
+    Channel<int> chan{3};
 
-    co_await ch.put(1);
-    co_await ch.put(2);
-    EXPECT_EQ(co_await ch.get(), 1);
+    co_await chan.put(1);
+    co_await chan.put(2);
+    EXPECT_EQ(co_await chan.get(), 1);
   };
 
   run_loop(setup);
@@ -70,9 +70,9 @@ TEST(ChannelTest, basicWriteRead) {
 
 TEST(ChannelTest, blockingRead) {
 
-  auto drain = [](Channel<int> &ch) -> Promise<void> {
+  auto drain = [](Channel<int> &chan) -> Promise<void> {
     for (int i = 1; i < 3; ++i) {
-      EXPECT_EQ(co_await ch.get(), i);
+      EXPECT_EQ(co_await chan.get(), i);
     }
   };
   auto setup = [&](uv_loop_t *) -> Promise<void> {
@@ -81,7 +81,8 @@ TEST(ChannelTest, blockingRead) {
     Promise<void> drainer = drain(chan);
 
     Promise<void> put1 = chan.put(1);
-    Promise<void> put1b, put1c;
+    Promise<void> put1b;
+    Promise<void> put1c;
     // Test copy and move assignment.
     put1b = put1;
     put1c = std::move(put1b);
@@ -101,18 +102,18 @@ TEST(ChannelTest, blockingRead) {
 
 TEST(ChannelTest, blockingWriteBench) {
 
-  auto source = [](Channel<int> &ch, int n) -> Promise<void> {
-    for (int i = 1; i < n + 1; ++i) {
-      co_await ch.put(i);
+  auto source = [](Channel<int> &chan, int n_iter) -> Promise<void> {
+    for (int i = 1; i < n_iter + 1; ++i) {
+      co_await chan.put(i);
     }
   };
   auto setup = [&](uv_loop_t *) -> Promise<void> {
     Channel<int> chan{2};
-    constexpr static int N = 1000;
+    constexpr static int N_iter = 1000;
 
-    Promise<void> sourcer = source(chan, N);
+    Promise<void> sourcer = source(chan, N_iter);
 
-    for (int i = 1; i < N; ++i) {
+    for (int i = 1; i < N_iter; ++i) {
       EXPECT_EQ(co_await chan.get(), i);
     }
     co_await sourcer;
@@ -123,16 +124,16 @@ TEST(ChannelTest, blockingWriteBench) {
 
 TEST(ChannelTest, multipleWaiters) {
 
-  auto reader = [](Channel<int> &ch) -> Promise<void> { co_await ch.get(); };
+  auto reader = [](Channel<int> &chan) -> Promise<void> { co_await chan.get(); };
 
   auto setup = [&](uv_loop_t *) -> Promise<void> {
-    Channel<int> ch{2};
+    Channel<int> chan{2};
 
-    Promise<void> p1 = reader(ch);
-    EXPECT_THROW({ Promise<void> p2 = reader(ch); }, UvcoException);
-    co_await ch.put(1);
-    co_await ch.put(2);
-    co_await p1;
+    Promise<void> prom1 = reader(chan);
+    EXPECT_THROW({ Promise<void> prom2 = reader(chan); }, UvcoException);
+    co_await chan.put(1);
+    co_await chan.put(2);
+    co_await prom1;
   };
 
   run_loop(setup);
