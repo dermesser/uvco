@@ -16,6 +16,11 @@ if(ENABLE_ASAN)
     add_link_options(-fsanitize=address)
 endif()
 
+if(ENABLE_COVERAGE)
+    add_compile_options(--coverage)
+    add_link_options(--coverage -lgcov)
+endif()
+
 add_library(uv-co-internal STATIC
     src/internal/internal_utils.cc
 )
@@ -45,15 +50,6 @@ target_link_libraries(uv-co-lib PUBLIC uv-co-promise)
 target_include_directories(uv-co-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
 target_include_directories(uv-co-lib PUBLIC src/)
 
-if(ENABLE_COVERAGE)
-    target_compile_options(uv-co-internal PRIVATE "--coverage")
-    target_link_libraries(uv-co-internal PRIVATE gcov)
-    target_compile_options(uv-co-promise PRIVATE "--coverage")
-    target_link_libraries(uv-co-promise PRIVATE gcov)
-    target_compile_options(uv-co-lib PRIVATE "--coverage")
-    target_link_libraries(uv-co-lib PRIVATE gcov)
-endif()
-
 # Unit tests
 
 add_library(test-util STATIC test/test_util.cc)
@@ -78,7 +74,13 @@ foreach(TESTBINARY IN ITEMS tcp-broadcaster multicast)
 endforeach()
 
 # Coverage
+
+set(GCOV_BINARY gcov)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set(GCOV_BINARY "llvm-cov gcov")
+endif()
+
 add_custom_target(coverage
     COMMAND mkdir -p coverage
-    COMMAND gcovr --html-nested -o coverage/uvco.html -r ..
-    )
+    COMMAND gcovr --html-nested -o coverage/uvco.html --gcov-executable ${GCOV_BINARY} -r ..
+)
