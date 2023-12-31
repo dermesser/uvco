@@ -76,23 +76,23 @@ TEST(ChannelTest, blockingRead) {
     }
   };
   auto setup = [&](uv_loop_t *) -> Promise<void> {
-    Channel<int> ch{3};
+    Channel<int> chan{3};
 
-    Promise<void> drainer = drain(ch);
+    Promise<void> drainer = drain(chan);
 
-    Promise<void> put1 = ch.put(1);
+    Promise<void> put1 = chan.put(1);
     Promise<void> put1b, put1c;
     // Test copy and move assignment.
     put1b = put1;
     put1c = std::move(put1b);
 
     co_await put1c;
-    co_await ch.put(2);
-    co_await ch.put(3);
-    co_await ch.put(4);
+    co_await chan.put(2);
+    co_await chan.put(3);
+    co_await chan.put(4);
 
-    EXPECT_EQ(co_await ch.get(), 3);
-    EXPECT_EQ(co_await ch.get(), 4);
+    EXPECT_EQ(co_await chan.get(), 3);
+    EXPECT_EQ(co_await chan.get(), 4);
     co_await drainer;
   };
 
@@ -107,14 +107,15 @@ TEST(ChannelTest, blockingWriteBench) {
     }
   };
   auto setup = [&](uv_loop_t *) -> Promise<void> {
-    Channel<int> ch{2};
+    Channel<int> chan{2};
     constexpr static int N = 1000;
 
-    Promise<void> sourcer = source(ch, N);
+    Promise<void> sourcer = source(chan, N);
 
     for (int i = 1; i < N; ++i) {
-      EXPECT_EQ(co_await ch.get(), i);
+      EXPECT_EQ(co_await chan.get(), i);
     }
+    co_await sourcer;
   };
 
   run_loop(setup);
@@ -131,6 +132,7 @@ TEST(ChannelTest, multipleWaiters) {
     EXPECT_THROW({ Promise<void> p2 = reader(ch); }, UvcoException);
     co_await ch.put(1);
     co_await ch.put(2);
+    co_await p1;
   };
 
   run_loop(setup);
