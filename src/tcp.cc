@@ -84,15 +84,15 @@ void TcpClient::ConnectAwaiter_::onConnect(uv_status status) {
 }
 
 TcpServer::TcpServer(uv_loop_t *loop, AddressHandle bindAddress, bool ipv6Only)
-    : loop_{loop}, tcp_{} {
-  uv_tcp_init(loop, &tcp_);
+    : loop_{loop}, tcp_{std::make_unique<uv_tcp_t>()} {
+  uv_tcp_init(loop, tcp_.get());
   const auto *sockaddr = bindAddress.sockaddr();
   const int flags = ipv6Only ? UV_TCP_IPV6ONLY : 0;
   bind(sockaddr, flags);
 }
 
 void TcpServer::bind(const struct sockaddr *addr, int flags) {
-  int result = uv_tcp_bind(&tcp_, addr, flags);
+  int result = uv_tcp_bind(tcp_.get(), addr, flags);
   if (result != 0) {
     throw UvcoException{result, "TcpServer::bind()"};
   }
@@ -100,9 +100,9 @@ void TcpServer::bind(const struct sockaddr *addr, int flags) {
 
 MultiPromise<TcpStream> TcpServer::listen(int backlog) {
   ConnectionAwaiter_ awaiter{loop_};
-  tcp_.data = &awaiter;
+  tcp_->data = &awaiter;
 
-  uv_listen((uv_stream_t *)&tcp_, backlog, onNewConnection);
+  uv_listen((uv_stream_t *)tcp_.get(), backlog, onNewConnection);
 
   while (true) {
     // TODO: specialize stream to enable getsockname etc.
@@ -115,12 +115,12 @@ MultiPromise<TcpStream> TcpServer::listen(int backlog) {
 }
 
 Promise<void> TcpServer::close() {
-  auto *awaiter = (ConnectionAwaiter_ *)tcp_.data;
+  auto *awaiter = (ConnectionAwaiter_ *)tcp_->data;
   // Resume listener coroutine.
   if (awaiter != nullptr && awaiter->handle_) {
     awaiter->stop();
   }
-  co_await closeHandle(&tcp_);
+  co_await closeHandle(tcp_.get());
 }
 
 void TcpServer::onNewConnection(uv_stream_t *stream, uv_status status) {
