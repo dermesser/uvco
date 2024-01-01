@@ -129,42 +129,11 @@ private:
 
   struct ConnectionAwaiter_ {
     explicit ConnectionAwaiter_(uv_loop_t *loop) : loop_{loop} {}
-    bool await_ready() { return false; }
-    bool await_suspend(std::coroutine_handle<> handle) {
-      handle_ = handle;
-      return true;
-    }
-    std::optional<TcpStream> await_resume() {
-      // !status_ if close() resumed us.
-      if (stopped_) {
-        return {};
-      }
-      if (!status_) {
-        return {};
-      }
+    bool await_ready();
+    bool await_suspend(std::coroutine_handle<> handle);
+    std::optional<TcpStream> await_resume();
 
-      BOOST_ASSERT(status_);
-
-      if (*status_ == 0) {
-        BOOST_ASSERT(slot_);
-        TcpStream stream{std::move(*slot_)};
-        status_.reset();
-        slot_.reset();
-        return stream;
-      } else {
-        uv_status status = *status_;
-        BOOST_ASSERT(!slot_);
-        status_.reset();
-        throw UvcoException(status, "TcpServer::listen()");
-      }
-    }
-
-    void stop() {
-      stopped_ = true;
-      if (handle_) {
-        handle_->resume();
-      }
-    }
+    void stop();
 
     uv_loop_t *loop_;
     std::optional<std::coroutine_handle<>> handle_;

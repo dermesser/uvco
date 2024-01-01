@@ -169,4 +169,45 @@ void TcpStream::keepAlive(bool enable, unsigned int delay) {
 void TcpStream::noDelay(bool enable) {
   uv_tcp_nodelay((uv_tcp_t *)&stream(), static_cast<int>(enable));
 }
+
+std::optional<TcpStream> TcpServer::ConnectionAwaiter_::await_resume() {
+  // !status_ if close() resumed us.
+  if (stopped_) {
+    return {};
+  }
+  if (!status_) {
+    return {};
+  }
+
+  BOOST_ASSERT(status_);
+
+  if (*status_ == 0) {
+    BOOST_ASSERT(slot_);
+    TcpStream stream{std::move(*slot_)};
+    status_.reset();
+    slot_.reset();
+    return stream;
+  } else {
+    uv_status status = *status_;
+    BOOST_ASSERT(!slot_);
+    status_.reset();
+    throw UvcoException(status, "TcpServer::listen()");
+  }
+}
+
+void TcpServer::ConnectionAwaiter_::stop() {
+  stopped_ = true;
+  if (handle_) {
+    handle_->resume();
+  }
+}
+
+bool TcpServer::ConnectionAwaiter_::await_suspend(
+    std::coroutine_handle<> handle) {
+  handle_ = handle;
+  return true;
+}
+
+bool TcpServer::ConnectionAwaiter_::await_ready() { return false; }
+
 } // namespace uvco
