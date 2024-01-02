@@ -9,7 +9,11 @@ pkg_check_modules(FMT REQUIRED fmt)
 pkg_check_modules(UV REQUIRED libuv)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
-add_compile_options(-std=c++2b -Wall -fno-inline -pipe -g)
+add_compile_options(-std=c++2b -Wall -fno-inline -pipe)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-fcolor-diagnostics)
+endif()
 
 if(ENABLE_ASAN)
     add_compile_options(-fsanitize=address)
