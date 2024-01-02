@@ -46,19 +46,19 @@ public:
   /// Pop an item from the queue.
   T get() {
     BOOST_ASSERT(!empty());
-    T t = std::move(queue_.at(tail_++));
+    T element = std::move(queue_.at(tail_++));
     tail_ = tail_ % capacity();
     --size_;
-    return t;
+    return element;
   }
   /// Current number of contained items.
-  size_t size() const { return size_; }
+  [[nodiscard]] size_t size() const { return size_; }
   /// Maximum number of contained items.
-  size_t capacity() const { return queue_.capacity(); }
+  [[nodiscard]] size_t capacity() const { return queue_.capacity(); }
   /// `size() == 0`
-  bool empty() const { return size() == 0; }
+  [[nodiscard]] bool empty() const { return size() == 0; }
   /// `size() < capacity()`
-  bool hasSpace() const { return size() < capacity(); }
+  [[nodiscard]] bool hasSpace() const { return size() < capacity(); }
 
 private:
   std::vector<T> queue_{};
@@ -72,21 +72,24 @@ private:
 /// A `Channel` is similar to a Go channel: buffered, and blocking for reading
 /// and writing if empty/full respectively.
 ///
-/// A bounded-capacity channel for items of type `T`.
-/// Can only be written to or read from by one coroutine at a time; more than
-/// one coroutine waiting is forbidden.
+/// A bounded-capacity channel for items of type `T`. A channel can be waited
+/// on by at most `max_waiters` coroutines. If more coroutines want to wait,
+/// an exception is thrown.
 ///
 /// A reader waits while the channel is empty, and is awoken by the first
 /// writer. A writer waits while the channel is full, and is awoken by the first
 /// reader.
 ///
 /// When only using a channel to communicate small objects between coroutines,
-/// it takes about 500 ns per send/receive opreation on a slightly older
-/// *i5-7300U CPU @ 2.60GHz* CPU. This includes the entire coroutine dance.
+/// it takes about 290 ns per send/receive opreation on a slightly older
+/// *i5-7300U CPU @ 2.60GHz* CPU (clang 17). This includes the entire coroutine
+/// dance of suspending/resuming between the reader and writer.
 template <typename T> class Channel {
 public:
   /// Create a channel for up to `capacity` items.
-  explicit Channel(size_t capacity) : queue_{capacity} {}
+  explicit Channel(size_t capacity, size_t max_waiters = 16)
+      : queue_{capacity}, read_waiting_{max_waiters},
+        write_waiting_{max_waiters} {}
 
   /// Put an item into the channel.
   ///
@@ -134,48 +137,47 @@ public:
   }
 
 private:
+  BoundedQueue<T> queue_;
+  // TODO: a multi-reader/writer queue is easily achieved by converting the
+  // optionals into queues. This may be interesting in future.
+  BoundedQueue<std::coroutine_handle<>> read_waiting_;
+  BoundedQueue<std::coroutine_handle<>> write_waiting_;
+
   void awake_reader() {
-    if (read_waiting_) {
-      auto resume = *read_waiting_;
-      read_waiting_.reset();
+    if (!read_waiting_.empty()) {
+      auto resume = read_waiting_.get();
       // Not using LoopData for two reasons: #1 Channel doesn't know about the
       // loop. #2: It is considerably slower at no tangible benefit yet.
       resume.resume();
     }
   }
   void awake_writer() {
-    if (write_waiting_) {
-      auto resume = *write_waiting_;
-      write_waiting_.reset();
+    if (!write_waiting_.empty()) {
+      auto resume = write_waiting_.get();
       resume.resume();
     }
   }
 
-  BoundedQueue<T> queue_;
-  // TODO: a multi-reader/writer queue is easily achieved by converting the
-  // optionals into queues. This may be interesting in future.
-  std::optional<std::coroutine_handle<>> read_waiting_;
-  std::optional<std::coroutine_handle<>> write_waiting_;
-
   struct ChannelAwaiter_ {
     explicit ChannelAwaiter_(BoundedQueue<T> &queue,
-                             std::optional<std::coroutine_handle<>> &slot)
-        : queue_{queue}, slot_{slot} {}
+                             BoundedQueue<std::coroutine_handle<>> &slot)
+        : queue_{queue}, waiters_{slot} {}
     bool await_ready() { return false; }
     bool await_suspend(std::coroutine_handle<> handle) {
       // BOOST_ASSERT(!slot_);
-      if (slot_) {
+      if (!waiters_.hasSpace()) {
         throw UvcoException(
             UV_EBUSY,
             "only one coroutine can wait for reading/writing a channel");
       }
-      slot_ = handle;
+      waiters_.put(handle);
       return true;
     }
     bool await_resume() { return !queue_.empty(); }
 
+    // References Channel<T>::queue_
     BoundedQueue<T> &queue_;
-    std::optional<std::coroutine_handle<>> &slot_;
+    BoundedQueue<std::coroutine_handle<>> &waiters_;
   };
 };
 

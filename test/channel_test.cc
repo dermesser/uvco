@@ -42,6 +42,7 @@ TEST(BQTest, pushTooMany) {
   BoundedQueue<int> bque(2);
   bque.put(1);
   bque.put(2);
+  // Only dies in CMAKE_BUILD_TYPE=Debug.
   EXPECT_DEATH({ bque.put(3); }, "hasSpace");
 }
 
@@ -52,6 +53,7 @@ TEST(BQTest, popEmpty) {
   EXPECT_EQ(bque.get(), 1);
   EXPECT_EQ(bque.get(), 2);
   EXPECT_EQ(bque.size(), 0);
+  // Only dies in CMAKE_BUILD_TYPE=Debug.
   EXPECT_DEATH({ bque.get(); }, "!empty");
 }
 
@@ -124,16 +126,19 @@ TEST(ChannelTest, blockingWriteBench) {
 
 TEST(ChannelTest, multipleWaiters) {
 
-  auto reader = [](Channel<int> &chan) -> Promise<void> { co_await chan.get(); };
+  auto reader = [](Channel<int> &chan) -> Promise<void> {
+    co_await chan.get();
+  };
 
   auto setup = [&](uv_loop_t *) -> Promise<void> {
     Channel<int> chan{2};
 
     Promise<void> prom1 = reader(chan);
-    EXPECT_THROW({ Promise<void> prom2 = reader(chan); }, UvcoException);
+    Promise<void> prom2 = reader(chan);
     co_await chan.put(1);
     co_await chan.put(2);
     co_await prom1;
+    co_await prom2;
   };
 
   run_loop(setup);
