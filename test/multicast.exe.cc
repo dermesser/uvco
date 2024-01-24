@@ -96,12 +96,13 @@ Promise<void> printPackets(const Options &opt) {
 }
 
 void run(Options opt) {
-  Scheduler data;
+  Scheduler sched;
 
+  // Initialize loop and attach scheduler.
   uv_loop_t loop;
   uv_loop_init(&loop);
-  uv_loop_set_data(&loop, &data);
-  data.setUpLoop(&loop);
+  uv_loop_set_data(&loop, &sched);
+  sched.setUpLoop(&loop);
 
   opt.loop = &loop;
 
