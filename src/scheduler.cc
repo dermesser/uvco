@@ -1,6 +1,7 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
 #include "scheduler.h"
+#include "close.h"
 
 namespace uvco {
 

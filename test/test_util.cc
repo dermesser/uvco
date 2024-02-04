@@ -6,17 +6,24 @@
 
 #include <functional>
 
+namespace {
+
+constexpr uvco::Scheduler::RunMode runMode =
+    uvco::Scheduler::RunMode::Immediate;
+
+} // namespace
+
 void run_loop(
     const std::function<uvco::Promise<void>(const uvco::Loop &)> &setup) {
   auto innerSetup = [setup](const uvco::Loop &loop) {
     auto promise = setup(loop);
   };
-  uvco::runMain(innerSetup);
+  uvco::runMain(innerSetup, runMode);
 }
 
 void run_loop(const std::function<uvco::Promise<void>(uv_loop_t *)> &setup) {
   auto innerSetup = [setup](const uvco::Loop &loop) {
     auto promise = setup(loop.uvloop());
   };
-  uvco::runMain(innerSetup);
+  uvco::runMain(innerSetup, runMode);
 }

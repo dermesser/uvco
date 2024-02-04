@@ -3,7 +3,6 @@
 #include "name_resolution.h"
 #include "pipe.h"
 #include "promise/promise.h"
-
 #include "run.h"
 #include "test_util.h"
 
@@ -17,7 +16,7 @@ using namespace uvco;
 }
 
 TEST(PromiseTest, voidImmediate) {
-  auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     Promise<void> p = Promise<void>::immediate();
     co_await p;
   };
@@ -62,8 +61,8 @@ TEST(NameResolutionTest, ipv6Parse) {
 }
 
 TEST(NameResolutionTest, resolveGoogleDotCom) {
-  auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
-    Resolver resolver{loop};
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Resolver resolver{loop.uvloop()};
     Promise<AddressHandle> ahPromise = resolver.gai("dns.google", 443, AF_INET);
     AddressHandle address = co_await ahPromise;
     EXPECT_EQ(address.port(), 443);
@@ -75,7 +74,7 @@ TEST(NameResolutionTest, resolveGoogleDotCom) {
 
 TEST(TtyTest, stdoutTest) {
   uint64_t counter = 0;
-  auto setup = [&counter](uv_loop_t *loop) -> uvco::Promise<void> {
+  auto setup = [&counter](const Loop &loop) -> uvco::Promise<void> {
     TtyStream stdout = TtyStream::stdout(loop);
 
     co_await stdout.write(" ");

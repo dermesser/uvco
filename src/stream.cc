@@ -5,6 +5,7 @@
 
 #include "close.h"
 #include "exception.h"
+#include "run.h"
 #include "scheduler.h"
 #include "stream.h"
 
@@ -15,9 +16,9 @@ StreamBase::~StreamBase() {
   BOOST_ASSERT(!stream_);
 }
 
-TtyStream TtyStream::tty(uv_loop_t *loop, int fd) {
+TtyStream TtyStream::tty(const Loop &loop, int fd) {
   auto tty = std::make_unique<uv_tty_t>();
-  uv_status status = uv_tty_init(loop, tty.get(), fd, 0);
+  uv_status status = uv_tty_init(loop.uvloop(), tty.get(), fd, 0);
   if (status != 0) {
     throw UvcoException(
         fmt::format("opening TTY failed: {}", uv_err_name(status)));

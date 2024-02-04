@@ -4,7 +4,6 @@
 
 #include <uv.h>
 
-#include "close.h"
 #include "promise/promise.h"
 
 #include <boost/assert.hpp>

@@ -4,12 +4,12 @@
 
 #include <uv.h>
 
-#include <boost/assert.hpp>
-
 #include "internal/internal_utils.h"
 #include "promise/promise.h"
+#include "run.h"
 
 #include <array>
+#include <boost/assert.hpp>
 #include <coroutine>
 #include <cstdio>
 #include <memory>
@@ -123,10 +123,10 @@ public:
   TtyStream &operator=(const TtyStream &) = delete;
   ~TtyStream() override = default;
 
-  static TtyStream tty(uv_loop_t *loop, int fd);
-  static TtyStream stdin(uv_loop_t *loop) { return tty(loop, 0); }
-  static TtyStream stdout(uv_loop_t *loop) { return tty(loop, 1); }
-  static TtyStream stderr(uv_loop_t *loop) { return tty(loop, 2); }
+  static TtyStream tty(const Loop &loop, int fd);
+  static TtyStream stdin(const Loop &loop) { return tty(loop, 0); }
+  static TtyStream stdout(const Loop &loop) { return tty(loop, 1); }
+  static TtyStream stderr(const Loop &loop) { return tty(loop, 2); }
 
 private:
   explicit TtyStream(std::unique_ptr<uv_tty_t> stream)

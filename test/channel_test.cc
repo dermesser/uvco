@@ -1,5 +1,6 @@
 
 #include "channel.h"
+#include "run.h"
 #include "test_util.h"
 
 #include <gtest/gtest.h>
@@ -59,7 +60,7 @@ TEST(BQTest, popEmpty) {
 
 TEST(ChannelTest, basicWriteRead) {
 
-  auto setup = [&](uv_loop_t *) -> Promise<void> {
+  auto setup = [&](const Loop &) -> Promise<void> {
     Channel<int> chan{3};
 
     co_await chan.put(1);
@@ -77,7 +78,7 @@ TEST(ChannelTest, blockingRead) {
       EXPECT_EQ(co_await chan.get(), i);
     }
   };
-  auto setup = [&](uv_loop_t *) -> Promise<void> {
+  auto setup = [&](const Loop &) -> Promise<void> {
     Channel<int> chan{3};
 
     Promise<void> drainer = drain(chan);
@@ -109,7 +110,7 @@ TEST(ChannelTest, blockingWriteBench) {
       co_await chan.put(i);
     }
   };
-  auto setup = [&](uv_loop_t *) -> Promise<void> {
+  auto setup = [&](const Loop &) -> Promise<void> {
     Channel<int> chan{2};
     constexpr static int N_iter = 1000;
 
@@ -130,7 +131,7 @@ TEST(ChannelTest, multipleWaiters) {
     co_await chan.get();
   };
 
-  auto setup = [&](uv_loop_t *) -> Promise<void> {
+  auto setup = [&](const Loop &) -> Promise<void> {
     Channel<int> chan{2};
 
     Promise<void> prom1 = reader(chan);
