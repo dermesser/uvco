@@ -10,6 +10,7 @@
  * code using uv-co, including interaction with multicast features.
  */
 
+#include "run.h"
 #include <boost/program_options.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <cstdint>
@@ -95,25 +96,14 @@ Promise<void> printPackets(const Options &opt) {
   co_await udp.close();
 }
 
-void run(Options opt) {
-  Scheduler sched;
-
-  // Initialize loop and attach scheduler.
-  uv_loop_t loop;
-  uv_loop_init(&loop);
-  uv_loop_set_data(&loop, &sched);
-  sched.setUpLoop(&loop);
-
-  opt.loop = &loop;
+void run(Options opt, uv_loop_t *loop) {
+  opt.loop = loop;
 
   Promise<void> _ = printPackets(opt);
-
-  uv_run(&loop, UV_RUN_DEFAULT);
-  uv_loop_close(&loop);
 }
 
 int main(int argc, const char **argv) {
   Options opt = parseOptions(argc, argv);
 
-  run(opt);
+  runMain([&](uv_loop_t *loop) { run(opt, loop); });
 }

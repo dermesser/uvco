@@ -13,7 +13,7 @@ void Scheduler::runAll() {
 }
 
 Promise<void> Scheduler::close(const uv_loop_t *loop) {
-  return ((Scheduler *)loop->data)->close();
+  return ((Scheduler *)uv_loop_get_data(loop))->close();
 }
 
 Promise<void> Scheduler::close() { co_await closeHandle(&prepare_); }
@@ -34,7 +34,7 @@ void Scheduler::enqueue(std::coroutine_handle<> handle) {
 }
 
 void Scheduler::setUpLoop(uv_loop_t *loop) {
-  loop->data = this;
+  uv_loop_set_data(loop, this);
   uv_prepare_init(loop, &prepare_);
 }
 

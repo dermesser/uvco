@@ -43,6 +43,7 @@ add_library(uv-co-lib STATIC
     src/close.cc
     src/name_resolution.cc
     src/pipe.cc
+    src/run.cc
     src/scheduler.cc
     src/stream.cc
     src/tcp.cc
