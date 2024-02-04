@@ -4,6 +4,7 @@
 
 #include <uv.h>
 
+#include "run.h"
 #include "stream.h"
 
 namespace uvco {
@@ -13,6 +14,6 @@ namespace uvco {
 
 /// Creates a pipe pair. Data can be written to the second stream and read from
 /// the first.
-std::pair<StreamBase, StreamBase> pipe(uv_loop_t *);
+std::pair<StreamBase, StreamBase> pipe(const Loop &loop);
 
 } // namespace uvco

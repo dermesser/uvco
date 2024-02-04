@@ -4,6 +4,7 @@
 #include "pipe.h"
 #include "promise/promise.h"
 
+#include "run.h"
 #include "test_util.h"
 
 #include <optional>
@@ -88,7 +89,7 @@ TEST(TtyTest, stdoutTest) {
 }
 
 TEST(PipeTest, pipePingPong) {
-  auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     auto [read, write] = pipe(loop);
 
     co_await write.write("Hello\n");

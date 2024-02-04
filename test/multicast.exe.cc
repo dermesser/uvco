@@ -29,7 +29,7 @@
 using namespace uvco;
 
 struct Options {
-  uv_loop_t *loop;
+  const Loop *loop;
 
   std::string listenAddress = "0.0.0.0";
   std::string multicastAddress = "239.253.1.1";
@@ -60,17 +60,17 @@ Options parseOptions(int argc, const char **argv) {
 
 Promise<void> sendSome(const Options &opt, AddressHandle dst,
                        size_t packets = 5, int interval = 1) {
-  Udp udp{opt.loop};
+  Udp udp{opt.loop->uvloop()};
 
   for (size_t i = 0; i < packets; i++) {
     co_await udp.send(std::string_view{"hello back"}, dst);
-    co_await sleep(opt.loop, 50 * interval);
+    co_await sleep(opt.loop->uvloop(), 50 * interval);
   }
   co_await udp.close();
 }
 
 Promise<void> printPackets(const Options &opt) {
-  Udp udp{opt.loop};
+  Udp udp{opt.loop->uvloop()};
   std::vector<Promise<void>> active;
 
   try {
@@ -96,8 +96,8 @@ Promise<void> printPackets(const Options &opt) {
   co_await udp.close();
 }
 
-void run(Options opt, uv_loop_t *loop) {
-  opt.loop = loop;
+void run(Options opt, const Loop &loop) {
+  opt.loop = &loop;
 
   Promise<void> _ = printPackets(opt);
 }
@@ -105,5 +105,5 @@ void run(Options opt, uv_loop_t *loop) {
 int main(int argc, const char **argv) {
   Options opt = parseOptions(argc, argv);
 
-  runMain([&](uv_loop_t *loop) { run(opt, loop); });
+  runMain([&](const Loop &loop) { run(opt, loop); });
 }

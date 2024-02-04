@@ -6,9 +6,17 @@
 
 #include <functional>
 
-void run_loop(const std::function<uvco::Promise<void>(uv_loop_t *)> &setup) {
-  auto innerSetup = [setup](uv_loop_t *loop) {
+void run_loop(
+    const std::function<uvco::Promise<void>(const uvco::Loop &)> &setup) {
+  auto innerSetup = [setup](const uvco::Loop &loop) {
     auto promise = setup(loop);
   };
-  uvco::runMain(setup);
+  uvco::runMain(innerSetup);
+}
+
+void run_loop(const std::function<uvco::Promise<void>(uv_loop_t *)> &setup) {
+  auto innerSetup = [setup](const uvco::Loop &loop) {
+    auto promise = setup(loop.uvloop());
+  };
+  uvco::runMain(innerSetup);
 }
