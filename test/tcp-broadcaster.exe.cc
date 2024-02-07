@@ -87,7 +87,7 @@ Promise<void> handleConnection(Hub &hub, TcpStream stream) {
 
 Promise<void> server(const Options &opt) {
   AddressHandle bindAddr{opt.address, opt.port};
-  TcpServer server{opt.loop->uvloop(), bindAddr};
+  TcpServer server{*opt.loop, bindAddr};
   Hub hub;
 
   MultiPromise<TcpStream> listener = server.listen();
@@ -122,7 +122,7 @@ Promise<void> copyIncomingToStdout(const Loop &loop,
 
 Promise<void> client(Options opt) {
   TtyStream input = TtyStream::stdin(*opt.loop);
-  TcpClient tcpCl{opt.loop->uvloop(), opt.address, opt.port};
+  TcpClient tcpCl{*opt.loop, opt.address, opt.port};
   auto conn = std::make_shared<TcpStream>(co_await tcpCl.connect());
 
   Promise<void> copier = copyIncomingToStdout(*opt.loop, conn);

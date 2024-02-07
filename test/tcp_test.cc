@@ -1,6 +1,7 @@
 
 #include "promise/multipromise.h"
 #include "promise/promise.h"
+#include "run.h"
 #include "tcp.h"
 
 #include "test_util.h"
@@ -19,7 +20,7 @@ Promise<void> echoReceived(TcpStream stream, bool &received, bool &responded) {
   co_await stream.closeReset();
 }
 
-Promise<void> echoTcpServer(uv_loop_t *loop, bool &received, bool &responded) {
+Promise<void> echoTcpServer(const Loop& loop, bool &received, bool &responded) {
   AddressHandle addr{"127.0.0.1", 8090};
   TcpServer server{loop, addr};
 
@@ -43,7 +44,7 @@ Promise<void> echoTcpServer(uv_loop_t *loop, bool &received, bool &responded) {
   co_await server.close();
 }
 
-Promise<void> sendTcpClient(uv_loop_t *loop, bool &sent,
+Promise<void> sendTcpClient(const Loop& loop, bool &sent,
                             bool &responseReceived) {
   TcpClient client{loop, "127.0.0.1", 8090};
   TcpClient client2{std::move(client)};
@@ -72,7 +73,7 @@ TEST(TcpTest, singlePingPong) {
   bool responded = false;
   bool responseReceived = false;
 
-  auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
+  auto setup = [&](const uvco::Loop& loop) -> uvco::Promise<void> {
     return join(echoTcpServer(loop, received, responded),
                 sendTcpClient(loop, sent, responseReceived));
   };
@@ -85,7 +86,7 @@ TEST(TcpTest, singlePingPong) {
 }
 
 TEST(TcpTest, validBind) {
-  auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop& loop) -> uvco::Promise<void> {
     AddressHandle addr{"127.0.0.1", 0};
     TcpServer server{loop, addr};
     co_await server.close();

@@ -12,6 +12,7 @@
 #include "name_resolution.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
+#include "run.h"
 #include "stream.h"
 
 #include <coroutine>
@@ -60,10 +61,10 @@ class TcpClient {
 public:
   /// Create a client; call `connect()` to obtain a `TcpStream`. Address can be
   /// given as domain name, IP, etc.
-  TcpClient(uv_loop_t *loop, std::string target_host_address,
+  TcpClient(const Loop& loop, std::string target_host_address,
             uint16_t target_host_port, int af_hint = AF_UNSPEC);
   /// Create a TCP client connecting to the given address.
-  TcpClient(uv_loop_t *loop, AddressHandle address);
+  TcpClient(const Loop& loop, AddressHandle address);
 
   TcpClient(TcpClient &&other) noexcept;
   TcpClient(const TcpClient &) = delete;
@@ -102,7 +103,7 @@ private:
 class TcpServer {
 public:
   /// Sets up and bind socket to address.
-  TcpServer(uv_loop_t *loop, AddressHandle bindAddress, bool ipv6Only = false);
+  TcpServer(const Loop& loop, AddressHandle bindAddress, bool ipv6Only = false);
 
   TcpServer(const TcpServer &) = delete;
   TcpServer(TcpServer &&) = default;

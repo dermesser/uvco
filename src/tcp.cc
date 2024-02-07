@@ -7,19 +7,20 @@
 
 #include "close.h"
 #include "name_resolution.h"
+#include "run.h"
 #include "tcp.h"
 
 #include <memory>
 
 namespace uvco {
 
-TcpClient::TcpClient(uv_loop_t *loop, std::string target_host_address,
+TcpClient::TcpClient(const Loop &loop, std::string target_host_address,
                      uint16_t target_host_port, int af_hint)
-    : loop_{loop}, host_{std::move(target_host_address)}, af_hint_{af_hint},
+    : loop_{loop.uvloop()}, host_{std::move(target_host_address)}, af_hint_{af_hint},
       port_{target_host_port} {}
 
-TcpClient::TcpClient(uv_loop_t *loop, AddressHandle address)
-    : loop_{loop}, host_{address.address()}, af_hint_{AF_UNSPEC},
+TcpClient::TcpClient(const Loop &loop, AddressHandle address)
+    : loop_{loop.uvloop()}, host_{address.address()}, af_hint_{AF_UNSPEC},
       port_{address.port()} {}
 
 TcpClient::TcpClient(TcpClient &&other) noexcept
@@ -83,9 +84,9 @@ void TcpClient::ConnectAwaiter_::onConnect(uv_status status) {
   }
 }
 
-TcpServer::TcpServer(uv_loop_t *loop, AddressHandle bindAddress, bool ipv6Only)
-    : loop_{loop}, tcp_{std::make_unique<uv_tcp_t>()} {
-  uv_tcp_init(loop, tcp_.get());
+TcpServer::TcpServer(const Loop &loop, AddressHandle bindAddress, bool ipv6Only)
+    : loop_{loop.uvloop()}, tcp_{std::make_unique<uv_tcp_t>()} {
+  uv_tcp_init(loop_, tcp_.get());
   const auto *sockaddr = bindAddress.sockaddr();
   const int flags = ipv6Only ? UV_TCP_IPV6ONLY : 0;
   bind(sockaddr, flags);
