@@ -56,14 +56,15 @@ public:
 
   /// Use in e.g. copy constructors, when creating a new reference to the same
   /// object.
-  T *addRef() {
+  virtual T *addRef() {
     ++count_;
     return static_cast<T *>(this);
   }
+
   /// Use in e.g. destructors, when an existing pointer goes out of
   /// scope. Once the reference count has dropped to 0, the referred object will
   /// be deleted.
-  void delRef() {
+  virtual void delRef() {
     --count_;
     if (count_ == 0) {
       delete static_cast<T *>(this);
