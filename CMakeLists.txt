@@ -73,7 +73,7 @@ foreach(TESTCASE IN ITEMS channel timer udp tcp misc)
 
 endforeach()
 
-foreach(TESTBINARY IN ITEMS tcp-broadcaster multicast)
+foreach(TESTBINARY IN ITEMS tcp-broadcaster multicast http10)
     add_executable(test-${TESTBINARY} test/${TESTBINARY}.exe.cc)
     target_link_libraries(test-${TESTBINARY} PRIVATE uv-co-lib boost_program_options)
 endforeach()

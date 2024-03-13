@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "exception.h"
 #include "scheduler.h"
 #include <functional>
 #include <memory>
@@ -18,10 +19,8 @@ class Loop;
 /// initializing promises, and returns to start the event loop.
 using SetupFn = std::function<void(const Loop &)>;
 
-/// Set up event loop, then run main function to set up promises.
-/// Finally, clean up once the event loop has finished.
-void runMain(const SetupFn &main,
-             Scheduler::RunMode mode = Scheduler::RunMode::Deferred);
+template<typename R> requires (!std::is_void_v<R>)
+using RootFn = std::function<Promise<R>(const Loop &)>;
 
 /// A wrapper around a libuv event loop. Use `uvloop()` to get a reference
 /// to the loop, and `run()` to start the event loop.
@@ -55,6 +54,26 @@ private:
   std::unique_ptr<uv_loop_t> loop_;
   std::unique_ptr<Scheduler> scheduler_;
 };
+
+/// Set up event loop, then run main function to set up promises.
+/// Finally, clean up once the event loop has finished.
+void runMain(const SetupFn &main,
+             Scheduler::RunMode mode = Scheduler::RunMode::Deferred);
+
+// Run a function returning a promise, and return the result once the event loop
+// has finished. Note that for server functions, the event loop typically doesn't
+// finish.
+template<typename R>
+R runMain(const RootFn<R> &main,
+             Scheduler::RunMode mode = Scheduler::RunMode::Deferred) {
+  Loop loop{mode};
+  Promise<R> promise = main(loop);
+  loop.run();
+  if (!promise.ready()) {
+    throw UvcoException{"Promise not ready but loop done: this is likely a bug in uvco"};
+  }
+  return promise.core_->slot;
+}
 
 /// @}
 

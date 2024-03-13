@@ -40,36 +40,33 @@ satisfactory performance.
 
 ### Basic event loop set-up
 
+It looks a bit counter-intuitive, because the promise is dropped immediately.
+However, calling `someAsynchronousFunction()` will register the promise and the
+event loop will run until it is resolved.
+
 ```cpp
-void run_loop(int disc) {
-  // That's the default run mode for the scheduler:
-  uvco::Scheduler scheduler{uvco::Scheduler::RunMode::Deferred};
-
-  uv_loop_t loop;
-  uv_loop_init(&loop);
-  scheduler.setUpLoop(&loop);
-
+void run_loop() {
   // A coroutine promise is run without having to wait on it: every co_await
   // triggers a callback subscription with libuv.
+  // The `loop` mediates access to the event loop and is used by uvco's types.
   // Create a "root" promise by calling a coroutine, e.g. one that
   // sets up a server.
-  uvco::Promise<void> p = someAsynchronousFunction();
-
-  // Run loop until everything is done.
-  uv_run(&loop, UV_RUN_DEFAULT);
-
-  assert(p.ready());
-
-  uv_loop_close(&loop);
+  uvco::runMain([](const Loop& loop) -> uvco::Promise<void> {
+    co_await someAsynchronousFunction(loop);
+  });
 }
 ```
 
 ### HTTP 1.0 client
 
+Build the project, and run the `test-http10` binary. It works like the following code:
+
 ```cpp
+using namespace uvco;
+
 // Using co_await in a function turns it into a coroutine. You can co_await all
 // Promise and MultiPromise values; the right thing will happen.
-Promise<void> testHttpRequest(uv_loop_t *loop) {
+Promise<void> testHttpRequest(const Loop& loop) {
   TcpClient client{loop, "borgac.net", 80, AF_INET6};
   TcpStream stream = co_await client.connect();
 
@@ -86,15 +83,20 @@ Promise<void> testHttpRequest(uv_loop_t *loop) {
 }
 
 // Manual setup: this will be part of uvco later.
-void run_loop(int disc) {
+void run_loop() {
   // As described in the first example.
-  ...
+  runMain([](const Loop& loop) -> Promise<void> {
+    Promise<void> p = testHttpRequest(loop);
+    co_await p;
+  });
 }
 ```
 
 ### TCP Echo server
 
 ```cpp
+using namespace uvco;
+
 Promise<void> echoReceived(TcpStream stream) {
   const AddressHandle peerAddress = stream.getPeerName();
   const std::string addressStr = peerAddress.toString();
@@ -111,7 +113,7 @@ Promise<void> echoReceived(TcpStream stream) {
   co_await stream.close();
 }
 
-Promise<void> echoTcpServer(uv_loop_t *loop) {
+Promise<void> echoTcpServer(const Loop& loop) {
   AddressHandle addr{"127.0.0.1", 8090};
   TcpServer server{loop, addr};
   std::vector<Promise<void>> clientLoops{};
@@ -128,9 +130,11 @@ Promise<void> echoTcpServer(uv_loop_t *loop) {
 }
 
 int main(void) {
-  // As described in the first example.
-  ...
-  Promise<void> server = echoTcpServer(&loop);
+  // It also works with a plain function: awaiting a promise is not necessary
+  // (but more intuitive).
+  runMain([](const Loop& loop) {
+    Promise<void> server = echoTcpServer(loop);
+  });
 }
 
 ```
