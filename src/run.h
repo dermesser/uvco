@@ -25,13 +25,16 @@ using RootFn = std::function<Promise<R>(const Loop &)>;
 /// A wrapper around a libuv event loop. Use `uvloop()` to get a reference
 /// to the loop, and `run()` to start the event loop.
 ///
+/// Typically this is only used by uvco's internal machinery. User code will
+/// pass around a reference to the loop.
+///
 /// Use `uvco::runMain()` for a top-level interface.
 class Loop {
 public:
   Loop(const Loop &) = delete;
-  Loop(Loop &&) = default;
+  Loop(Loop &&) = delete;
   Loop &operator=(const Loop &) = delete;
-  Loop &operator=(Loop &&) = default;
+  Loop &operator=(Loop &&) = delete;
   ~Loop();
 
   /// Get a non-owned pointer to the loop.
@@ -57,12 +60,14 @@ private:
 
 /// Set up event loop, then run main function to set up promises.
 /// Finally, clean up once the event loop has finished.
+///
+/// Equivalent to `runMain([](const Loop &loop) { main(); co_return; })`.
 void runMain(const SetupFn &main,
              Scheduler::RunMode mode = Scheduler::RunMode::Deferred);
 
-// Run a function returning a promise, and return the result once the event loop
-// has finished. Note that for server functions, the event loop typically doesn't
-// finish.
+/// Run a function returning a promise, and return the result once the event loop
+/// has finished. Note that for server functions, the event loop typically doesn't
+/// finish.
 template<typename R>
 R runMain(const RootFn<R> &main,
              Scheduler::RunMode mode = Scheduler::RunMode::Deferred) {
