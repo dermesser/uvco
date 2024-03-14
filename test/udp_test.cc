@@ -1,5 +1,6 @@
 
 #include "exception.h"
+#include "name_resolution.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
 #include "timer.h"
@@ -7,12 +8,13 @@
 
 #include "test_util.h"
 
+#include <cstdint>
 #include <gtest/gtest.h>
 
 namespace {
 using namespace uvco;
 
-Promise<void> udpServer(uv_loop_t *loop, uint64_t &received) {
+Promise<void> udpServer(const Loop &loop, uint64_t &received) {
   Udp server{loop};
   co_await server.bind("::1", 9999, 0);
 
@@ -38,7 +40,7 @@ Promise<void> udpServer(uv_loop_t *loop, uint64_t &received) {
   co_return;
 }
 
-Promise<void> udpClient(uv_loop_t *loop, uint64_t &sent) {
+Promise<void> udpClient(const Loop &loop, uint64_t &sent) {
   // Ensure server has started.
   co_await sleep(loop, 10);
   constexpr static uint32_t max = 10;
@@ -85,11 +87,33 @@ Promise<void> join(Promise<void> promise1, Promise<void> promise2) {
 TEST(UdpTest, testPingPong) {
   uint64_t sent = 0;
   uint64_t received = 0;
-  auto setup = [&](uv_loop_t *loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     return join(udpServer(loop, received), udpClient(loop, sent));
   };
 
   run_loop(setup);
   EXPECT_EQ(sent, received);
   EXPECT_EQ(sent, 10);
+}
+
+TEST(UdpTest, testTtl) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Udp server{loop};
+    co_await server.bind("::1", 9999, 0);
+    server.setTtl(10);
+    co_await server.close();
+  };
+
+  run_loop(setup);
+}
+
+TEST(UdpTest, testBroadcast) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Udp server{loop};
+    co_await server.bind("::1", 9999);
+    server.setBroadcast(true);
+    co_await server.close();
+  };
+
+  run_loop(setup);
 }

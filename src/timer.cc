@@ -7,6 +7,7 @@
 #include "close.h"
 #include "internal/internal_utils.h"
 #include "promise/promise.h"
+#include "run.h"
 #include "timer.h"
 
 #include <coroutine>
@@ -37,9 +38,9 @@ public:
     other.closed_ = true;
     return *this;
   }
-  TimerAwaiter(uv_loop_t *loop, uint64_t millis, bool repeating = false)
+  TimerAwaiter(const Loop &loop, uint64_t millis, bool repeating = false)
       : timer_{std::make_unique<uv_timer_t>()} {
-    uv_timer_init(loop, timer_.get());
+    uv_timer_init(loop.uvloop(), timer_.get());
     timer_->data = this;
     if (repeating) {
       uv_timer_start(timer_.get(), onMultiTimerFired, millis, millis);
@@ -105,7 +106,7 @@ void onMultiTimerFired(uv_timer_t *handle) {
   awaiter->resume();
 }
 
-Promise<void> sleep(uv_loop_t *loop, uint64_t millis) {
+Promise<void> sleep(const Loop &loop, uint64_t millis) {
   TimerAwaiter awaiter{loop, millis};
   co_await awaiter;
   co_await awaiter.close();
@@ -164,7 +165,8 @@ Promise<void> TickerImpl::close() {
   co_await awaiter_->close();
 }
 
-std::unique_ptr<Ticker> tick(uv_loop_t *loop, uint64_t millis, uint64_t count) {
+std::unique_ptr<Ticker> tick(const Loop &loop, uint64_t millis,
+                             uint64_t count) {
   auto awaiter = std::make_unique<TimerAwaiter>(loop, millis, true);
   return std::make_unique<TickerImpl>(std::move(awaiter), count);
 }

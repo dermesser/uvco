@@ -19,7 +19,8 @@ class Loop;
 /// initializing promises, and returns to start the event loop.
 using SetupFn = std::function<void(const Loop &)>;
 
-template<typename R> requires (!std::is_void_v<R>)
+template <typename R>
+  requires(!std::is_void_v<R>)
 using RootFn = std::function<Promise<R>(const Loop &)>;
 
 /// A wrapper around a libuv event loop. Use `uvloop()` to get a reference
@@ -65,17 +66,18 @@ private:
 void runMain(const SetupFn &main,
              Scheduler::RunMode mode = Scheduler::RunMode::Deferred);
 
-/// Run a function returning a promise, and return the result once the event loop
-/// has finished. Note that for server functions, the event loop typically doesn't
-/// finish.
-template<typename R>
+/// Run a function returning a promise, and return the result once the event
+/// loop has finished. Note that for server functions, the event loop typically
+/// doesn't finish.
+template <typename R>
 R runMain(const RootFn<R> &main,
-             Scheduler::RunMode mode = Scheduler::RunMode::Deferred) {
+          Scheduler::RunMode mode = Scheduler::RunMode::Deferred) {
   Loop loop{mode};
   Promise<R> promise = main(loop);
   loop.run();
   if (!promise.ready()) {
-    throw UvcoException{"Promise not ready but loop done: this is likely a bug in uvco"};
+    throw UvcoException{
+        "Promise not ready but loop done: this is likely a bug in uvco"};
   }
   return promise.core_->slot;
 }

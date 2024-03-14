@@ -9,6 +9,7 @@
 #include "name_resolution.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
+#include "run.h"
 
 #include <coroutine>
 #include <cstdint>
@@ -29,9 +30,9 @@ namespace uvco {
 class Udp {
 public:
   /// Set up a UDP object.
-  explicit Udp(uv_loop_t *loop)
+  explicit Udp(const Loop &loop)
       : loop_{loop}, udp_{std::make_unique<uv_udp_t>()} {
-    uv_udp_init(loop, udp_.get());
+    uv_udp_init(loop.uvloop(), udp_.get());
   }
   Udp(Udp &&other) = default;
   Udp &operator=(Udp &&other) = default;

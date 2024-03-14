@@ -8,7 +8,7 @@ using namespace uvco;
 // Using co_await in a function turns it into a coroutine. You can co_await all
 // Promise and MultiPromise values; the right thing will happen.
 Promise<void> testHttpRequest(const Loop &loop) {
-  TcpClient client{loop, "borgac.net", 80, AF_INET6};
+  TcpClient client{loop, "borgac.net", 80, AF_UNSPEC};
   TcpStream stream = co_await client.connect();
 
   co_await stream.write(

@@ -6,6 +6,7 @@
 
 #include "promise/multipromise.h"
 #include "promise/promise.h"
+#include "run.h"
 
 #include <cstdint>
 #include <memory>
@@ -16,7 +17,7 @@ namespace uvco {
 /// @{
 
 /// A promise that resolves after at least `millis` milliseconds.
-Promise<void> sleep(uv_loop_t *loop, uint64_t millis);
+Promise<void> sleep(const Loop &loop, uint64_t millis);
 
 /// A ticker produces events with a given periodicity. Use `tick()` to
 /// create a `Ticker` instance.
@@ -38,7 +39,7 @@ public:
 /// The returned ticker must be stoped using `co_await stop()` in order to avoid
 /// leaking resources. If `count` is not 0 (so that only the specified number of
 /// ticks is emitted), it must be co_awaited until it returns `std::nullopt`.
-std::unique_ptr<Ticker> tick(uv_loop_t *loop, uint64_t millis, uint64_t count);
+std::unique_ptr<Ticker> tick(const Loop &loop, uint64_t millis, uint64_t count);
 
 /// @}
 

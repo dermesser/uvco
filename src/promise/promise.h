@@ -122,6 +122,9 @@ public:
   // Part of the coroutine protocol: called upon unhandled exception leaving the
   // coroutine.
   void unhandled_exception() {
+    // TODO: what should actually happen is that the exception is stored in the
+    // PromiseCore, and rethrown upon resumption.
+    // 1. store exception in core_ 2. resumse 3. await_resume rethrows
     std::rethrow_exception(std::current_exception());
   }
 

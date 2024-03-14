@@ -22,8 +22,6 @@ void run_loop(
 }
 
 void run_loop(const std::function<uvco::Promise<void>(uv_loop_t *)> &setup) {
-  auto innerSetup = [setup](const uvco::Loop &loop) {
-    setup(loop.uvloop());
-  };
+  auto innerSetup = [setup](const uvco::Loop &loop) { setup(loop.uvloop()); };
   uvco::runMain(innerSetup, runMode);
 }

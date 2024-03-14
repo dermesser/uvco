@@ -29,16 +29,16 @@
 using namespace uvco;
 
 struct Options {
-  const Loop *loop;
+  const Loop &loop;
 
   std::string listenAddress = "0.0.0.0";
   std::string multicastAddress = "239.253.1.1";
   uint16_t port = 8012;
 };
 
-Options parseOptions(int argc, const char **argv) {
+Options parseOptions(const Loop &loop, int argc, const char **argv) {
   namespace po = boost::program_options;
-  Options options{};
+  Options options{loop};
   bool help = false;
   po::options_description desc;
   desc.add_options()("listen-address",
@@ -60,17 +60,17 @@ Options parseOptions(int argc, const char **argv) {
 
 Promise<void> sendSome(const Options &opt, AddressHandle dst,
                        size_t packets = 5, int interval = 1) {
-  Udp udp{opt.loop->uvloop()};
+  Udp udp{opt.loop};
 
   for (size_t i = 0; i < packets; i++) {
     co_await udp.send(std::string_view{"hello back"}, dst);
-    co_await sleep(opt.loop->uvloop(), 50 * interval);
+    co_await sleep(opt.loop, 50 * interval);
   }
   co_await udp.close();
 }
 
 Promise<void> printPackets(const Options &opt) {
-  Udp udp{opt.loop->uvloop()};
+  Udp udp{opt.loop};
   std::vector<Promise<void>> active;
 
   try {
@@ -96,14 +96,12 @@ Promise<void> printPackets(const Options &opt) {
   co_await udp.close();
 }
 
-void run(Options opt, const Loop &loop) {
-  opt.loop = &loop;
-
-  Promise<void> _ = printPackets(opt);
-}
+void run(Options opt) { Promise<void> _ = printPackets(opt); }
 
 int main(int argc, const char **argv) {
-  Options opt = parseOptions(argc, argv);
 
-  runMain([&](const Loop &loop) { run(opt, loop); });
+  runMain([&](const Loop &loop) {
+    Options opt = parseOptions(loop, argc, argv);
+    run(opt);
+  });
 }

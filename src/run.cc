@@ -2,6 +2,7 @@
 
 #include "run.h"
 #include "scheduler.h"
+#include <cstdio>
 
 namespace uvco {
 
@@ -24,7 +25,10 @@ Loop::~Loop() {
   // Run loop for single turn.
   scheduler_->close();
   runOne();
-  uv_loop_close(loop_.get());
+  if (0 != uv_loop_close(loop_.get())) {
+    fmt::println(stderr, "Loop::~Loop(): uv_loop_close() failed; there were "
+                         "still resources on the loop.");
+  }
 }
 
 void Loop::runOne() { uv_run(loop_.get(), UV_RUN_ONCE); }

@@ -20,7 +20,7 @@ Promise<void> echoReceived(TcpStream stream, bool &received, bool &responded) {
   co_await stream.closeReset();
 }
 
-Promise<void> echoTcpServer(const Loop& loop, bool &received, bool &responded) {
+Promise<void> echoTcpServer(const Loop &loop, bool &received, bool &responded) {
   AddressHandle addr{"127.0.0.1", 8090};
   TcpServer server{loop, addr};
 
@@ -44,7 +44,7 @@ Promise<void> echoTcpServer(const Loop& loop, bool &received, bool &responded) {
   co_await server.close();
 }
 
-Promise<void> sendTcpClient(const Loop& loop, bool &sent,
+Promise<void> sendTcpClient(const Loop &loop, bool &sent,
                             bool &responseReceived) {
   TcpClient client{loop, "127.0.0.1", 8090};
   TcpClient client2{std::move(client)};
@@ -73,7 +73,7 @@ TEST(TcpTest, singlePingPong) {
   bool responded = false;
   bool responseReceived = false;
 
-  auto setup = [&](const uvco::Loop& loop) -> uvco::Promise<void> {
+  auto setup = [&](const uvco::Loop &loop) -> uvco::Promise<void> {
     return join(echoTcpServer(loop, received, responded),
                 sendTcpClient(loop, sent, responseReceived));
   };
@@ -86,11 +86,21 @@ TEST(TcpTest, singlePingPong) {
 }
 
 TEST(TcpTest, validBind) {
-  auto setup = [&](const Loop& loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     AddressHandle addr{"127.0.0.1", 0};
     TcpServer server{loop, addr};
     co_await server.close();
   };
 
   run_loop(setup);
+}
+
+TEST(TcpTest, invalidLocalhostConnect) {
+  auto main = [](const Loop &loop) -> Promise<void> {
+    TcpClient client{loop, "localhost", 39856};
+    TcpStream stream = co_await client.connect();
+    co_await stream.close();
+  };
+
+  EXPECT_THROW({ run_loop(main); }, UvcoException);
 }

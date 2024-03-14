@@ -31,6 +31,7 @@ Promise<void> Udp::bind(std::string_view address, uint16_t port,
 
   uv_status status = uv_udp_bind(udp_.get(), addressHandle.sockaddr(), flag);
   if (status != 0) {
+    co_await close();
     throw UvcoException{status, "binding UDP socket"};
   }
 }
@@ -44,6 +45,7 @@ Promise<void> Udp::connect(std::string_view address, uint16_t port,
 
   uv_status status = uv_udp_connect(udp_.get(), addressHandle.sockaddr());
   if (status != 0) {
+    co_await close();
     throw UvcoException{status, "connecting UDP socket"};
   }
   connected_ = true;
