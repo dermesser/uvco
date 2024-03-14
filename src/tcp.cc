@@ -16,8 +16,8 @@ namespace uvco {
 
 TcpClient::TcpClient(const Loop &loop, std::string target_host_address,
                      uint16_t target_host_port, int af_hint)
-    : loop_{loop.uvloop()}, host_{std::move(target_host_address)}, af_hint_{af_hint},
-      port_{target_host_port} {}
+    : loop_{loop.uvloop()}, host_{std::move(target_host_address)},
+      af_hint_{af_hint}, port_{target_host_port} {}
 
 TcpClient::TcpClient(const Loop &loop, AddressHandle address)
     : loop_{loop.uvloop()}, host_{address.address()}, af_hint_{AF_UNSPEC},
@@ -47,11 +47,18 @@ Promise<TcpStream> TcpClient::connect() {
   auto tcp = std::make_unique<uv_tcp_t>();
 
   uv_tcp_init(loop_, tcp.get());
-  uv_tcp_connect(&req, tcp.get(), address.sockaddr(), onConnect);
-
-  uv_status status = co_await connect;
+  uv_status status =
+      uv_tcp_connect(&req, tcp.get(), address.sockaddr(), onConnect);
   if (status < 0) {
-    throw UvcoException(status, "connect");
+    // Clean up handle if connect failed.
+    co_await closeHandle(tcp.get());
+    throw UvcoException(status, "TcpClient::connect() failed immediately");
+  }
+
+  status = co_await connect;
+  if (status < 0) {
+    co_await closeHandle(tcp.get());
+    throw UvcoException(status, "TcpClient::connect() failed");
   }
 
   co_return TcpStream{std::move(tcp)};
