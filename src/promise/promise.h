@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "exception.h"
 #include "promise_core.h"
 
 #include <boost/assert.hpp>
@@ -125,7 +126,8 @@ public:
     // TODO: what should actually happen is that the exception is stored in the
     // PromiseCore, and rethrown upon resumption.
     // 1. store exception in core_ 2. resumse 3. await_resume rethrows
-    std::rethrow_exception(std::current_exception());
+    core_->except(std::current_exception());
+    core_->resume();
   }
 
   /// Part of the coroutine protocol: called by `co_await p` where `p` is a
@@ -153,7 +155,7 @@ protected:
 
     /// Part of the coroutine protocol: returns `true` if the promise is already
     /// fulfilled.
-    bool await_ready() const { return core_->slot.has_value(); }
+    [[nodiscard]] bool await_ready() const { return core_->slot.has_value(); }
     /// Part of the coroutine protocol: returns if suspension is desired (always
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
     bool await_suspend(std::coroutine_handle<> handle) {
@@ -165,10 +167,22 @@ protected:
     /// Part of the coroutine protocol: extracts the resulting value from the
     /// promise core and returns it.
     T await_resume() {
-      BOOST_ASSERT(core_->slot.has_value());
-      auto result = std::move(core_->slot.value());
-      core_->slot.reset();
-      return result;
+      if (core_->slot.has_value()) {
+        switch (core_->slot->index()) {
+        case 0: {
+          T result = std::move(std::get<0>(core_->slot.value()));
+          core_->slot.reset();
+          return std::move(result);
+        }
+        case 1:
+          std::rethrow_exception(std::get<1>(core_->slot.value()));
+        default:
+          throw UvcoException("PromiseAwaiter_::await_resume: invalid slot");
+        }
+      } else {
+        throw UvcoException(
+            "await_resume called on unfulfilled promise (bug?)");
+      }
     }
 
     SharedCore_ core_;

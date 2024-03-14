@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <exception>
 #include <internal/internal_utils.h>
 
 #include <boost/assert.hpp>
@@ -12,6 +13,7 @@
 #include <optional>
 #include <typeinfo>
 #include <utility>
+#include <variant>
 
 namespace uvco {
 /// @addtogroup Promise
@@ -30,6 +32,7 @@ enum class PromiseState {
   waitedOn = 1,
   running = 2,
   finished = 3,
+  exception = 4
 };
 
 /// A `PromiseCore` is shared among copies of promises waiting for the same
@@ -71,7 +74,8 @@ public:
   /// A promise core can only be resumed once.
   virtual void resume() {
     if (resume_) {
-      BOOST_ASSERT(state_ == PromiseState::waitedOn);
+      BOOST_ASSERT(state_ == PromiseState::waitedOn ||
+                   state_ == PromiseState::exception);
       state_ = PromiseState::running;
       auto resume = *resume_;
       resume_.reset();
@@ -94,6 +98,7 @@ public:
       state_ = PromiseState::waitedOn;
       break;
     case PromiseState::finished:
+    case PromiseState::exception:
       // Happens in MultiPromiseCore on co_return if the co_awaiter has lost
       // interest. Harmless if !resume_ (asserted above).
       break;
@@ -104,7 +109,7 @@ public:
   /// suspended and has not been resumed yet. In that case, a warning is
   /// emitted ("PromiseCore destroyed without ever being resumed").
   virtual ~PromiseCore() {
-    if (state_ != PromiseState::finished) {
+    if (state_ != PromiseState::finished && state_ != PromiseState::exception) {
       fmt::print(stderr,
                  "PromiseCore destroyed without ever being resumed ({})\n",
                  typeid(T).name());
@@ -118,8 +123,13 @@ public:
     }
   }
 
+  virtual void except(const std::exception_ptr &exc) {
+    slot = exc;
+    state_ = PromiseState::exception;
+  }
+
   /// The slot contains the result once obtained.
-  std::optional<T> slot;
+  std::optional<std::variant<T, std::exception_ptr>> slot;
 
 protected:
   std::optional<std::coroutine_handle<>> resume_;
@@ -145,11 +155,15 @@ public:
   /// See `PromiseCore::resume`.
   void resume();
 
+  void except(std::exception_ptr exc);
+
   // Immediately marks a core as fulfilled (but does not resume); used for
   // Promise<void>::imediate().
   void immediateFulfill();
 
   bool ready = false;
+
+  std::optional<std::exception_ptr> exception_;
 
 private:
   std::optional<std::coroutine_handle<>> resume_;

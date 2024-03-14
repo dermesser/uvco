@@ -98,9 +98,13 @@ TEST(TcpTest, validBind) {
 TEST(TcpTest, invalidLocalhostConnect) {
   auto main = [](const Loop &loop) -> Promise<void> {
     TcpClient client{loop, "localhost", 39856};
-    TcpStream stream = co_await client.connect();
-    co_await stream.close();
+    EXPECT_THROW(
+        {
+          TcpStream stream = co_await client.connect();
+          co_await stream.close();
+        },
+        UvcoException);
   };
 
-  EXPECT_THROW({ run_loop(main); }, UvcoException);
+  run_loop(main);
 }

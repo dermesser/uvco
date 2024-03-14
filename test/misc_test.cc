@@ -2,10 +2,13 @@
 #include "exception.h"
 #include "name_resolution.h"
 #include "pipe.h"
+#include "promise/multipromise.h"
 #include "promise/promise.h"
 #include "run.h"
 #include "test_util.h"
+#include "timer.h"
 
+#include <coroutine>
 #include <optional>
 #include <string>
 
@@ -13,7 +16,6 @@
 
 namespace {
 using namespace uvco;
-}
 
 TEST(PromiseTest, voidImmediate) {
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
@@ -100,3 +102,24 @@ TEST(PipeTest, pipePingPong) {
 
   run_loop(setup);
 }
+
+MultiPromise<int> miniTicker(const Loop &loop) {
+  for (int i = 0; i < 3; ++i) {
+    co_yield i;
+    co_await sleep(loop, 1);
+  }
+  throw UvcoException("ticker");
+}
+
+TEST(MultiPromiseTest, exception) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    MultiPromise<int> ticker = miniTicker(loop);
+    EXPECT_EQ(co_await ticker, 0);
+    EXPECT_EQ(co_await ticker, 1);
+    EXPECT_EQ(co_await ticker, 2);
+    EXPECT_THROW({ co_await ticker; }, UvcoException);
+  };
+  run_loop(setup);
+}
+
+} // namespace

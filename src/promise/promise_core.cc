@@ -14,7 +14,8 @@ bool PromiseCore<void>::willResume() { return resume_.has_value(); }
 
 void PromiseCore<void>::resume() {
   if (resume_) {
-    BOOST_ASSERT(state_ == PromiseState::waitedOn);
+    BOOST_ASSERT(state_ == PromiseState::waitedOn ||
+                 state_ == PromiseState::exception);
     auto resumeHandle = *resume_;
     resume_.reset();
     state_ = PromiseState::running;
@@ -39,6 +40,12 @@ PromiseCore<void>::~PromiseCore() {
 void PromiseCore<void>::immediateFulfill() {
   ready = true;
   state_ = PromiseState::finished;
+}
+
+void PromiseCore<void>::except(std::exception_ptr e) {
+  exception_ = e;
+  ready = true;
+  state_ = PromiseState::exception;
 }
 
 } // namespace uvco

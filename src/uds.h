@@ -12,6 +12,7 @@ namespace uvco {
 /// @addtogroup Unix Sockets
 /// @{
 
+/// TODO: not yet implemented!
 class UnixStreamServer {
   class ConnectionAwaiter_;
 

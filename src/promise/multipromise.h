@@ -1,7 +1,9 @@
 
 #pragma once
 
+#include "exception.h"
 #include "promise.h"
+#include <exception>
 
 namespace uvco {
 
@@ -107,7 +109,8 @@ public:
 
   /// Part of the coroutine protocol (see `Promise`).
   void unhandled_exception() {
-    std::rethrow_exception(std::current_exception());
+    core_->slot = std::current_exception();
+    core_->resume();
   }
 
   /// Yield a value to the calling (awaiting) coroutine.
@@ -117,6 +120,11 @@ public:
   /// awaiter, in order to give the calling coroutine a chance to process the
   /// event. This is purely due to the (lack of a) scheduling algorithm in
   /// `uvco`.
+  ///
+  /// TODO: this should suspend using a special awaiter which will return
+  /// control to the generator routine once the "receiver" has read its value.
+  /// Currently, this relies on another suspension point after the yield giving
+  /// back control to the event loop (and thus the receiver).
   std::suspend_never yield_value(T &&value) {
     BOOST_ASSERT(!core_->slot);
     core_->slot = std::move(value);
@@ -131,6 +139,12 @@ public:
     // generator always suspend; schedule consumer on event loop; add "generator
     // resume" to multipromise core and let consumer schedule generator for
     // resumption.
+    core_->resume();
+    return {};
+  }
+  std::suspend_never yield_value(const T &value) {
+    BOOST_ASSERT(!core_->slot);
+    core_->slot = value;
     core_->resume();
     return {};
   }
@@ -174,11 +188,22 @@ protected:
     /// in the generating coroutine. Otherwise, returns an empty `optional` if
     /// the generating coroutine has `co_return`ed.
     std::optional<T> await_resume() {
-      std::optional<T> result = std::move(core_->slot);
-      core_->slot.reset();
-      // Obvious - but important to avoid constantly yielding!
-      BOOST_ASSERT(!core_->slot);
-      return result;
+      if (!core_->slot) {
+        return std::nullopt;
+      } else {
+        switch (core_->slot->index()) {
+        case 0: {
+          std::optional<T> result = std::move(std::get<0>(core_->slot.value()));
+          core_->slot.reset();
+          return std::move(result);
+        }
+        case 1:
+          std::rethrow_exception(std::get<1>(core_->slot.value()));
+        default:
+          throw UvcoException(
+              "MultiPromiseAwaiter_::await_resume: invalid slot");
+        }
+      }
     }
 
     SharedCore_ core_;

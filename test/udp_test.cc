@@ -9,6 +9,7 @@
 #include "test_util.h"
 
 #include <cstdint>
+#include <cstdio>
 #include <gtest/gtest.h>
 
 namespace {
@@ -112,6 +113,12 @@ TEST(UdpTest, testBroadcast) {
     Udp server{loop};
     co_await server.bind("::1", 9999);
     server.setBroadcast(true);
+    try {
+      std::vector<char> buf(10, 'a');
+      co_await server.send(buf, AddressHandle{"255.255.255.255", 9988});
+    } catch (const UvcoException &e) {
+      fmt::println(stderr, "Caught exception: {}", e.what());
+    }
     co_await server.close();
   };
 

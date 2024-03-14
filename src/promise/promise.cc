@@ -1,6 +1,7 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
 #include "promise.h"
+#include <cstdio>
 
 namespace uvco {
 
@@ -16,7 +17,10 @@ void Promise<void>::return_void() {
 }
 
 void Promise<void>::unhandled_exception() {
-  std::rethrow_exception(std::current_exception());
+  // std::rethrow_exception(std::current_exception());
+  fmt::println(stderr, "unhandled exception");
+  core_->except(std::current_exception());
+  core_->resume();
 }
 
 bool Promise<void>::PromiseAwaiter_::await_suspend(
@@ -31,7 +35,12 @@ bool Promise<void>::PromiseAwaiter_::await_ready() const {
   return core_->ready;
 }
 
-void Promise<void>::PromiseAwaiter_::await_resume() {}
+void Promise<void>::PromiseAwaiter_::await_resume() {
+  if (core_->exception_) {
+    std::rethrow_exception(core_->exception_.value());
+  }
+  BOOST_ASSERT(core_->ready);
+}
 
 Promise<void>::Promise(Promise<void> &&other) noexcept : core_{other.core_} {
   other.core_ = nullptr;

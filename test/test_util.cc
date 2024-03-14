@@ -8,8 +8,7 @@
 
 namespace {
 
-constexpr uvco::Scheduler::RunMode runMode =
-    uvco::Scheduler::RunMode::Immediate;
+constexpr uvco::Scheduler::RunMode runMode = uvco::Scheduler::RunMode::Deferred;
 
 } // namespace
 
