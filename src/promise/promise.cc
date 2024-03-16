@@ -18,7 +18,6 @@ void Promise<void>::return_void() {
 
 void Promise<void>::unhandled_exception() {
   // std::rethrow_exception(std::current_exception());
-  fmt::print(stderr, "unhandled exception");
   core_->except(std::current_exception());
   core_->resume();
 }

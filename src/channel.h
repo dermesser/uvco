@@ -10,7 +10,6 @@
 #include <boost/assert.hpp>
 #include <coroutine>
 #include <cstdlib>
-#include <optional>
 #include <utility>
 #include <vector>
 
@@ -33,7 +32,9 @@ public:
   void put(U &&elem)
     requires std::convertible_to<U, T>
   {
-    BOOST_ASSERT(hasSpace());
+    if (!hasSpace()) {
+      throw UvcoException(UV_EBUSY, "queue is full");
+    }
     if (queue_.size() < capacity()) {
       BOOST_ASSERT(tail_ <= head_);
       queue_.push_back(std::forward<U>(elem));
@@ -45,7 +46,9 @@ public:
   }
   /// Pop an item from the queue.
   T get() {
-    BOOST_ASSERT(!empty());
+    if (empty()) {
+      throw UvcoException(UV_ENODATA, "queue is empty");
+    }
     T element = std::move(queue_.at(tail_++));
     tail_ = tail_ % capacity();
     --size_;
@@ -84,6 +87,12 @@ private:
 /// it takes about 290 ns per send/receive opreation on a slightly older
 /// *i5-7300U CPU @ 2.60GHz* CPU (clang 17). This includes the entire coroutine
 /// dance of suspending/resuming between the reader and writer.
+///
+/// Caveat 1: the channel is obviously not thread safe. Only use within one
+/// loop. Caveat 2: As you can notice, the Channel is independent of a `Loop`.
+/// This means that a `runMain()` may return despite there being channels in use
+/// and awaited on. Ensure that at least one uv operation (socket
+/// read/write/listen, timer, etc.) is running to keep the loop alive.
 template <typename T> class Channel {
 public:
   /// Create a channel for up to `capacity` items.

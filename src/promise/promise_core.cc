@@ -42,8 +42,10 @@ void PromiseCore<void>::immediateFulfill() {
   state_ = PromiseState::finished;
 }
 
-void PromiseCore<void>::except(std::exception_ptr e) {
-  exception_ = e;
+void PromiseCore<void>::except(std::exception_ptr exc) {
+  BOOST_ASSERT(state_ == PromiseState::init ||
+               state_ == PromiseState::waitedOn);
+  exception_ = std::move(exc);
   ready = true;
   state_ = PromiseState::exception;
 }
