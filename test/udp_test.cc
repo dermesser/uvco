@@ -117,7 +117,7 @@ TEST(UdpTest, testBroadcast) {
       std::vector<char> buf(10, 'a');
       co_await server.send(buf, AddressHandle{"255.255.255.255", 9988});
     } catch (const UvcoException &e) {
-      fmt::println(stderr, "Caught exception: {}", e.what());
+      fmt::print(stderr, "Caught exception: {}\n", e.what());
     }
     co_await server.close();
   };

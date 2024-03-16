@@ -26,7 +26,7 @@ Loop::~Loop() {
   scheduler_->close();
   runOne();
   if (0 != uv_loop_close(loop_.get())) {
-    fmt::println(stderr, "Loop::~Loop(): uv_loop_close() failed; there were "
+    fmt::print(stderr, "Loop::~Loop(): uv_loop_close() failed; there were "
                          "still resources on the loop.");
   }
 }
