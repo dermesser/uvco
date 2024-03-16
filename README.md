@@ -16,20 +16,25 @@ Supported functionality:
 * Anonymous pipes (operating-system-backed) and typed buffered channels (like Go's)
 * Timer functionality (`sleep`, `tick`)
 
-Promises (backed by coroutines) are run eagerly; you don't have to schedule or await them.
-Many types of I/O-backed coroutines are run on a scheduler ([`src/scheduler.h`](src/scheduler.h)),
-which you don't need to care much about. Other types always use eager execution, i.e.
-an awaiting coroutine is resumed immediately from the callback of the I/O it is waiting on.
-The scheduler is configurable and allows either immediate execution (on the callstack of a
-callback) or deferred execution (after finishing all I/O, before the next I/O poll). Use
-the doxygen documentation to find how to best use it.
+## Context
 
-Also, some types - like buffers received by sockets - use simplistic types like
-strings. This will need to be generalized.
+Promises (backed by coroutines) are run eagerly; you don't have to schedule or await them for the
+underlying coroutine to run.
 
-For specific examples, take a look at `src/event_loop.cc` (which sets up an
-event loop and runs various asynchronous operations for manual
-testing), or check out the unit tests in `test/`.
+Where I/O causes a coroutine to be resumed, the coroutine will typically be run
+by the scheduler ([`src/scheduler.h`](src/scheduler.h)), which you don't need
+to care about. Other types of events, such as a generator yielding or a
+coroutine returning, will cause awaiting code to be resumed directly on the
+call stack.
+
+However, as a user you shouldn't have to care about this. While you can set the
+scheduling mode for I/O events in `uvco::runMain()` (`Deferred` vs.
+`Immediate`), the externally visible behavior should be the same, and code will
+work in both modes. If it doesn't: that's a bug in uvco.
+
+Some types - like buffers received by sockets - use simple types like strings,
+which are easy to handle but not super efficient. This may need to be
+generalized.
 
 ## Goal
 
@@ -37,6 +42,16 @@ Provide ergonomic asynchronous abstractions of all libuv functionality, at
 satisfactory performance.
 
 ## Example
+
+To run a coroutine, you need to set up an event loop. This is done by calling
+`uvco::runMain` with a lambda that returns a `uvco::Promise<void>`. (Strictly speaking, you don't
+need to return the promise, it is enough to set it up and then drop it; once I/O
+has been set up on the UV event loop, the application will run until all I/O is finished.)
+
+A `Promise<T>` is a coroutine promise, and can be awaited. It is the basic unit, and only
+access to concurrency; there is no `Task` or such. Awaiting a promise will save the current
+execution state, and resume it as soon as the promise is ready. Currently, promises cannot
+be cancelled (due to the lack of `Task`s).
 
 ### Basic event loop set-up
 
