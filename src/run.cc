@@ -6,12 +6,6 @@
 
 namespace uvco {
 
-void runMain(const SetupFn &main, Scheduler::RunMode mode) {
-  Loop loop{mode};
-  main(loop);
-  loop.run();
-}
-
 Loop::Loop(Scheduler::RunMode mode)
     : loop_{std::make_unique<uv_loop_t>()},
       scheduler_{std::make_unique<Scheduler>(mode)} {
@@ -27,7 +21,7 @@ Loop::~Loop() {
   runOne();
   if (0 != uv_loop_close(loop_.get())) {
     fmt::print(stderr, "Loop::~Loop(): uv_loop_close() failed; there were "
-                       "still resources on the loop.");
+                       "still resources on the loop.\n");
   }
 }
 

@@ -13,7 +13,13 @@ namespace uvco {
 
 StreamBase::~StreamBase() {
   // close() MUST be called and awaited before dtor.
-  BOOST_ASSERT(!stream_);
+  if (stream_) {
+    fmt::print(stderr, "StreamBase::~StreamBase(): closing stream in dtor. "
+                       "Please co_await stream.close() if possible.\n");
+    closeHandle(
+        stream_.get(),
+        [](uv_stream_t *, void (*onClose)(uv_handle_t *)) { /* ignore */ });
+  }
 }
 
 TtyStream TtyStream::tty(const Loop &loop, int fd) {

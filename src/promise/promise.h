@@ -134,6 +134,24 @@ public:
   /// Returns if promise has been fulfilled.
   bool ready() { return core_->slot_.has_value(); }
 
+  T unwrap() {
+    if (ready()) {
+      auto &slot = core_->slot.value();
+      switch (slot.index()) {
+        fmt::print(stderr, "index: {}\n", slot.index());
+      case 0: {
+        return std::move(std::get<0>(slot));
+      case 1:
+        std::rethrow_exception(std::get<1>(slot));
+      default:
+        throw UvcoException("PromiseAwaiter_::await_resume: invalid slot");
+      }
+      }
+    } else {
+      throw UvcoException("unwrap called on unfulfilled promise");
+    }
+  }
+
 protected:
   /// Returned as awaiter object when `co_await`ing a promise.
   ///
@@ -235,6 +253,10 @@ public:
   /// Returns whether the promise has already been fulfilled.
   bool ready() { return core_->ready; }
 
+  // Get the result *right now*, and throw an exception if the promise
+  // is not ready, or if it encountered an exception itself.
+  void unwrap();
+
 private:
   /// Handles the actual suspension and resumption.
   struct PromiseAwaiter_ {
@@ -260,4 +282,5 @@ private:
 };
 
 /// @}
+
 } // namespace uvco

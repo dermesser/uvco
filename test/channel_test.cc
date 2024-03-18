@@ -76,11 +76,13 @@ TEST(ChannelTest, boundedQueueFull) {
 
     co_await chan.put(1);
     co_await chan.put(2);
-    EXPECT_THROW({ co_await chan.put(3); }, UvcoException);
+    // The following statement doesn't return.
+    co_await chan.put(3);
     EXPECT_FALSE(true); // This line should not be reached.
   };
 
-  run_loop(setup);
+  // run_loop throws because the coroutine isn't finished.
+  EXPECT_THROW({ run_loop(setup); }, UvcoException);
 }
 
 TEST(ChannelTest, blockingRead) {
@@ -178,7 +180,6 @@ TEST(ChannelTest, tooManyWaiters) {
   auto reader = [](Channel<int> &chan) -> Promise<void> {
     try {
       co_await chan.get();
-      fmt::print(stderr, "This line should not be reached.\n");
     } catch (const UvcoException &e) {
       fmt::print(stderr, "Caught exception: {}\n", e.what());
       throw e;

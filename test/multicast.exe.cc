@@ -98,9 +98,9 @@ Promise<void> printPackets(Options opt) {
 
 int main(int argc, const char **argv) {
 
-  runMain([&](const Loop &loop) {
+  runMain<void>([&](const Loop &loop) {
     Options opt = parseOptions(loop, argc, argv);
     // Promise can be dropped! The coroutine still lives on the event loop.
-    printPackets(opt);
+    return printPackets(opt);
   });
 }

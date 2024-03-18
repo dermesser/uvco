@@ -76,4 +76,16 @@ Promise<void>::~Promise() {
     core_->delRef();
   }
 }
+
+void Promise<void>::unwrap() {
+  if (ready()) {
+    if (core_->exception_) {
+      fmt::print(stderr, "Exception\n");
+      std::rethrow_exception(core_->exception_.value());
+    }
+  } else {
+    throw UvcoException(UV_EAGAIN, "unwrap called on unfulfilled promise");
+  }
+}
+
 } // namespace uvco

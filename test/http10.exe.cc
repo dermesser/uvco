@@ -27,9 +27,8 @@ Promise<void> testHttpRequest(const Loop &loop) {
 // Manual setup: this will be part of uvco later.
 void run_loop() {
   // As described in the first example.
-  uvco::runMain([](const Loop &loop) -> uvco::Promise<void> {
-    Promise<void> p = testHttpRequest(loop);
-    co_await p;
+  uvco::runMain<void>([](const Loop &loop) -> uvco::Promise<void> {
+    return testHttpRequest(loop);
   });
 }
 

@@ -143,20 +143,22 @@ Promise<void> client(Options opt) {
   fmt::print(stderr, "> client done\n");
 }
 
-void run(Options opt, const Loop &loop) {
+Promise<void> run(Options opt, const Loop &loop) {
   opt.loop = &loop;
 
   if (opt.server) {
-    server(opt);
+    return server(opt);
   } else {
-    client(opt);
+    return client(opt);
   }
 }
 
 int main(int argc, const char **argv) {
   Options opt = parseOptions(argc, argv);
 
-  uvco::runMain([&opt](const uvco::Loop &loop) { run(opt, loop); });
+  uvco::runMain<void>([&opt](const uvco::Loop &loop) -> Promise<void> {
+    return run(opt, loop);
+  });
 
   return 0;
 }
