@@ -44,16 +44,17 @@ satisfactory performance.
 ## Example
 
 To run a coroutine, you need to set up an event loop. This is done by calling
-`uvco::runMain` with a lambda that returns a `uvco::Promise<void>`. (Strictly speaking, you don't
-need to return the promise, it is enough to set it up and then drop it; once I/O
-has been set up on the UV event loop, the application will run until all I/O is finished.
-However, it is sometimes safer to use the `runMain()` version taking a coroutine, because
-objects allocated within the coroutine will be kept alive.)
+`uvco::runMain` with a lambda that returns a `uvco::Promise<T>`. `runMain()` either
+returns the resulting value after the event loop has finished, or throws an exception if
+a coroutine threw one.
 
 A `Promise<T>` is a coroutine promise, and can be awaited. It is the basic unit, and only
 access to concurrency; there is no `Task` or such. Awaiting a promise will save the current
 execution state, and resume it as soon as the promise is ready. Currently, promises cannot
 be cancelled (due to the lack of `Task`s).
+
+When in doubt, refer to the examples in `test/`; they are actively maintained and keep the
+current state of the examples below.
 
 ### Basic event loop set-up
 
@@ -68,7 +69,7 @@ void run_loop() {
   // The `loop` mediates access to the event loop and is used by uvco's types.
   // Create a "root" promise by calling a coroutine, e.g. one that
   // sets up a server.
-  uvco::runMain([](const Loop& loop) -> uvco::Promise<void> {
+  uvco::runMain<void>([](const Loop& loop) -> uvco::Promise<void> {
     co_await someAsynchronousFunction(loop);
   });
 }
@@ -102,7 +103,7 @@ Promise<void> testHttpRequest(const Loop& loop) {
 // Manual setup: this will be part of uvco later.
 void run_loop() {
   // As described in the first example.
-  runMain([](const Loop& loop) -> Promise<void> {
+  runMain<void>([](const Loop& loop) -> Promise<void> {
     Promise<void> p = testHttpRequest(loop);
     co_await p;
   });
@@ -139,8 +140,9 @@ Promise<void> echoTcpServer(const Loop& loop) {
 
   while (true) {
     std::optional<TcpStream> client = co_await clients;
-    if (!client)
+    if (!client) {
       break;
+    }
     Promise<void> clientLoop = echoReceived(std::move(*client));
     clientLoops.push_back(clientLoop);
   }
@@ -149,8 +151,9 @@ Promise<void> echoTcpServer(const Loop& loop) {
 int main(void) {
   // It also works with a plain function: awaiting a promise is not necessary
   // (but more intuitive).
-  runMain([](const Loop& loop) {
+  runMain<void>([](const Loop& loop) -> Promise<void> {
     Promise<void> server = echoTcpServer(loop);
+    return server;
   });
 }
 
