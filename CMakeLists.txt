@@ -80,12 +80,13 @@ endforeach()
 
 # Coverage
 
-set(GCOV_BINARY gcov)
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    set(GCOV_BINARY "llvm-cov gcov")
-endif()
+find_program(LLVM_COV_BINARY NAMES llvm-cov llvm-cov-18)
 
 add_custom_target(coverage
     COMMAND mkdir -p coverage
-    COMMAND gcovr --html-nested -o coverage/uvco.html --gcov-executable ${GCOV_BINARY} -r .. --gcov-executable "llvm-cov gcov"
+    COMMAND gcovr --html-nested -o coverage/uvco.html --gcov-executable "${LLVM_COV_BINARY} gcov" -r ..
+)
+add_custom_target(grcov
+    COMMAND mkdir -p grcov
+    COMMAND grcov . -s .. --binary-path . -t html --branch --ignore-not-existing -o grcov
 )
