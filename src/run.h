@@ -63,16 +63,49 @@ private:
 /// Finally, clean up once the event loop has finished.
 ///
 /// Equivalent to `runMain([](const Loop &loop) { main(); co_return; })`.
+///
+/// Note that anything allocated in the `main` function is destroyed before
+/// or while any coroutines started by it are running. Make sure to copy
+/// all the required arguments into the started coroutines.
+///
+/// Bad:
+/// 
+/// ```cpp
+/// runMain([](const Loop &loop) {
+///   std::string x = "hello";
+///   somePromise(&x);
+/// {);
+/// ```
+///
+/// Better:
+///
+/// ```cpp
+/// runMain([](const Loop &loop) {
+///   std::string x = "hello";
+///   // Copy, not reference or pointer.
+///   somePromise(x);
+/// });
+/// ```
+///
+/// This works because the C++ runtime keeps a copy of the Promise object
+/// in the coroutine state. The event loop can schedule the coroutine even
+/// after the `main` function has finished. `runMain()` waits for the
+/// event loop to finish before returning.
 void runMain(const SetupFn &main,
              Scheduler::RunMode mode = Scheduler::RunMode::Deferred);
 
 /// Run a function returning a promise, and return the result once the event
 /// loop has finished. Note that for server functions, the event loop typically
 /// doesn't finish.
+///
+/// Essentially the same as `runMain()` but with a return value.
 template <typename R>
 R runMain(const RootFn<R> &main,
           Scheduler::RunMode mode = Scheduler::RunMode::Deferred) {
   Loop loop{mode};
+  if constexpr (std::is_void_v<R>) {
+    fmt::print(stderr, "runMain(const RootFn&, ...) used with void return type. You can probably use runMain(const SetupFn&). \n");
+  }
   Promise<R> promise = main(loop);
   loop.run();
   if (!promise.ready()) {

@@ -69,7 +69,7 @@ Promise<void> sendSome(const Options &opt, AddressHandle dst,
   co_await udp.close();
 }
 
-Promise<void> printPackets(const Options &opt) {
+Promise<void> printPackets(Options opt) {
   Udp udp{opt.loop};
   std::vector<Promise<void>> active;
 
@@ -96,12 +96,11 @@ Promise<void> printPackets(const Options &opt) {
   co_await udp.close();
 }
 
-void run(Options opt) { Promise<void> _ = printPackets(opt); }
-
 int main(int argc, const char **argv) {
 
   runMain([&](const Loop &loop) {
     Options opt = parseOptions(loop, argc, argv);
-    run(opt);
+    // Promise can be dropped! The coroutine still lives on the event loop.
+    printPackets(opt);
   });
 }

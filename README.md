@@ -46,7 +46,9 @@ satisfactory performance.
 To run a coroutine, you need to set up an event loop. This is done by calling
 `uvco::runMain` with a lambda that returns a `uvco::Promise<void>`. (Strictly speaking, you don't
 need to return the promise, it is enough to set it up and then drop it; once I/O
-has been set up on the UV event loop, the application will run until all I/O is finished.)
+has been set up on the UV event loop, the application will run until all I/O is finished.
+However, it is sometimes safer to use the `runMain()` version taking a coroutine, because
+objects allocated within the coroutine will be kept alive.)
 
 A `Promise<T>` is a coroutine promise, and can be awaited. It is the basic unit, and only
 access to concurrency; there is no `Task` or such. Awaiting a promise will save the current
