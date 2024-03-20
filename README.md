@@ -58,9 +58,8 @@ current state of the examples below.
 
 ### Basic event loop set-up
 
-It looks a bit counter-intuitive, because the promise is dropped immediately.
-However, calling `someAsynchronousFunction()` will register the promise and the
-event loop will run until it is resolved.
+Return a promise from the main function run by `runMain()`. `runMain()` will return a
+promised result, or throw an exception if a coroutine threw one.
 
 ```cpp
 void run_loop() {
