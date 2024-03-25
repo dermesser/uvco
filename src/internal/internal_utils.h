@@ -16,7 +16,7 @@ namespace uvco {
 /// @addtogroup Internal Utilities
 /// @{
 
-/// Result of a libuv operation.
+/// Result of a libuv operation, an errno error code.
 using uv_status = int;
 
 void log(uv_loop_t *loop, std::string_view message);
@@ -25,6 +25,8 @@ void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf);
 
 void freeUvBuf(const uv_buf_t *buf);
 
+// A polymorphic functor for deleting a `uv_handle_t`. It dispatches
+// to the correct `uv_...` function based on the handle's type.
 struct UvHandleDeleter {
   static void del(uv_handle_t *handle);
   template <typename Handle> void operator()(Handle *handle) {
@@ -95,6 +97,8 @@ T *makeRefCounted()
 
 extern const bool TRACK_LIFETIMES;
 
+/// A utility that can be inherited from in order to log information
+/// about object construction/destruction.
 template <typename T> class LifetimeTracker {
 public:
   explicit LifetimeTracker(std::string name = "") : id_{std::move(name)} {
@@ -137,6 +141,8 @@ protected:
   std::string id_;
 };
 
+/// Assert that an operation is concurrently running only one at a time,
+/// by setting a flag in the constructor and unsetting it in the destructor.
 class FlagGuard {
 public:
   FlagGuard(const FlagGuard &) = delete;
@@ -144,8 +150,9 @@ public:
   FlagGuard &operator=(const FlagGuard &) = delete;
   FlagGuard &operator=(FlagGuard &&) = delete;
 
+  /// Uses Boost assert to ensure that the flag is not already set.
   explicit FlagGuard(bool &flag);
-  ~FlagGuard() { flag_ = false; }
+  ~FlagGuard();
 
 private:
   bool &flag_;

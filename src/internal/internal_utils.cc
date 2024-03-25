@@ -23,10 +23,12 @@ void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
   buf->base = underlying;
   buf->len = size;
 }
+
 void freeUvBuf(const uv_buf_t *buf) {
   if (buf)
     delete[] buf->base;
 }
+
 void UvHandleDeleter::del(uv_handle_t *handle) {
   switch (handle->type) {
   case UV_STREAM:
@@ -64,5 +66,7 @@ FlagGuard::FlagGuard(bool &flag) : flag_{flag} {
   BOOST_ASSERT(!flag_);
   flag = true;
 }
+
+FlagGuard::~FlagGuard() { flag_ = false; }
 
 } // namespace uvco

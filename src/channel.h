@@ -47,7 +47,7 @@ public:
   /// Pop an item from the queue.
   T get() {
     if (empty()) {
-      throw UvcoException(UV_ENODATA, "queue is empty");
+      throw UvcoException(ENODATA, "queue is empty");
     }
     T element = std::move(queue_.at(tail_++));
     tail_ = tail_ % capacity();
