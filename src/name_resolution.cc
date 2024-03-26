@@ -2,19 +2,27 @@
 
 #include <uv.h>
 
-#include <boost/assert.hpp>
-
 #include "exception.h"
 #include "internal/internal_utils.h"
 #include "name_resolution.h"
 #include "promise/promise.h"
 
 #include <algorithm>
+#include <arpa/inet.h>
+#include <boost/assert.hpp>
+#include <cerrno>
 #include <coroutine>
 #include <cstdint>
 #include <cstring>
+#include <fmt/core.h>
+#include <netdb.h>
+#include <netinet/in.h>
 #include <optional>
 #include <span>
+#include <string>
+#include <string_view>
+#include <sys/socket.h>
+#include <variant>
 
 namespace uvco {
 
@@ -47,10 +55,12 @@ AddressHandle::AddressHandle(std::span<const uint8_t> ipv4_or_6, uint16_t port,
 }
 
 std::string AddressHandle::toString() const {
-  if (family() == AF_INET)
+  if (family() == AF_INET) {
     return fmt::format("{}:{}", address(), port());
-  if (family() == AF_INET6)
+  }
+  if (family() == AF_INET6) {
     return fmt::format("[{}]:{}", address(), port());
+  }
   return {};
 }
 uint16_t AddressHandle::port() const {
@@ -82,8 +92,9 @@ AddressHandle::AddressHandle(std::string_view ip, uint16_t port,
   if (ip.contains(':')) {
     struct in6_addr ipAddr {};
     uv_status status = inet_pton(AF_INET6, ip.data(), &ipAddr);
-    if (status != 1)
+    if (status != 1) {
       throw UvcoException(fmt::format("invalid IPv6 address: {}", ip));
+    }
 
     struct sockaddr_in6 addr {};
     addr.sin6_family = AF_INET6;
@@ -94,8 +105,9 @@ AddressHandle::AddressHandle(std::string_view ip, uint16_t port,
   } else {
     struct in_addr ipAddr;
     uv_status status = inet_pton(AF_INET, ip.data(), &ipAddr);
-    if (status != 1)
+    if (status != 1) {
       throw UvcoException(fmt::format("invalid IPv4 address: {}", ip));
+    }
 
     struct sockaddr_in addr {};
     addr.sin_family = AF_INET;

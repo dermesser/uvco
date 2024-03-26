@@ -7,7 +7,6 @@
 #include <boost/assert.hpp>
 #include <fmt/format.h>
 
-#include "exception.h"
 #include "internal/internal_utils.h"
 #include "name_resolution.h"
 #include "promise/multipromise.h"
@@ -16,8 +15,11 @@
 #include "stream.h"
 
 #include <coroutine>
+#include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
+#include <sys/socket.h>
 #include <utility>
 
 namespace uvco {

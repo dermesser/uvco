@@ -1,11 +1,15 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include <uv.h>
+#include <uv/unix.h>
+
 #include "pipe.h"
 #include "run.h"
 #include "stream.h"
 
 #include <array>
 #include <memory>
+#include <utility>
 
 namespace uvco {
 

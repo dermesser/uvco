@@ -13,7 +13,7 @@
 namespace uvco {
 
 struct CloseAwaiter {
-  bool await_ready() const;
+  [[nodiscard]] bool await_ready() const;
   bool await_suspend(std::coroutine_handle<> handle);
   void await_resume();
 

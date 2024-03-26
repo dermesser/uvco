@@ -1,8 +1,12 @@
-// uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
+// uvco (c) 2025 Lewin Bormann. See LICENSE for specific terms.
+#include <uv.h>
 
 #include "run.h"
 #include "scheduler.h"
+
 #include <cstdio>
+#include <fmt/core.h>
+#include <memory>
 
 namespace uvco {
 

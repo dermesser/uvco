@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "exception.h"
+#include "promise/promise.h"
 #include "scheduler.h"
-#include <functional>
+
 #include <memory>
 #include <type_traits>
 #include <uv.h>

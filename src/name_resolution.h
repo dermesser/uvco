@@ -2,8 +2,13 @@
 
 #pragma once
 
+#include "internal/internal_utils.h"
 #include "promise/promise.h"
 
+#include <cstddef>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <uv.h>
 
 #include <coroutine>
@@ -51,15 +56,17 @@ public:
   explicit AddressHandle(const struct sockaddr *sa);
 
   // The address, formatted by `inet_ntop(3)`.
-  std::string address() const { return std::visit(NtopHelper_{}, addr_); }
-  uint16_t port() const;
+  [[nodiscard]] std::string address() const {
+    return std::visit(NtopHelper_{}, addr_);
+  }
+  [[nodiscard]] uint16_t port() const;
   /// Family is either `AF_INET` or `AF_INET6`.
   int family() const;
   /// The inner sockaddr struct. May refer to either a `sockaddr_in` or a
   /// `sockaddr_in6`, depending on `family()`.
-  const struct sockaddr *sockaddr() const;
+  [[nodiscard]] const struct sockaddr *sockaddr() const;
 
-  std::string toString() const;
+  [[nodiscard]] std::string toString() const;
 
 private:
   std::variant<struct sockaddr_in, struct sockaddr_in6> addr_{};

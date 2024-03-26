@@ -1,7 +1,12 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include "scheduler.h"
+#include <uv.h>
+
 #include "close.h"
+#include "promise/promise.h"
+#include "scheduler.h"
+
+#include <coroutine>
 
 namespace uvco {
 

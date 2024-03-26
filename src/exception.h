@@ -4,12 +4,12 @@
 
 #include "internal/internal_utils.h"
 
-#include <fmt/format.h>
-
 #include <exception>
+#include <fmt/core.h>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace uvco {
 

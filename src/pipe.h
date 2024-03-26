@@ -7,6 +7,8 @@
 #include "run.h"
 #include "stream.h"
 
+#include <utility>
+
 namespace uvco {
 
 /// @addtogroup pipe

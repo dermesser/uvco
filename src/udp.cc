@@ -1,5 +1,16 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include <coroutine>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <fmt/core.h>
+#include <optional>
+#include <span>
+#include <string>
+#include <string_view>
+#include <sys/socket.h>
+#include <utility>
 #include <uv.h>
 
 #include <boost/assert.hpp>
@@ -8,10 +19,14 @@
 #include "close.h"
 #include "exception.h"
 #include "internal/internal_utils.h"
+#include "name_resolution.h"
+#include "promise/multipromise.h"
+#include "promise/promise.h"
 #include "scheduler.h"
 #include "udp.h"
 
 #include <array>
+#include <uv/unix.h>
 
 namespace uvco {
 

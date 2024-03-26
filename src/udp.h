@@ -2,10 +2,13 @@
 
 #pragma once
 
+#include <stdio.h>
+#include <sys/socket.h>
 #include <uv.h>
 
 #include <boost/assert.hpp>
 
+#include "internal/internal_utils.h"
 #include "name_resolution.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
@@ -19,6 +22,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <uv/unix.h>
 
 namespace uvco {
 
