@@ -64,7 +64,7 @@ TEST(NameResolutionTest, ipv6Parse) {
 
 TEST(NameResolutionTest, resolveGoogleDotCom) {
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
-    Resolver resolver{loop.uvloop()};
+    Resolver resolver{loop};
     Promise<AddressHandle> ahPromise = resolver.gai("dns.google", 443, AF_INET);
     AddressHandle address = co_await ahPromise;
     EXPECT_EQ(address.port(), 443);

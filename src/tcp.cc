@@ -26,11 +26,11 @@ namespace uvco {
 
 TcpClient::TcpClient(const Loop &loop, std::string target_host_address,
                      uint16_t target_host_port, int af_hint)
-    : loop_{loop.uvloop()}, host_{std::move(target_host_address)},
-      af_hint_{af_hint}, port_{target_host_port} {}
+    : loop_{&loop}, host_{std::move(target_host_address)}, af_hint_{af_hint},
+      port_{target_host_port} {}
 
 TcpClient::TcpClient(const Loop &loop, AddressHandle address)
-    : loop_{loop.uvloop()}, host_{address.address()}, af_hint_{AF_UNSPEC},
+    : loop_{&loop}, host_{address.address()}, af_hint_{AF_UNSPEC},
       port_{address.port()} {}
 
 TcpClient::TcpClient(TcpClient &&other) noexcept
@@ -45,7 +45,7 @@ TcpClient &TcpClient::operator=(TcpClient &&other) noexcept {
 }
 
 Promise<TcpStream> TcpClient::connect() {
-  Resolver resolver{loop_};
+  Resolver resolver{*loop_};
 
   AddressHandle address =
       co_await resolver.gai(host_, fmt::format("{}", port_), af_hint_);
@@ -56,7 +56,7 @@ Promise<TcpStream> TcpClient::connect() {
 
   auto tcp = std::make_unique<uv_tcp_t>();
 
-  uv_tcp_init(loop_, tcp.get());
+  uv_tcp_init(loop_->uvloop(), tcp.get());
   uv_status status =
       uv_tcp_connect(&req, tcp.get(), address.sockaddr(), onConnect);
   if (status < 0) {

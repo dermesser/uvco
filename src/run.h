@@ -42,7 +42,16 @@ public:
 
   explicit operator uv_loop_t *() const;
 
+  // Retrieve the currently active global scheduler associated with the default
+  // loop.
+  static void enqueue(std::coroutine_handle<> handle);
+
 private:
+  // The default loop is the only loop that can be created. It is set/unset by
+  // the constructor/destructor.
+  static Loop *defaultLoop;
+  static Scheduler &currentScheduler();
+
   template <typename R, MainFunction<R> F>
   friend R runMain(F main, Scheduler::RunMode mode);
 

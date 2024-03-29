@@ -156,8 +156,8 @@ Promise<AddressHandle> Resolver::gai(std::string_view host,
   hints.ai_family = af_hint;
   hints.ai_socktype = SOCK_STREAM;
 
-  uv_getaddrinfo(loop_, &awaiter.req_, onAddrinfo, host.data(), port.data(),
-                 &hints);
+  uv_getaddrinfo(loop_->uvloop(), &awaiter.req_, onAddrinfo, host.data(),
+                 port.data(), &hints);
   // Npte: we rely on libuv not resuming before awaiting the result.
   struct addrinfo *result = co_await awaiter;
 

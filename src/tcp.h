@@ -79,7 +79,7 @@ public:
   Promise<TcpStream> connect();
 
 private:
-  uv_loop_t *loop_;
+  const Loop *loop_;
 
   // May be a name or address; resolved upon connect().
   std::string host_;

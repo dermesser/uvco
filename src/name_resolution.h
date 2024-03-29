@@ -4,6 +4,7 @@
 
 #include "internal/internal_utils.h"
 #include "promise/promise.h"
+#include "run.h"
 
 #include <cstddef>
 #include <netdb.h>
@@ -85,7 +86,7 @@ class Resolver {
 
 public:
   /// Instantiate a resolver based on an event loop.
-  explicit Resolver(uv_loop_t *loop) : loop_{loop} {}
+  explicit Resolver(const Loop &loop) : loop_{&loop} {}
 
   /// Resolve a host and port string. Throws an `UvcoException` upon error.
   Promise<AddressHandle> gai(std::string_view host, std::string_view port,
@@ -96,7 +97,7 @@ public:
                              int af_hint = AF_UNSPEC);
 
 private:
-  uv_loop_t *loop_;
+  const Loop *loop_;
 
   static void onAddrinfo(uv_getaddrinfo_t *req, uv_status status,
                          struct addrinfo *result);

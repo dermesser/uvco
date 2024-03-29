@@ -22,7 +22,6 @@
 #include "name_resolution.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
-#include "scheduler.h"
 #include "udp.h"
 
 #include <array>
@@ -41,7 +40,7 @@ Udp::~Udp() {
 
 Promise<void> Udp::bind(std::string_view address, uint16_t port,
                         unsigned int flag) {
-  Resolver resolver{loop_};
+  Resolver resolver{*loop_};
   int hint = 0;
   if ((flag & UV_UDP_IPV6ONLY) != 0U) {
     hint = AF_INET6;
@@ -58,7 +57,7 @@ Promise<void> Udp::bind(std::string_view address, uint16_t port,
 
 Promise<void> Udp::connect(std::string_view address, uint16_t port,
                            bool ipv6only) {
-  Resolver r{loop_};
+  Resolver r{*loop_};
   int hint = ipv6only ? AF_INET6 : AF_UNSPEC;
   AddressHandle addressHandle =
       co_await r.gai(address, fmt::format("{}", port), hint);
@@ -189,7 +188,7 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
   if (awaiter->handle_) {
     auto resumeHandle = *awaiter->handle_;
     awaiter->handle_.reset();
-    Scheduler::enqueue(handle, resumeHandle);
+    Loop::enqueue(resumeHandle);
   }
 }
 
@@ -221,9 +220,9 @@ void Udp::onSendDone(uv_udp_send_t *req, uv_status status) {
   auto *awaiter = (SendAwaiter_ *)req->data;
   awaiter->status_ = status;
   if (awaiter->handle_) {
-    auto handle = *awaiter->handle_;
+    auto resumeHandle = *awaiter->handle_;
     awaiter->handle_.reset();
-    Scheduler::enqueue(req->handle, handle);
+    Loop::enqueue(resumeHandle);
   }
 }
 

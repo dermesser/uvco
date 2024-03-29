@@ -34,7 +34,7 @@ void Scheduler::enqueue(std::coroutine_handle<> handle) {
   }
 
   if (resumable_.empty()) {
-    uv_prepare_start(&prepare_, onprepare);
+    uv_prepare_start(&prepare_, onPrepare);
   }
   resumable_.push_back(handle);
 }

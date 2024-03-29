@@ -8,7 +8,6 @@
 #include "internal/internal_utils.h"
 #include "promise/promise.h"
 #include "run.h"
-#include "scheduler.h"
 #include "stream.h"
 
 #include <array>
@@ -128,7 +127,7 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
   if (awaiter->handle_) {
     auto handle = awaiter->handle_.value();
     awaiter->handle_.reset();
-    Scheduler::enqueue(awaiter->stream_.underlying(), handle);
+    Loop::enqueue(handle);
   }
 }
 
@@ -183,7 +182,7 @@ void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
   BOOST_ASSERT(awaiter->handle_);
   auto handle = awaiter->handle_.value();
   awaiter->handle_.reset();
-  Scheduler::enqueue(awaiter->stream_.underlying(), handle);
+  Loop::enqueue(handle);
 }
 
 } // namespace uvco

@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include <stdio.h>
 #include <sys/socket.h>
 #include <uv.h>
 
@@ -35,7 +34,7 @@ class Udp {
 public:
   /// Set up a UDP object.
   explicit Udp(const Loop &loop)
-      : loop_{loop}, udp_{std::make_unique<uv_udp_t>()} {
+      : loop_{&loop}, udp_{std::make_unique<uv_udp_t>()} {
     uv_udp_init(loop.uvloop(), udp_.get());
   }
   Udp(Udp &&other) = default;
@@ -102,7 +101,7 @@ public:
   [[nodiscard]] uv_udp_t *underlying() const;
 
 private:
-  uv_loop_t *loop_;
+  const Loop *loop_;
   std::unique_ptr<uv_udp_t> udp_;
   bool connected_ = false;
 

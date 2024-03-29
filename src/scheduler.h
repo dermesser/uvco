@@ -83,13 +83,6 @@ public:
   /// code to find the scheduler.
   void setUpLoop(uv_loop_t *loop);
 
-  /// Schedule a coroutine for resumption with the scheduler associated with
-  /// `handle`.
-  template <typename UvHandle>
-  static void enqueue(const UvHandle *handle,
-                      std::coroutine_handle<> corohandle) {
-    ofHandle(handle).enqueue(corohandle);
-  }
   /// Schedule a coroutine for resumption.
   void enqueue(std::coroutine_handle<> handle);
 
@@ -113,7 +106,7 @@ private:
   RunMode run_mode_;
 
   /// Callback called by the libuv event loop after I/O poll.
-  static void onprepare(uv_prepare_t *prepare) {
+  static void onPrepare(uv_prepare_t *prepare) {
     Scheduler &loopData = ofHandle(prepare);
     loopData.runAll();
   }
