@@ -27,11 +27,11 @@ namespace uvco {
 StreamBase::~StreamBase() {
   // close() MUST be called and awaited before dtor.
   if (stream_) {
-    fmt::print(stderr, "StreamBase::~StreamBase(): closing stream in dtor. "
+    fmt::print(stderr, "StreamBase::~StreamBase(): closing stream in dtor; "
+                       "this will leak memory. "
                        "Please co_await stream.close() if possible.\n");
-    closeHandle(
-        stream_.get(),
-        [](uv_stream_t *, void (*onClose)(uv_handle_t *)) { /* ignore */ });
+    // Asynchronously close handle. It's better to leak memory than file descriptors.
+    closeHandle(stream_.release());
   }
 }
 

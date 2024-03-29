@@ -20,8 +20,9 @@ Loop::Loop(Scheduler::RunMode mode)
 
 Loop::~Loop() {
   // Schedule closing of scheduler, which deletes the prepare handle.
-  // Run loop for single turn.
   scheduler_->close();
+  // Run loop again so that all handles have been closed.
+  // A single turn is enough.
   runOne();
   if (0 != uv_loop_close(loop_.get())) {
     fmt::print(stderr, "Loop::~Loop(): uv_loop_close() failed; there were "
