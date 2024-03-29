@@ -31,7 +31,7 @@ Promise<void> udpServer(const Loop &loop, uint64_t &received) {
       break;
     }
     ++received;
-    const std::string &buffer = recvd->first;
+    std::string &buffer = recvd->first;
     auto &from = recvd->second;
     co_await server.send(buffer, from);
     ++counter;
@@ -46,8 +46,7 @@ Promise<void> udpServer(const Loop &loop, uint64_t &received) {
 Promise<void> udpClient(const Loop &loop, uint64_t &sent) {
   // Ensure server has started.
   co_await sleep(loop, 10);
-  // Cannot be const due to mismatch with C library some layers down.
-  const std::string msg = "Hello there!";
+  std::string msg = "Hello there!";
 
   Udp client{loop};
 

@@ -66,7 +66,7 @@ Promise<void> Udp::connect(std::string_view address, uint16_t port,
   connected_ = true;
 }
 
-Promise<void> Udp::send(std::span<const char> buffer,
+Promise<void> Udp::send(std::span<char> buffer,
                         std::optional<AddressHandle> address) {
   SendAwaiter_ sendAwaiter{};
   uv_udp_send_t req;
@@ -75,7 +75,7 @@ Promise<void> Udp::send(std::span<const char> buffer,
   std::array<uv_buf_t, 1> bufs{};
   // The buffer is never written to, so this is necessary to interface
   // with the legacy C code.
-  bufs[0].base = const_cast<char *>(&(*buffer.begin()));
+  bufs[0].base = &(*buffer.begin());
   bufs[0].len = buffer.size_bytes();
 
   const struct sockaddr *addr = nullptr;

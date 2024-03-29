@@ -61,9 +61,10 @@ Options parseOptions(const Loop &loop, int argc, const char **argv) {
 Promise<void> sendSome(const Options &opt, AddressHandle dst,
                        size_t packets = 5, int interval = 1) {
   Udp udp{opt.loop};
+  std::string message = "Hello back";
 
   for (size_t i = 0; i < packets; i++) {
-    co_await udp.send(std::string_view{"hello back"}, dst);
+    co_await udp.send(message, dst);
     co_await sleep(opt.loop, 50 * interval);
   }
   co_await udp.close();

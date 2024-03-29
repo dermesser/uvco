@@ -56,8 +56,9 @@ public:
   Promise<void> connect(std::string_view address, uint16_t port,
                         bool ipv6only = false);
 
-  /// Send to address, or send to connected peer.
-  Promise<void> send(std::span<const char> buffer,
+  /// Send to address, or send to connected peer. Must be a mutable
+  /// buffer because libuv requires it - the buffer will not be modified.
+  Promise<void> send(std::span<char> buffer,
                      std::optional<AddressHandle> address = {});
 
   /// Receive a single UDP packet.
