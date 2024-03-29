@@ -142,3 +142,20 @@ TEST(UdpTest, udpNoClose) {
   // end.
   delete underlying;
 }
+
+TEST(UdpTest, sendNoAddress) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    Udp udp{loop};
+    std::string message = "Hello";
+    try {
+      co_await udp.send(message, {});
+      // Shouldn't reach here.
+      EXPECT_FALSE(true);
+    } catch (const UvcoException &e) {
+      fmt::print(stderr, "Caught exception: {}\n", e.what());
+    }
+    co_await udp.close();
+  };
+
+  run_loop(setup);
+}
