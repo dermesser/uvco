@@ -31,7 +31,12 @@
 namespace uvco {
 
 Udp::~Udp() {
-  BOOST_ASSERT_MSG(!udp_, "UDP protocol must be close()d before destruction");
+  if (udp_) {
+    fmt::print(stderr, "Udp::~Udp(): closing UDP socket in dtor; "
+                       "this will leak memory. "
+                       "Please co_await udp.close() if possible.\n");
+    closeHandle(udp_.release());
+  }
 }
 
 Promise<void> Udp::bind(std::string_view address, uint16_t port,
@@ -336,4 +341,7 @@ std::optional<AddressHandle> Udp::getPeername() const {
   AddressHandle addressHandle{(struct sockaddr *)&address};
   return addressHandle;
 }
+
+uv_udp_t *Udp::underlying() const { return udp_.get(); }
+
 } // namespace uvco

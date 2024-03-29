@@ -99,6 +99,8 @@ public:
   /// is fully closed.
   Promise<void> close();
 
+  [[nodiscard]] uv_udp_t *underlying() const;
+
 private:
   uv_loop_t *loop_;
   std::unique_ptr<uv_udp_t> udp_;

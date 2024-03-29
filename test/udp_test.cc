@@ -119,3 +119,26 @@ TEST(UdpTest, testBroadcast) {
 
   run_loop(setup);
 }
+
+TEST(UdpTest, udpNoClose) {
+  uint64_t counter = 0;
+  const uv_udp_t *underlying{};
+  auto setup = [&counter,
+                &underlying](const Loop &loop) -> uvco::Promise<void> {
+    Udp udp = Udp{loop};
+    const AddressHandle dest{"::1", 38212};
+    underlying = udp.underlying();
+
+    std::string message = "Hello";
+    co_await udp.send(message, dest);
+    ++counter;
+  };
+
+  run_loop(setup);
+  EXPECT_EQ(counter, 1);
+
+  // This test checks what happens if a coroutine finishes without closing the
+  // stream. In order to satisfy asan, we still need to free the memory in the
+  // end.
+  delete underlying;
+}
