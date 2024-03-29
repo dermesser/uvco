@@ -30,7 +30,8 @@ StreamBase::~StreamBase() {
     fmt::print(stderr, "StreamBase::~StreamBase(): closing stream in dtor; "
                        "this will leak memory. "
                        "Please co_await stream.close() if possible.\n");
-    // Asynchronously close handle. It's better to leak memory than file descriptors.
+    // Asynchronously close handle. It's better to leak memory than file
+    // descriptors.
     closeHandle(stream_.release());
   }
 }

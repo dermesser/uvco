@@ -242,7 +242,8 @@ public:
   /// Part of the coroutine protocol: resumes an awaiting coroutine, if there is
   /// one.
   void return_void();
-  /// Part of the coroutine protocol: store exception in core and resume awaiting coroutine.
+  /// Part of the coroutine protocol: store exception in core and resume
+  /// awaiting coroutine.
   void unhandled_exception();
 
   /// Returns an awaiter object for the promise, handling actual suspension and

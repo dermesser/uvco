@@ -91,10 +91,11 @@ TEST(TtyTest, stdoutTest) {
 
 TEST(TtyTest, stdoutNoClose) {
   uint64_t counter = 0;
-  const uv_tty_t* underlying{};
-  auto setup = [&counter, &underlying](const Loop &loop) -> uvco::Promise<void> {
+  const uv_tty_t *underlying{};
+  auto setup = [&counter,
+                &underlying](const Loop &loop) -> uvco::Promise<void> {
     TtyStream stdout = TtyStream::stdout(loop);
-    underlying = (uv_tty_t*)stdout.underlying();
+    underlying = (uv_tty_t *)stdout.underlying();
 
     co_await stdout.write(" ");
     ++counter;
@@ -103,8 +104,9 @@ TEST(TtyTest, stdoutNoClose) {
   run_loop(setup);
   EXPECT_EQ(counter, 1);
 
-  // This test checks what happens if a coroutine finishes without closing the stream.
-  // In order to satisfy asan, we still need to free the memory in the end.
+  // This test checks what happens if a coroutine finishes without closing the
+  // stream. In order to satisfy asan, we still need to free the memory in the
+  // end.
   delete underlying;
 }
 
