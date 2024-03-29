@@ -13,6 +13,8 @@ add_compile_options(-std=c++2b -Wall -fno-inline -pipe)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(-fcolor-diagnostics)
+else()
+    add_compile_options(-fdiagnostics-color=always)
 endif()
 
 if(ENABLE_ASAN)
