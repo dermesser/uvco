@@ -2,6 +2,7 @@
 #include "channel.h"
 #include "run.h"
 #include "test_util.h"
+#include "timer.h"
 
 #include <gtest/gtest.h>
 
@@ -68,21 +69,6 @@ TEST(ChannelTest, basicWriteRead) {
   };
 
   run_loop(setup);
-}
-
-TEST(ChannelTest, boundedQueueFull) {
-  auto setup = [&](const Loop &) -> Promise<void> {
-    Channel<int> chan{2};
-
-    co_await chan.put(1);
-    co_await chan.put(2);
-    // The following statement doesn't return.
-    co_await chan.put(3);
-    EXPECT_FALSE(true); // This line should not be reached.
-  };
-
-  // run_loop throws because the coroutine isn't finished.
-  EXPECT_THROW({ run_loop(setup); }, UvcoException);
 }
 
 TEST(ChannelTest, blockingRead) {

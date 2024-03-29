@@ -14,10 +14,7 @@ constexpr uvco::Scheduler::RunMode runMode = uvco::Scheduler::RunMode::Deferred;
 
 void run_loop(
     const std::function<uvco::Promise<void>(const uvco::Loop &)> &setup) {
-  auto innerSetup = [setup](const uvco::Loop &loop) -> uvco::Promise<void> {
-    co_await setup(loop);
-  };
-  uvco::runMain<void>(innerSetup, runMode);
+  uvco::runMain<void>(setup, runMode);
 }
 
 void run_loop(const std::function<uvco::Promise<void>(uv_loop_t *)> &setup) {

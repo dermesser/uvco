@@ -1,6 +1,7 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
 #include "promise.h"
+#include <coroutine>
 #include <cstdio>
 
 namespace uvco {
@@ -17,7 +18,6 @@ void Promise<void>::return_void() {
 }
 
 void Promise<void>::unhandled_exception() {
-  // std::rethrow_exception(std::current_exception());
   core_->except(std::current_exception());
   core_->resume();
 }
