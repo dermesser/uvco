@@ -15,6 +15,8 @@
 namespace {
 using namespace uvco;
 
+constexpr uint32_t pingPongCount = 1000;
+
 Promise<void> udpServer(const Loop &loop, uint64_t &received) {
   Udp server{loop};
   co_await server.bind("::1", 9999, 0);
@@ -23,7 +25,7 @@ Promise<void> udpServer(const Loop &loop, uint64_t &received) {
       server.receiveMany();
 
   uint32_t counter = 0;
-  while (counter < 10) {
+  while (counter < pingPongCount) {
     auto recvd = co_await packets;
     if (!recvd) {
       break;
@@ -44,13 +46,8 @@ Promise<void> udpServer(const Loop &loop, uint64_t &received) {
 Promise<void> udpClient(const Loop &loop, uint64_t &sent) {
   // Ensure server has started.
   co_await sleep(loop, 10);
-  constexpr static uint32_t max = 10;
   // Cannot be const due to mismatch with C library some layers down.
   const std::string msg = "Hello there!";
-
-  // Ticker stopped automatically after `max` ticks.
-  auto ticker = tick(loop, 10, max);
-  MultiPromise<uint64_t> tickerPromise = ticker->ticker();
 
   Udp client{loop};
 
@@ -67,8 +64,7 @@ Promise<void> udpClient(const Loop &loop, uint64_t &sent) {
   EXPECT_TRUE(client.getPeername());
   EXPECT_EQ(client.getPeername()->toString(), "[::1]:9999");
 
-  for (uint32_t i = 0; i < max; ++i) {
-    co_await tickerPromise;
+  for (uint32_t i = 0; i < pingPongCount; ++i) {
     co_await client.send(msg, {});
     ++sent;
     auto response = co_await client.receiveOne();
@@ -94,7 +90,7 @@ TEST(UdpTest, testPingPong) {
 
   run_loop(setup);
   EXPECT_EQ(sent, received);
-  EXPECT_EQ(sent, 10);
+  EXPECT_EQ(sent, pingPongCount);
 }
 
 TEST(UdpTest, testTtl) {
