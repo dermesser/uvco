@@ -87,10 +87,10 @@ private:
 /// reader.
 ///
 /// When only using a channel to communicate small objects between coroutines,
-/// it takes about 560 ns per send/receive opreation on a slightly older
+/// it takes about 1 µs per send/receive operation on a slightly older
 /// *i5-7300U CPU @ 2.60GHz* CPU (clang 17) using the `RunMode::Deferred` event
 /// loop mode. This includes the entire coroutine dance of suspending/resuming
-/// between the reader and writer. (`RunMode::Immediate` is ca. 25% faster)
+/// between the reader and writer. (`RunMode::Immediate` is ~25% faster)
 ///
 /// Caveat 1: the channel is obviously not thread safe. Only use within one
 /// loop. Caveat 2: As you can notice, the Channel is independent of a `Loop`.

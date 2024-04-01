@@ -11,8 +11,7 @@
 namespace uvco {
 
 void Scheduler::runAll() {
-  // TODO: optimize this by keeping two lists.
-  std::swap(resumableActive_, resumableRunning_);
+  resumableActive_.swap(resumableRunning_);
   for (auto &coro : resumableRunning_) {
     coro.resume();
   }
