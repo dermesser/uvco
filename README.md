@@ -51,7 +51,7 @@ a coroutine threw one.
 A `Promise<T>` is a coroutine promise, and can be awaited. It is the basic unit, and only
 access to concurrency; there is no `Task` or such. Awaiting a promise will save the current
 execution state, and resume it as soon as the promise is ready. Currently, promises cannot
-be cancelled (due to the lack of `Task`s).
+be cancelled.
 
 When in doubt, refer to the examples in `test/`; they are actively maintained and keep the
 current state of the examples below.
@@ -59,7 +59,9 @@ current state of the examples below.
 ### Basic event loop set-up
 
 Return a promise from the main function run by `runMain()`. `runMain()` will return a
-promised result, or throw an exception if a coroutine threw one.
+promised result, or throw an exception if a coroutine threw one. The event loop runs until
+all callbacks are finished and all coroutines have been completed. Callbacks (by libuv)
+trigger coroutine resumption from the event loop, which is defined in `src/run.cc`.
 
 ```cpp
 void run_loop() {

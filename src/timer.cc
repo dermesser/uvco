@@ -86,7 +86,7 @@ public:
     if (resume_) {
       auto resume = *resume_;
       resume_.reset();
-      resume.resume();
+      Loop::enqueue(resume);
     }
   }
 

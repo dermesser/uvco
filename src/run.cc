@@ -28,10 +28,19 @@ Loop::Loop(Scheduler::RunMode mode)
 
 Loop::~Loop() {
   // Schedule closing of scheduler, which deletes the prepare handle.
-  scheduler_->close();
+  // We can't await the promise in the destructor. However, it will
+  // schedule a single callback on the loop, which will enqueue the
+  // scheduler_->close() coroutine. One runAll() call will then run it.
+  Promise<void> schedulerClose = scheduler_->close();
+
   // Run loop again so that all handles have been closed.
   // A single turn is enough.
   runOne();
+
+  // Now run all scheduled handles; especially the scheduler_->close()
+  // coroutine.
+  scheduler_->runAll();
+
   if (0 != uv_loop_close(loop_.get())) {
     fmt::print(stderr, "Loop::~Loop(): uv_loop_close() failed; there were "
                        "still resources on the loop.\n");
@@ -40,7 +49,12 @@ Loop::~Loop() {
 }
 
 void Loop::runOne() { uv_run(loop_.get(), UV_RUN_ONCE); }
-void Loop::run() { uv_run(loop_.get(), UV_RUN_DEFAULT); }
+void Loop::run() {
+  do {
+    runOne();
+    scheduler_->runAll();
+  } while (!scheduler_->empty() || uv_loop_alive(loop_.get()) != 0);
+}
 uv_loop_t *Loop::uvloop() const { return loop_.get(); }
 
 Loop::operator uv_loop_t *() const { return loop_.get(); }

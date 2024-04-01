@@ -100,6 +100,8 @@ public:
   /// Helper method for `close`,; can be called on any
   static Promise<void> close(const uv_loop_t *loop);
 
+  [[nodiscard]] bool empty() const { return resumable_.empty(); }
+
 private:
   std::vector<std::coroutine_handle<>> resumable_ = {};
   uv_prepare_t prepare_ = {};

@@ -15,7 +15,7 @@
 namespace {
 using namespace uvco;
 
-constexpr uint32_t pingPongCount = 1000;
+constexpr uint32_t pingPongCount = 10;
 
 Promise<void> udpServer(const Loop &loop, uint64_t &received) {
   Udp server{loop};
@@ -40,6 +40,7 @@ Promise<void> udpServer(const Loop &loop, uint64_t &received) {
   // Necessary for the receiver promise to return and not leak memory!
   server.stopReceiveMany();
   co_await server.close();
+  fmt::print("udpServer(): done\n");
   co_return;
 }
 
@@ -70,6 +71,7 @@ Promise<void> udpClient(const Loop &loop, uint64_t &sent) {
   }
 
   co_await client.close();
+  fmt::print("udpClient(): done\n");
   co_return;
 }
 

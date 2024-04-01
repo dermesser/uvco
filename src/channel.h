@@ -8,6 +8,7 @@
 
 #include "exception.h"
 #include "promise/promise.h"
+#include "run.h"
 
 #include <boost/assert.hpp>
 #include <coroutine>
@@ -86,9 +87,10 @@ private:
 /// reader.
 ///
 /// When only using a channel to communicate small objects between coroutines,
-/// it takes about 290 ns per send/receive opreation on a slightly older
-/// *i5-7300U CPU @ 2.60GHz* CPU (clang 17). This includes the entire coroutine
-/// dance of suspending/resuming between the reader and writer.
+/// it takes about 560 ns per send/receive opreation on a slightly older
+/// *i5-7300U CPU @ 2.60GHz* CPU (clang 17) using the `RunMode::Deferred` event
+/// loop mode. This includes the entire coroutine dance of suspending/resuming
+/// between the reader and writer. (`RunMode::Immediate` is ca. 25% faster)
 ///
 /// Caveat 1: the channel is obviously not thread safe. Only use within one
 /// loop. Caveat 2: As you can notice, the Channel is independent of a `Loop`.
@@ -118,7 +120,10 @@ public:
     if (!queue_.hasSpace()) {
       // Block until a reader has popped an item.
       ChannelAwaiter_ awaiter{queue_, write_waiting_};
-      BOOST_VERIFY(co_await awaiter);
+      // Return value indicates if queue is filled with >= 1 item (true) or
+      // empty (false).
+      co_await awaiter;
+      BOOST_VERIFY(queue_.hasSpace());
     }
     queue_.put(std::forward<U>(value));
 
@@ -157,15 +162,15 @@ private:
   void awake_reader() {
     if (!read_waiting_.empty()) {
       auto resume = read_waiting_.get();
-      // Not using LoopData for two reasons: #1 Channel doesn't know about the
-      // loop. #2: It is considerably slower at no tangible benefit yet.
-      resume.resume();
+      // Slower than direct resume but interacts more nicely with other
+      // coroutines.
+      Loop::enqueue(resume);
     }
   }
   void awake_writer() {
     if (!write_waiting_.empty()) {
       auto resume = write_waiting_.get();
-      resume.resume();
+      Loop::enqueue(resume);
     }
   }
 
@@ -175,7 +180,6 @@ private:
         : queue_{queue}, waiters_{slot} {}
     bool await_ready() { return false; }
     bool await_suspend(std::coroutine_handle<> handle) {
-      // BOOST_ASSERT(!slot_);
       if (!waiters_.hasSpace()) {
         throw UvcoException(
             UV_EBUSY,

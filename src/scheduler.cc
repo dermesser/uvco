@@ -11,10 +11,12 @@
 namespace uvco {
 
 void Scheduler::runAll() {
-  for (auto coro : resumable_) {
+  // TODO: optimize this by keeping two lists.
+  auto resumableCopy = resumable_;
+  resumable_.clear();
+  for (auto &coro : resumableCopy) {
     coro.resume();
   }
-  resumable_.clear();
   uv_prepare_stop(&prepare_);
 }
 
@@ -22,7 +24,10 @@ Promise<void> Scheduler::close(const uv_loop_t *loop) {
   return ((Scheduler *)uv_loop_get_data(loop))->close();
 }
 
-Promise<void> Scheduler::close() { co_await closeHandle(&prepare_); }
+Promise<void> Scheduler::close() {
+  BOOST_ASSERT(resumable_.empty());
+  co_await closeHandle(&prepare_);
+}
 
 void Scheduler::enqueue(std::coroutine_handle<> handle) {
   // Use of moved-out Scheduler?

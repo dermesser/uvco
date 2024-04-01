@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <optional>
 #include <uv.h>
 
 #include <fmt/format.h>

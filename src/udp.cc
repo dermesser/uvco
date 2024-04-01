@@ -30,6 +30,11 @@
 namespace uvco {
 
 Udp::~Udp() {
+  if (is_receiving_) {
+    fmt::print(stderr, "Udp::~Udp(): please co_await udp.stopReceiveMany() "
+                       "before dropping Udp instance.\n");
+    udpStopReceive();
+  }
   if (udp_) {
     fmt::print(stderr, "Udp::~Udp(): closing UDP socket in dtor; "
                        "this will leak memory. "
@@ -142,12 +147,12 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
     // Awaiter returns empty optional on requested stop (stopReceiveMany()).
     std::optional<std::string> buffer = co_await awaiter;
     if (!buffer) {
-      udpStopReceive();
       break;
     }
     BOOST_ASSERT(awaiter.addr_);
     co_yield std::make_pair(std::move(*buffer), *awaiter.addr_);
   };
+  udp_->data = nullptr;
   co_return;
 }
 
@@ -240,18 +245,16 @@ int Udp::SendAwaiter_::await_resume() {
 }
 
 void Udp::stopReceiveMany() {
+  udpStopReceive();
   auto *currentAwaiter = (RecvAwaiter_ *)udp_->data;
   currentAwaiter->nread_.reset();
   currentAwaiter->buffer_.reset();
-  // currentAwaiter->resume();
   if (currentAwaiter->handle_) {
-    // TODO: using the scheduler here leads to a memory leak of two allocatoins
-    // in receiveMany(). Likely: receiveMany() is not resumed anymore before the
-    // process exits, leaking the memory.
-    // LoopData::enqueue(udp_.get(), *currentAwaiter->handle_);
-    auto handle = *currentAwaiter->handle_;
-    currentAwaiter->handle_.reset();
-    handle.resume();
+    // Don't schedule this on the event loop: we must synchronously terminate
+    // the onReceiveMany() loop, otherwise it will exist after destruction of
+    // the Udp instance and read invalid memory.
+    currentAwaiter->handle_->resume();
+    // Don't touch currentAwaiter after this!!
   }
 }
 
