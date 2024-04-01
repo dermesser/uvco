@@ -31,7 +31,7 @@ Loop::~Loop() {
   // We can't await the promise in the destructor. However, it will
   // schedule a single callback on the loop, which will enqueue the
   // scheduler_->close() coroutine. One runAll() call will then run it.
-  Promise<void> schedulerClose = scheduler_->close();
+  scheduler_->close();
 
   // Run loop again so that all handles have been closed.
   // A single turn is enough.
@@ -52,6 +52,7 @@ void Loop::runOne() { uv_run(loop_.get(), UV_RUN_ONCE); }
 void Loop::run() {
   do {
     runOne();
+    // Run any left-over coroutines, and check if they schedule callbacks.
     scheduler_->runAll();
   } while (!scheduler_->empty() || uv_loop_alive(loop_.get()) != 0);
 }

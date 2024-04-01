@@ -97,7 +97,7 @@ public:
   ///
   /// Otherwise, resources may be leaked. (This is usually not super important,
   /// because the event loop is finishing soon after anyway).
-  Promise<void> close();
+  void close();
 
   [[nodiscard]] bool empty() const { return resumableActive_.empty(); }
 
@@ -107,14 +107,7 @@ private:
   // Vectors of coroutines currently being resumed (while in runAll()).
   std::vector<std::coroutine_handle<>> resumableRunning_ = {};
 
-  uv_prepare_t prepare_ = {};
   RunMode run_mode_;
-
-  /// Callback called by the libuv event loop after I/O poll.
-  static void onPrepare(uv_prepare_t *prepare) {
-    Scheduler &loopData = ofHandle(prepare);
-    loopData.runAll();
-  }
 };
 
 } // namespace uvco

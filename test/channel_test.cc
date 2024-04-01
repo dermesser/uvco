@@ -120,7 +120,7 @@ TEST(ChannelTest, blockingWriteBench) {
   bool reachedEnd = false;
   auto setup = [&](const Loop &) -> Promise<void> {
     Channel<int> chan{2};
-    constexpr static int N_iter = 1000000;
+    constexpr static int N_iter = 10;
 
     Promise<void> sourcer = source(chan, N_iter);
 

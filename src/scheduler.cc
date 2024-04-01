@@ -2,8 +2,6 @@
 
 #include <uv.h>
 
-#include "close.h"
-#include "promise/promise.h"
 #include "scheduler.h"
 
 #include <coroutine>
@@ -16,13 +14,9 @@ void Scheduler::runAll() {
     coro.resume();
   }
   resumableRunning_.clear();
-  uv_prepare_stop(&prepare_);
 }
 
-Promise<void> Scheduler::close() {
-  BOOST_ASSERT(resumableActive_.empty());
-  co_await closeHandle(&prepare_);
-}
+void Scheduler::close() { BOOST_ASSERT(resumableActive_.empty()); }
 
 void Scheduler::enqueue(std::coroutine_handle<> handle) {
   // Use of moved-out Scheduler?
@@ -33,23 +27,11 @@ void Scheduler::enqueue(std::coroutine_handle<> handle) {
     return;
   }
 
-  if (resumableActive_.empty()) {
-    uv_prepare_start(&prepare_, onPrepare);
-  }
   resumableActive_.push_back(handle);
 }
 
-void Scheduler::setUpLoop(uv_loop_t *loop) {
-  uv_loop_set_data(loop, this);
-  uv_prepare_init(loop, &prepare_);
-}
+void Scheduler::setUpLoop(uv_loop_t *loop) { uv_loop_set_data(loop, this); }
 
-Scheduler::~Scheduler() {
-  // Trick: saves us from having to explicitly define move
-  // assignment/constructors.
-  if (resumableActive_.capacity() != 0) {
-    uv_prepare_stop(&prepare_);
-  }
-}
+Scheduler::~Scheduler() = default;
 
 } // namespace uvco
