@@ -97,9 +97,6 @@ public:
   /// because the event loop is finishing soon after anyway).
   Promise<void> close();
 
-  /// Helper method for `close`,; can be called on any
-  static Promise<void> close(const uv_loop_t *loop);
-
   [[nodiscard]] bool empty() const { return resumable_.empty(); }
 
 private:

@@ -20,10 +20,6 @@ void Scheduler::runAll() {
   uv_prepare_stop(&prepare_);
 }
 
-Promise<void> Scheduler::close(const uv_loop_t *loop) {
-  return ((Scheduler *)uv_loop_get_data(loop))->close();
-}
-
 Promise<void> Scheduler::close() {
   BOOST_ASSERT(resumable_.empty());
   co_await closeHandle(&prepare_);
