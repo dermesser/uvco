@@ -63,7 +63,9 @@ public:
   ///
   /// Call `setUpLoop()` to attach the scheduler to a libuv event loop.
   explicit Scheduler(RunMode mode = RunMode::Deferred) : run_mode_{mode} {
-    resumable_.reserve(16);
+    static constexpr size_t resumableBufferSize = 16;
+    resumableActive_.reserve(resumableBufferSize);
+    resumableRunning_.reserve(resumableBufferSize);
   }
 
   Scheduler(const Scheduler &) = delete;
@@ -97,10 +99,14 @@ public:
   /// because the event loop is finishing soon after anyway).
   Promise<void> close();
 
-  [[nodiscard]] bool empty() const { return resumable_.empty(); }
+  [[nodiscard]] bool empty() const { return resumableActive_.empty(); }
 
 private:
-  std::vector<std::coroutine_handle<>> resumable_ = {};
+  // Vectors of coroutine handles to be resumed.
+  std::vector<std::coroutine_handle<>> resumableActive_ = {};
+  // Vectors of coroutines currently being resumed (while in runAll()).
+  std::vector<std::coroutine_handle<>> resumableRunning_ = {};
+
   uv_prepare_t prepare_ = {};
   RunMode run_mode_;
 
