@@ -8,7 +8,7 @@ find_package(PkgConfig)
 pkg_check_modules(FMT REQUIRED fmt)
 pkg_check_modules(UV REQUIRED libuv)
 
-find_package(Boost COMPONENTS log log_setup REQUIRED)
+find_package(Boost 1.80 COMPONENTS log log_setup program_options REQUIRED)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 add_compile_options(-std=c++2b -Wall -fno-inline -pipe)
@@ -79,10 +79,10 @@ endforeach()
 
 foreach(TESTBINARY IN ITEMS tcp-broadcaster multicast http10 memcached-impl)
     add_executable(test-${TESTBINARY} test/${TESTBINARY}.exe.cc)
-    target_link_libraries(test-${TESTBINARY} PRIVATE uv-co-lib boost_program_options)
+    target_link_libraries(test-${TESTBINARY} PRIVATE uv-co-lib Boost::program_options)
 endforeach()
 
-target_link_libraries(test-memcached-impl PRIVATE ${Boost_LOG_LIBRARY} ${Boost_LOG_SETUP_LIBRARY})
+target_link_libraries(test-memcached-impl PRIVATE Boost::log Boost::log_setup)
 
 # Coverage
 
