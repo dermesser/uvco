@@ -1,12 +1,12 @@
 /** A toy implementation of the memcached text protocol.
-*
-* Used to demonstrate viability of using uvco for network programming.
-*
-* The parser is trivial and not very robust.
-*
-* The `memcached_client.py` script can be used for issuing simple get/set
-* commands.
-*/
+ *
+ * Used to demonstrate viability of using uvco for network programming.
+ *
+ * The parser is trivial and not very robust.
+ *
+ * The `memcached_client.py` script can be used for issuing simple get/set
+ * commands.
+ */
 
 #include "name_resolution.h"
 #include "run.h"
@@ -57,7 +57,7 @@ struct Command {
       cache.erase(it);
       return "DELETED\r\n";
     }
-    case Type::Unknown:
+    default:
       return "ERROR\r\n";
     }
   }
