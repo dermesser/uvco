@@ -5,26 +5,23 @@
 #include "promise/multipromise.h"
 #include "promise/promise.h"
 #include "run.h"
+#include "stream.h"
 #include "test_util.h"
 #include "timer.h"
 
+#include <array>
 #include <coroutine>
+#include <cstdint>
+#include <cstdio>
 #include <optional>
 #include <string>
 
 #include <gtest/gtest.h>
+#include <sys/socket.h>
+#include <uv.h>
 
 namespace {
 using namespace uvco;
-
-TEST(PromiseTest, voidImmediate) {
-  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
-    Promise<void> p = Promise<void>::immediate();
-    co_await p;
-  };
-
-  run_loop(setup);
-}
 
 TEST(NameResolutionTest, ipv4Raw) {
   constexpr std::array<uint8_t, 4> ip4{127, 0, 0, 1};

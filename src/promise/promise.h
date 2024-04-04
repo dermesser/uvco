@@ -3,13 +3,16 @@
 #pragma once
 
 #include "exception.h"
+#include "internal/internal_utils.h"
 #include "promise_core.h"
 
 #include <boost/assert.hpp>
+#include <cstdio>
 #include <fmt/format.h>
 
 #include <coroutine>
 #include <exception>
+#include <utility>
 
 namespace uvco {
 
@@ -176,7 +179,7 @@ protected:
     bool await_suspend(std::coroutine_handle<> handle) {
       BOOST_ASSERT_MSG(!core_->willResume(),
                        "promise is already being waited on!\n");
-      core_->set_resume(handle);
+      core_->set_handle(handle);
       return true;
     }
     /// Part of the coroutine protocol: extracts the resulting value from the
@@ -225,10 +228,6 @@ public:
   Promise &operator=(Promise<void> &&other) noexcept;
   Promise(const Promise<void> &other);
   ~Promise();
-
-  /// Construct a Promise<void> that is immediately ready. Usually not
-  /// necessary: just use a coroutine which immediately `co_return`s.
-  static Promise<void> immediate();
 
   /// Part of the coroutine protocol.
   Promise<void> get_return_object() { return *this; }

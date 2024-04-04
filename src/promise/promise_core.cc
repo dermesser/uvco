@@ -1,10 +1,16 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include "promise/promise_core.h"
 #include "promise.h"
+#include <coroutine>
+#include <cstdio>
+#include <exception>
+#include <fmt/core.h>
+#include <utility>
 
 namespace uvco {
 
-void PromiseCore<void>::set_resume(std::coroutine_handle<> h) {
+void PromiseCore<void>::set_handle(std::coroutine_handle<> h) {
   BOOST_ASSERT(state_ == PromiseState::init);
   resume_ = h;
   state_ = PromiseState::waitedOn;

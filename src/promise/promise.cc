@@ -1,16 +1,14 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
 #include "promise.h"
+#include "exception.h"
 #include <coroutine>
 #include <cstdio>
+#include <exception>
+#include <fmt/core.h>
+#include <uv.h>
 
 namespace uvco {
-
-Promise<void> Promise<void>::immediate() {
-  Promise<void> imm{};
-  imm.core_->immediateFulfill();
-  return imm;
-}
 
 void Promise<void>::return_void() {
   core_->ready = true;
@@ -26,7 +24,7 @@ bool Promise<void>::PromiseAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
   BOOST_ASSERT_MSG(!core_->willResume(),
                    "promise is already being waited on!\n");
-  core_->set_resume(handle);
+  core_->set_handle(handle);
   return true;
 }
 

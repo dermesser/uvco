@@ -3,7 +3,12 @@
 
 #include "exception.h"
 #include "promise.h"
+#include "promise/promise_core.h"
+
+#include <coroutine>
 #include <exception>
+#include <memory>
+#include <optional>
 
 namespace uvco {
 
@@ -25,9 +30,9 @@ public:
 
   ~MultiPromiseCore() override = default;
 
-  /// See `PromiseCore::set_resume`. In contrast, a finished multipromise core
+  /// See `PromiseCore::set_handle`. In contrast, a finished multipromise core
   /// can be reset to the waiting state, in order to yield the next value.
-  void set_resume(std::coroutine_handle<> handle) override {
+  void set_handle(std::coroutine_handle<> handle) override {
     // Once an external scheduler works, Promises will not be nested anymore
     // (resume called by resume down in the stack)
     //
@@ -35,13 +40,13 @@ public:
     // == PromiseState::init || PromiseCore<T>::state_ ==
     // PromiseState::finished);
     //
-    // state is init or running (latter can occur if set_resume is called from a
+    // state is init or running (latter can occur if set_handle is called from a
     // stack originating at resume()).
     BOOST_ASSERT_MSG(PromiseCore<T>::state_ != PromiseState::waitedOn,
                      "MultiPromise must be co_awaited before next yield");
-    BOOST_ASSERT_MSG(!PromiseCore<T>::resume_,
+    BOOST_ASSERT_MSG(!PromiseCore<T>::handle_,
                      "MultiPromise must be co_awaited before next yield");
-    PromiseCore<T>::resume_ = handle;
+    PromiseCore<T>::handle_ = handle;
     PromiseCore<T>::state_ = PromiseState::waitedOn;
   }
   /// See `Promise::resume`. Implemented here to provide a distinction in stack
@@ -181,7 +186,7 @@ protected:
     virtual bool await_suspend(std::coroutine_handle<> handle) {
       BOOST_ASSERT_MSG(!core_->willResume(),
                        "promise is already being waited on!\n");
-      core_->set_resume(handle);
+      core_->set_handle(handle);
       return true;
     }
     /// Part of the coroutine protocol. Returns a value if `co_yield` was called

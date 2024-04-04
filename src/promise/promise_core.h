@@ -3,6 +3,7 @@
 #pragma once
 
 #include <exception>
+#include <fmt/core.h>
 #include <internal/internal_utils.h>
 
 #include <boost/assert.hpp>
@@ -23,7 +24,7 @@ namespace uvco {
 ///
 /// Initially, `init` marks a newly constructed promise. Once a coroutine waits
 /// for its result, the promise transitions to `waitedOn`. At that point, the
-/// `resume_` field contains a resume handle (of the waiter). Once the promise
+/// `handle_` field contains a resume handle (of the waiter). Once the promise
 /// is ready and the caller is resumed, the state transitions to `running`.
 /// After the caller has been run (and suspended again), the state is
 /// `finished`, and no more operations may be executed on this promise.
@@ -58,14 +59,14 @@ public:
       : slot{std::move(value)}, state_{PromiseState::finished} {}
 
   /// Set the coroutine to be resumed once a result is ready.
-  virtual void set_resume(std::coroutine_handle<> handle) {
+  virtual void set_handle(std::coroutine_handle<> handle) {
     BOOST_ASSERT(state_ == PromiseState::init);
-    resume_ = handle;
+    handle_ = handle;
     state_ = PromiseState::waitedOn;
   }
 
   /// Checks if a coroutine is waiting on this core.
-  bool willResume() { return resume_.has_value(); }
+  bool willResume() { return handle_.has_value(); }
 
   /// Resume a suspended coroutine by directly running it on the current stack.
   /// Upon encountering the first suspension point, or returning, control is
@@ -73,12 +74,12 @@ public:
   ///
   /// A promise core can only be resumed once.
   virtual void resume() {
-    if (resume_) {
+    if (handle_) {
       BOOST_ASSERT(state_ == PromiseState::waitedOn ||
                    state_ == PromiseState::exception);
       state_ = PromiseState::running;
-      auto resume = *resume_;
-      resume_.reset();
+      auto resume = *handle_;
+      handle_.reset();
       resume.resume();
     } else {
       // This occurs if no co_await has occured until resume. Either the promise
@@ -118,8 +119,8 @@ public:
     // the last promise provided by it is gone.
     // Important: we may only destroy a suspended coroutine, not a finished one:
     // co_return already destroys coroutine state.
-    if (resume_) {
-      resume_->destroy();
+    if (handle_) {
+      handle_->destroy();
     }
   }
 
@@ -132,7 +133,7 @@ public:
   std::optional<std::variant<T, std::exception_ptr>> slot;
 
 protected:
-  std::optional<std::coroutine_handle<>> resume_;
+  std::optional<std::coroutine_handle<>> handle_;
   PromiseState state_ = PromiseState::init;
 };
 
@@ -149,7 +150,7 @@ public:
   ~PromiseCore() override;
 
   /// See `PromiseCore::set_resume`.
-  void set_resume(std::coroutine_handle<> h);
+  void set_handle(std::coroutine_handle<> h);
   /// See `PromiseCore::will_resume`.
   bool willResume();
   /// See `PromiseCore::resume`.
