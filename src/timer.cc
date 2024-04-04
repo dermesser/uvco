@@ -26,7 +26,7 @@ class TimerAwaiter {
 public:
   TimerAwaiter(const TimerAwaiter &) = delete;
   TimerAwaiter(TimerAwaiter &&other) noexcept
-      : timer_{std::move(other.timer_)}, resume_{other.resume_},
+      : timer_{std::move(other.timer_)}, handle_{other.handle_},
         stopped_{other.stopped_} {
     timer_->data = this;
     other.closed_ = true;
@@ -34,7 +34,7 @@ public:
   TimerAwaiter &operator=(const TimerAwaiter &) = delete;
   TimerAwaiter &operator=(TimerAwaiter &&other) noexcept {
     timer_ = std::move(other.timer_);
-    resume_ = other.resume_;
+    handle_ = other.handle_;
     stopped_ = other.stopped_;
     timer_->data = this;
     other.closed_ = true;
@@ -67,7 +67,7 @@ public:
 
   bool await_ready() { return isReady(); }
   bool await_suspend(std::coroutine_handle<> handle) {
-    resume_ = handle;
+    handle_ = handle;
     return true;
   }
   bool await_resume() const { return !stopped_; }
@@ -83,16 +83,16 @@ public:
     }
   }
   void resume() {
-    if (resume_) {
-      auto resume = *resume_;
-      resume_.reset();
-      Loop::enqueue(resume);
+    if (handle_) {
+      auto handle = *handle_;
+      handle_.reset();
+      Loop::enqueue(handle);
     }
   }
 
 private:
   std::unique_ptr<uv_timer_t> timer_;
-  std::optional<std::coroutine_handle<>> resume_;
+  std::optional<std::coroutine_handle<>> handle_;
   bool closed_ = false;
   bool stopped_ = false;
 };

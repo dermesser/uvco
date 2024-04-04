@@ -161,16 +161,16 @@ private:
 
   void awake_reader() {
     if (!read_waiting_.empty()) {
-      auto resume = read_waiting_.get();
+      auto handle = read_waiting_.get();
       // Slower than direct resume but interacts more nicely with other
       // coroutines.
-      Loop::enqueue(resume);
+      Loop::enqueue(handle);
     }
   }
   void awake_writer() {
     if (!write_waiting_.empty()) {
-      auto resume = write_waiting_.get();
-      Loop::enqueue(resume);
+      auto handle = write_waiting_.get();
+      Loop::enqueue(handle);
     }
   }
 

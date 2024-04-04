@@ -97,7 +97,8 @@ int TcpClient::ConnectAwaiter_::await_resume() {
 void TcpClient::ConnectAwaiter_::onConnect(uv_status status) {
   status_ = status;
   if (handle_) {
-    handle_->resume();
+    Loop::enqueue(*handle_);
+    handle_.reset();
   }
 }
 
@@ -216,7 +217,7 @@ std::optional<TcpStream> TcpServer::ConnectionAwaiter_::await_resume() {
 void TcpServer::ConnectionAwaiter_::stop() {
   stopped_ = true;
   if (handle_) {
-    handle_->resume();
+    Loop::enqueue(handle_.value());
   }
 }
 

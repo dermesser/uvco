@@ -1,12 +1,17 @@
-// uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
+// uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #pragma once
 
+#include <coroutine>
+#include <string_view>
+#include <uv.h>
+
 #include "internal/internal_utils.h"
 #include "promise/multipromise.h"
+#include "promise/promise.h"
 #include "stream.h"
 #include <memory>
-#include <uv.h>
+
 namespace uvco {
 
 /// @addtogroup Unix Sockets
@@ -29,7 +34,7 @@ public:
   MultiPromise<StreamBase> listen() {}
 
   Promise<void> close() {
-    auto *listenAwaiter = (ConnectionAwaiter_ *)pipe_->data;
+    auto *connectionAwaiter = (ConnectionAwaiter_ *)pipe_->data;
   }
 
 private:

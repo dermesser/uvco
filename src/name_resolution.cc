@@ -6,6 +6,7 @@
 #include "internal/internal_utils.h"
 #include "name_resolution.h"
 #include "promise/promise.h"
+#include "run.h"
 
 #include <algorithm>
 #include <arpa/inet.h>
@@ -178,7 +179,7 @@ void Resolver::onAddrinfo(uv_getaddrinfo_t *req, uv_status status,
   awaiter->addrinfo_ = result;
   awaiter->status_ = status;
   BOOST_ASSERT(awaiter->handle_);
-  awaiter->handle_->resume();
+  Loop::enqueue(*awaiter->handle_);
 }
 
 struct addrinfo *Resolver::AddrinfoAwaiter_::await_resume() {

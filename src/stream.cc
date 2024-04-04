@@ -62,11 +62,11 @@ Promise<void> StreamBase::close() {
   auto stream = std::move(stream_);
   co_await closeHandle(stream.get());
   if (reader_) {
-    reader_->resume();
+    Loop::enqueue(*reader_);
     reader_.reset();
   }
   if (writer_) {
-    writer_->resume();
+    Loop::enqueue(*writer_);
     writer_.reset();
   }
 }

@@ -120,7 +120,8 @@ private:
 
     void resume() {
       if (handle_) {
-        handle_->resume();
+        Loop::enqueue(*handle_);
+        handle_.reset();
       }
     }
 
