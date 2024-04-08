@@ -127,18 +127,17 @@ private:
 
   static void onNewConnection(uv_stream_t *stream, uv_status status);
 
-  uv_loop_t *loop_;
   std::unique_ptr<uv_tcp_t> tcp_;
 
   struct ConnectionAwaiter_ {
-    explicit ConnectionAwaiter_(uv_loop_t *loop) : loop_{loop} {}
+    explicit ConnectionAwaiter_(uv_tcp_t &tcp) : tcp_{tcp} {}
     bool await_ready();
     bool await_suspend(std::coroutine_handle<> handle);
     std::optional<TcpStream> await_resume();
 
     void stop();
 
-    uv_loop_t *loop_;
+    uv_tcp_t &tcp_;
     std::optional<std::coroutine_handle<>> handle_;
     std::optional<TcpStream> streamSlot_;
     std::optional<uv_status> status_;

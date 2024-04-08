@@ -103,8 +103,8 @@ void TcpClient::ConnectAwaiter_::onConnect(uv_status status) {
 }
 
 TcpServer::TcpServer(const Loop &loop, AddressHandle bindAddress, bool ipv6Only)
-    : loop_{loop.uvloop()}, tcp_{std::make_unique<uv_tcp_t>()} {
-  uv_tcp_init(loop_, tcp_.get());
+    : tcp_{std::make_unique<uv_tcp_t>()} {
+  uv_tcp_init(loop.uvloop(), tcp_.get());
   const auto *sockaddr = bindAddress.sockaddr();
   const int flags = ipv6Only ? UV_TCP_IPV6ONLY : 0;
   bind(sockaddr, flags);
@@ -118,7 +118,7 @@ void TcpServer::bind(const struct sockaddr *addr, int flags) {
 }
 
 MultiPromise<TcpStream> TcpServer::listen(int backlog) {
-  ConnectionAwaiter_ awaiter{loop_};
+  ConnectionAwaiter_ awaiter{*tcp_};
   tcp_->data = &awaiter;
 
   uv_listen((uv_stream_t *)tcp_.get(), backlog, onNewConnection);
@@ -145,7 +145,8 @@ Promise<void> TcpServer::close() {
 void TcpServer::onNewConnection(uv_stream_t *stream, uv_status status) {
   const auto *server = (uv_tcp_t *)stream;
   auto *connectionAwaiter = (ConnectionAwaiter_ *)server->data;
-  uv_loop_t *const loop = connectionAwaiter->loop_;
+  uv_loop_t *const loop = connectionAwaiter->tcp_.loop;
+  ;
 
   connectionAwaiter->status_ = status;
   if (status == 0) {
