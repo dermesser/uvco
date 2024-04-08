@@ -140,8 +140,8 @@ private:
 
     uv_loop_t *loop_;
     std::optional<std::coroutine_handle<>> handle_;
-    std::optional<TcpStream> slot_;
-    std::optional<int> status_;
+    std::optional<TcpStream> streamSlot_;
+    std::optional<uv_status> status_;
     bool stopped_ = false;
   };
 };

@@ -2,10 +2,8 @@
 
 #pragma once
 
-#include <optional>
+#include <fmt/core.h>
 #include <uv.h>
-
-#include <fmt/format.h>
 
 #include <cstddef>
 #include <string>

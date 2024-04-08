@@ -124,13 +124,13 @@ MultiPromise<TcpStream> TcpServer::listen(int backlog) {
   uv_listen((uv_stream_t *)tcp_.get(), backlog, onNewConnection);
 
   while (true) {
-    // TODO: specialize stream to enable getsockname etc.
     std::optional<TcpStream> stream = co_await awaiter;
     if (!stream) {
       break;
     }
     co_yield std::move(*stream);
   }
+  tcp_->data = nullptr;
 }
 
 Promise<void> TcpServer::close() {
@@ -144,18 +144,27 @@ Promise<void> TcpServer::close() {
 
 void TcpServer::onNewConnection(uv_stream_t *stream, uv_status status) {
   const auto *server = (uv_tcp_t *)stream;
-  auto *awaiter = (ConnectionAwaiter_ *)server->data;
-  uv_loop_t *const loop = awaiter->loop_;
+  auto *connectionAwaiter = (ConnectionAwaiter_ *)server->data;
+  uv_loop_t *const loop = connectionAwaiter->loop_;
 
-  awaiter->status_ = status;
+  connectionAwaiter->status_ = status;
   if (status == 0) {
     auto clientStream = std::make_unique<uv_tcp_t>();
     uv_tcp_init(loop, clientStream.get());
-    uv_accept((uv_stream_t *)server, (uv_stream_t *)clientStream.get());
-    BOOST_ASSERT(!awaiter->slot_);
-    awaiter->slot_ = TcpStream{std::move(clientStream)};
+    const uv_status acceptStatus =
+        uv_accept((uv_stream_t *)server, (uv_stream_t *)clientStream.get());
+    if (acceptStatus == 0) {
+      BOOST_ASSERT(!connectionAwaiter->streamSlot_);
+      connectionAwaiter->streamSlot_ = TcpStream{std::move(clientStream)};
+    } else {
+      BOOST_ASSERT(!connectionAwaiter->status_);
+      connectionAwaiter->status_ = acceptStatus;
+    }
   }
-  awaiter->handle_->resume();
+  if (connectionAwaiter->handle_) {
+    Loop::enqueue(*connectionAwaiter->handle_);
+    connectionAwaiter->handle_.reset();
+  }
 }
 
 Promise<void> TcpStream::closeReset() {
@@ -192,25 +201,25 @@ void TcpStream::noDelay(bool enable) {
 std::optional<TcpStream> TcpServer::ConnectionAwaiter_::await_resume() {
   // !status_ if close() resumed us.
   if (stopped_) {
-    return {};
+    return std::nullopt;
   }
   if (!status_) {
-    return {};
+    return std::nullopt;
   }
 
   BOOST_ASSERT(status_);
 
   if (*status_ == 0) {
-    BOOST_ASSERT(slot_);
-    TcpStream stream{std::move(*slot_)};
+    BOOST_ASSERT(streamSlot_);
+    TcpStream stream{std::move(*streamSlot_)};
     status_.reset();
-    slot_.reset();
+    streamSlot_.reset();
     return stream;
   } else {
+    BOOST_ASSERT(!streamSlot_);
     uv_status status = *status_;
-    BOOST_ASSERT(!slot_);
     status_.reset();
-    throw UvcoException(status, "TcpServer::listen()");
+    throw UvcoException(status, "TcpServer received error while listening");
   }
 }
 
@@ -223,6 +232,9 @@ void TcpServer::ConnectionAwaiter_::stop() {
 
 bool TcpServer::ConnectionAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
+  BOOST_ASSERT(!handle_);
+  BOOST_ASSERT(!streamSlot_);
+  BOOST_ASSERT(!status_);
   handle_ = handle;
   return true;
 }
