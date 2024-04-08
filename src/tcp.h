@@ -128,7 +128,7 @@ private:
   static void onNewConnection(uv_stream_t *stream, uv_status status);
 
   uv_loop_t *loop_;
-  std::unique_ptr<uv_tcp_t> tcp_;
+  std::unique_ptr<uv_tcp_t, UvHandleDeleter> tcp_;
 
   struct ConnectionAwaiter_ {
     explicit ConnectionAwaiter_(uv_loop_t *loop) : loop_{loop} {}
