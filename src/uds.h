@@ -2,16 +2,16 @@
 
 #pragma once
 
+#include <cstddef>
 #include <fmt/core.h>
+#include <string>
 #include <uv.h>
 
 #include <coroutine>
 #include <memory>
 #include <optional>
 #include <string_view>
-#include <utility>
 
-#include "close.h"
 #include "exception.h"
 #include "internal/internal_utils.h"
 #include "promise/multipromise.h"
@@ -24,7 +24,16 @@ namespace uvco {
 /// @addtogroup Unix Sockets
 /// @{
 
-/// TODO: not yet implemented!
+/// A stream served by a Unix domain socket. In addition to the `StreamBase`
+/// functionality, it provides getSockname() and getPeerName() methods.
+class UnixStream : public StreamBase {
+public:
+  using StreamBase::StreamBase;
+
+  std::string getSockName();
+  std::string getPeerName();
+};
+
 class UnixStreamServer {
   class ConnectionAwaiter_;
 
@@ -35,8 +44,12 @@ public:
   /// @param flags Flags to pass to uv_pipe_bind2. Can be `UV_PIPE_NO_TRUNCATE`.
   UnixStreamServer(const Loop &loop, std::string_view bindPath, int flags = 0);
 
+  /// Configure permissions for socket; flags may be either or a combination of
+  /// `UV_READABLE` and `UV_WRITABLE`.
+  void chmod(int mode);
+
   /// Listen on the given socket. Yields a stream for each incoming connection.
-  MultiPromise<StreamBase> listen(int backlog = 128);
+  MultiPromise<UnixStream> listen(int backlog = 128);
 
   /// Close the server. Ensure to await this to avoid resource leaks.
   Promise<void> close();
@@ -50,14 +63,16 @@ private:
   struct ConnectionAwaiter_ {
     [[nodiscard]] bool await_ready() const;
     bool await_suspend(std::coroutine_handle<> awaitingCoroutine);
-    std::optional<StreamBase> await_resume();
+    std::optional<UnixStream> await_resume();
     void stop();
 
     std::optional<std::coroutine_handle<>> handle_;
-    std::optional<StreamBase> streamSlot_;
+    std::optional<UnixStream> streamSlot_;
     std::optional<uv_status> status_;
     bool stopped_ = false;
   };
 };
+
+/// @}
 
 } // namespace uvco

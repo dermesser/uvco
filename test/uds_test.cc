@@ -16,15 +16,17 @@
 namespace {
 using namespace uvco;
 
-void disabledTest() {
+TEST(UdsTest, UnixStreamServer) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     UnixStreamServer server{loop, "/tmp/uvco_test.sock"};
     try {
-      std::optional<StreamBase> stream = co_await server.listen();
+      std::optional<UnixStream> stream = co_await server.listen();
       if (!stream) {
         fmt::print(stderr, "No stream\n");
         co_return;
       }
+      fmt::print(stderr, "Got stream at {}\n", stream->getSockName());
+      fmt::print(stderr, "Got peer at {}\n", stream->getPeerName());
       co_await stream->write("Hello, world!\n");
       co_await stream->close();
     } catch (const UvcoException &e) {
