@@ -103,7 +103,7 @@ void TcpClient::ConnectAwaiter_::onConnect(uv_status status) {
 }
 
 TcpServer::TcpServer(const Loop &loop, AddressHandle bindAddress, bool ipv6Only)
-    : loop_{loop.uvloop()}, tcp_{new uv_tcp_t{}} {
+    : loop_{loop.uvloop()}, tcp_{std::make_unique<uv_tcp_t>()} {
   uv_tcp_init(loop_, tcp_.get());
   const auto *sockaddr = bindAddress.sockaddr();
   const int flags = ipv6Only ? UV_TCP_IPV6ONLY : 0;

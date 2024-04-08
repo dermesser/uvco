@@ -26,7 +26,8 @@ public:
   /// @param loop The loop to run on.
   /// @param bindPath The path to bind to.
   /// @param flags Flags to pass to uv_pipe_bind2. Can be `UV_PIPE_NO_TRUNCATE`.
-  UnixStreamServer(uv_loop_t *loop, std::string_view bindPath, int flags = 0) {
+  UnixStreamServer(uv_loop_t *loop, std::string_view bindPath, int flags = 0)
+      : pipe_{std::make_unique<uv_pipe_t>()} {
     uv_pipe_init(loop, pipe_.get(), 0);
     uv_pipe_bind2(pipe_.get(), bindPath.data(), bindPath.size(), flags);
   }
@@ -38,7 +39,7 @@ public:
   }
 
 private:
-  std::unique_ptr<uv_pipe_t, UvHandleDeleter> pipe_;
+  std::unique_ptr<uv_pipe_t> pipe_;
 
   class ConnectionAwaiter_ {
   public:
