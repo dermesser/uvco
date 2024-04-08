@@ -17,6 +17,7 @@ Promise<void> echoReceived(TcpStream stream, bool &received, bool &responded) {
   received = true;
   co_await stream.write(std::move(*chunk));
   responded = true;
+  co_await stream.shutdown();
   co_await stream.closeReset();
 }
 

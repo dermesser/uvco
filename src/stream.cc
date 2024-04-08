@@ -58,6 +58,14 @@ Promise<uv_status> StreamBase::write(std::string buf) {
   co_return status;
 }
 
+Promise<void> StreamBase::shutdown() {
+  uv_shutdown_t shutdownReq;
+  shutdownReq.handle = &stream();
+  ShutdownAwaiter_ awaiter{shutdownReq};
+  co_await awaiter;
+  co_return;
+}
+
 Promise<void> StreamBase::close() {
   auto stream = std::move(stream_);
   co_await closeHandle(stream.get());
@@ -183,6 +191,33 @@ void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
   auto handle = awaiter->handle_.value();
   awaiter->handle_.reset();
   Loop::enqueue(handle);
+}
+
+bool StreamBase::ShutdownAwaiter_::await_ready() { return false; }
+
+bool StreamBase::ShutdownAwaiter_::await_suspend(
+    std::coroutine_handle<> handle) {
+  BOOST_ASSERT(!handle_);
+  handle_ = handle;
+
+  req_.data = this;
+  uv_shutdown(&req_, req_.handle, StreamBase::ShutdownAwaiter_::onShutdown);
+  return true;
+}
+
+void StreamBase::ShutdownAwaiter_::await_resume() {
+  BOOST_ASSERT(status_);
+  if (status_ && *status_ != 0) {
+    throw UvcoException{*status_, "StreamBase::shutdown() encountered error"};
+  }
+}
+
+void StreamBase::ShutdownAwaiter_::onShutdown(uv_shutdown_t *req,
+                                              uv_status status) {
+  auto *awaiter = (ShutdownAwaiter_ *)req->data;
+  awaiter->status_ = status;
+  BOOST_ASSERT(awaiter->handle_);
+  Loop::enqueue(*awaiter->handle_);
 }
 
 } // namespace uvco

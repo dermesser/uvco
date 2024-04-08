@@ -4,6 +4,7 @@
 
 #include <uv.h>
 
+#include "exception.h"
 #include "internal/internal_utils.h"
 #include "promise/promise.h"
 #include "run.h"
@@ -43,6 +44,10 @@ public:
   /// long as the process keeps running).
   [[nodiscard]] Promise<uv_status> write(std::string buf);
 
+  /// Shut down stream for writing. This is a half-close; the other side
+  /// can still write. The result of `shutdown()` *must be `co_await`ed*.
+  [[nodiscard]] Promise<void> shutdown();
+
   /// The result of `close()` *must be `co_await`ed*; otherwise memory may be
   /// leaked. (this is not an issue just before termination of a process)
   ///
@@ -67,6 +72,19 @@ private:
   std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
   std::optional<std::coroutine_handle<>> reader_;
   std::optional<std::coroutine_handle<>> writer_;
+
+  struct ShutdownAwaiter_ {
+    explicit ShutdownAwaiter_(uv_shutdown_t &shutdownReq) : req_{shutdownReq} {}
+    static void onShutdown(uv_shutdown_t *req, uv_status status);
+
+    bool await_ready();
+    bool await_suspend(std::coroutine_handle<> handle);
+    void await_resume();
+
+    uv_shutdown_t &req_;
+    std::optional<std::coroutine_handle<>> handle_;
+    std::optional<uv_status> status_;
+  };
 
   struct InStreamAwaiter_ {
     explicit InStreamAwaiter_(StreamBase &stream) : stream_{stream} {}
