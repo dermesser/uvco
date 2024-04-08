@@ -53,6 +53,7 @@ add_library(uv-co-lib STATIC
     src/tcp.cc
     src/timer.cc
     src/udp.cc
+    src/uds.cc
 )
 target_link_libraries(uv-co-lib PRIVATE uv-co-internal ${UV_LIBRARIES} ${FMT_LIBRARIES})
 target_link_libraries(uv-co-lib PUBLIC uv-co-promise)
