@@ -13,7 +13,6 @@
 #include <string_view>
 #include <uv/version.h>
 
-#include "exception.h"
 #include "internal/internal_utils.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
@@ -27,6 +26,9 @@ namespace uvco {
 
 /// A stream served by a Unix domain socket. In addition to the `StreamBase`
 /// functionality, it provides getSockname() and getPeerName() methods.
+///
+/// A UnixStream cannot be created directly; use a `UnixStreamClient` or a
+/// `UnixStreamServer` to create streams.
 class UnixStream : public StreamBase {
 public:
   UnixStream(const UnixStream &) = delete;

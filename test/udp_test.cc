@@ -1,8 +1,11 @@
 
+#include <uv.h>
+
 #include "exception.h"
 #include "name_resolution.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
+#include "run.h"
 #include "timer.h"
 #include "udp.h"
 
@@ -10,12 +13,16 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <fmt/core.h>
 #include <gtest/gtest.h>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace {
 using namespace uvco;
 
-constexpr uint32_t pingPongCount = 10;
+constexpr uint32_t pingPongCount = 1000;
 
 Promise<void> udpServer(const Loop &loop, uint64_t &received) {
   Udp server{loop};
@@ -24,8 +31,7 @@ Promise<void> udpServer(const Loop &loop, uint64_t &received) {
   MultiPromise<std::pair<std::string, AddressHandle>> packets =
       server.receiveMany();
 
-  uint32_t counter = 0;
-  while (counter < pingPongCount) {
+  for (uint32_t counter = 0; counter < pingPongCount; ++counter) {
     auto recvd = co_await packets;
     if (!recvd) {
       break;
@@ -34,7 +40,6 @@ Promise<void> udpServer(const Loop &loop, uint64_t &received) {
     std::string &buffer = recvd->first;
     auto &from = recvd->second;
     co_await server.send(buffer, from);
-    ++counter;
   }
   EXPECT_EQ(server.getSockname().toString(), "[::1]:9999");
   // Necessary for the receiver promise to return and not leak memory!
