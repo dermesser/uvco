@@ -41,6 +41,11 @@ public:
   std::string getPeerName();
 };
 
+/// A client that connects to a Unix domain socket (type `SOCK_STREAM`).
+///
+/// The `connect()` method returns a `Promise<UnixStream>`, which will resolve
+/// when the connection is established. The peer address can be obtained using
+/// the `getPeerName()` method on `UnixStream`.
 class UnixStreamClient {
 public:
   UnixStreamClient(const UnixStreamClient &) = delete;
@@ -58,15 +63,18 @@ private:
   const Loop &loop_;
 
   /// An awaiter class used to wait for a connection to be established.
+  ///
+  /// Implementation note: almost the entire mechanics of connecting is
+  /// handled by the awaiter. The `connect()` method is just a thin wrapper
+  /// around the awaiter; the awaiter's methods also throw exceptions. This
+  /// is different than e.g. in the `TcpClient` class.
   struct ConnectAwaiter_ {
     explicit ConnectAwaiter_(const Loop &loop, std::string_view path);
 
     static void onConnect(uv_connect_t *req, uv_status status);
 
     [[nodiscard]] static bool await_ready();
-
     bool await_suspend(std::coroutine_handle<> handle);
-
     UnixStream await_resume();
 
     uv_connect_t request_{};

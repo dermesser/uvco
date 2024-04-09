@@ -57,18 +57,19 @@ Promise<TcpStream> TcpClient::connect() {
   auto tcp = std::make_unique<uv_tcp_t>();
 
   uv_tcp_init(loop_->uvloop(), tcp.get());
-  uv_status status =
+  const uv_status connectStatus =
       uv_tcp_connect(&req, tcp.get(), address.sockaddr(), onConnect);
-  if (status < 0) {
+  if (connectStatus < 0) {
     // Clean up handle if connect failed.
     co_await closeHandle(tcp.get());
-    throw UvcoException(status, "TcpClient::connect() failed immediately");
+    throw UvcoException(connectStatus,
+                        "TcpClient::connect() failed immediately");
   }
 
-  status = co_await connect;
-  if (status < 0) {
+  const uv_status awaitStatus = co_await connect;
+  if (awaitStatus < 0) {
     co_await closeHandle(tcp.get());
-    throw UvcoException(status, "TcpClient::connect() failed");
+    throw UvcoException(awaitStatus, "TcpClient::connect() failed");
   }
 
   co_return TcpStream{std::move(tcp)};

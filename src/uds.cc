@@ -190,7 +190,6 @@ UnixStreamClient::ConnectAwaiter_::ConnectAwaiter_(const Loop &loop,
 void UnixStreamClient::ConnectAwaiter_::onConnect(uv_connect_t *req,
                                                   uv_status status) {
   auto *awaiter = (ConnectAwaiter_ *)req->data;
-  BOOST_ASSERT(!awaiter->status_);
   awaiter->status_ = status;
   if (awaiter->handle_) {
     Loop::enqueue(awaiter->handle_.value());
