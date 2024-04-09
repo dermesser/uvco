@@ -4,6 +4,7 @@
 #include <fmt/core.h>
 #include <string>
 #include <uv.h>
+#include <uv/version.h>
 
 #include "close.h"
 #include "exception.h"
@@ -26,8 +27,12 @@ UnixStreamServer::UnixStreamServer(const Loop &loop, std::string_view bindPath,
                                    int flags)
     : pipe_{std::make_unique<uv_pipe_t>()} {
   uv_pipe_init(loop.uvloop(), pipe_.get(), 0);
+#if UV_VERSION_MAJOR == 1 && UV_VERSION_MINOR >= 46
   const uv_status bindStatus =
       uv_pipe_bind2(pipe_.get(), bindPath.data(), bindPath.size(), flags);
+#else
+  const uv_status bindStatus = uv_pipe_bind(pipe_.get(), bindPath.data());
+#endif
   if (bindStatus != 0) {
     throw UvcoException{bindStatus, "UnixStreamServer failed to bind"};
   }

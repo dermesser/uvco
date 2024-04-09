@@ -35,8 +35,6 @@ public:
 };
 
 class UnixStreamServer {
-  class ConnectionAwaiter_;
-
 public:
   /// @brief Construct and bind a Unix SOCK_STREAM socket.
   /// @param loop The loop to run on.
