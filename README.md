@@ -13,6 +13,7 @@ Supported functionality:
 * UDP client/server, multicast, broadcast
 * TCP client/server
 * TTY (stdin/stdout)
+* Unix domain sockets (stream, client/server)
 * Anonymous pipes (operating-system-backed) and typed buffered channels (like Go's)
 * Timer functionality (`sleep`, `tick`)
 
@@ -53,8 +54,7 @@ access to concurrency; there is no `Task` or such. Awaiting a promise will save 
 execution state, and resume it as soon as the promise is ready. Currently, promises cannot
 be cancelled.
 
-When in doubt, refer to the examples in `test/`; they are actively maintained and keep the
-current state of the examples below.
+When in doubt, refer to the examples in `test/`; they are actively maintained.
 
 ### Basic event loop set-up
 
@@ -153,8 +153,7 @@ int main(void) {
   // It also works with a plain function: awaiting a promise is not necessary
   // (but more intuitive).
   runMain<void>([](const Loop& loop) -> Promise<void> {
-    Promise<void> server = echoTcpServer(loop);
-    return server;
+    return echoTcpServer(loop);
   });
 }
 
