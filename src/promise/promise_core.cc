@@ -27,7 +27,8 @@ void PromiseCore<void>::resume() {
     state_ = PromiseState::running;
     resumeHandle.resume();
   } else {
-    // If a coroutine returned immediately, or nobody co_awaited for results.
+    // If a coroutine returned immediately, or nobody is f
+    // :co_awaitis for results.
   }
   state_ = PromiseState::finished;
 }

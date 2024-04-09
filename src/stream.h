@@ -36,6 +36,11 @@ public:
 
   /// Read available data (up to 4 kB) from stream. Returns an empty optional on
   /// EOF or closed handle (`close()`).
+  ///
+  /// Implementation note: the actual read start occurs in the awaiter,
+  /// whereas most other types of I/O start in the promise root function.
+  /// For streams it is more convenient to do it like this, but there is no
+  /// deeper reason.
   [[nodiscard]] Promise<std::optional<std::string>> read();
 
   /// Write a buffer to the stream. A copy of `buf` is taken because it is

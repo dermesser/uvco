@@ -2,15 +2,16 @@
 
 #pragma once
 
-#include <cstddef>
 #include <fmt/core.h>
 #include <string>
+#include <utility>
 #include <uv.h>
 
 #include <coroutine>
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <uv/version.h>
 
 #include "exception.h"
 #include "internal/internal_utils.h"
@@ -28,14 +29,69 @@ namespace uvco {
 /// functionality, it provides getSockname() and getPeerName() methods.
 class UnixStream : public StreamBase {
 public:
+  UnixStream(const UnixStream &) = delete;
+  UnixStream(UnixStream &&) = default;
+  UnixStream &operator=(const UnixStream &) = delete;
+  UnixStream &operator=(UnixStream &&) = default;
+  ~UnixStream() override = default;
+
   using StreamBase::StreamBase;
 
   std::string getSockName();
   std::string getPeerName();
 };
 
+class UnixStreamClient {
+public:
+  UnixStreamClient(const UnixStreamClient &) = delete;
+  UnixStreamClient(UnixStreamClient &&) = delete;
+  UnixStreamClient &operator=(const UnixStreamClient &) = delete;
+  UnixStreamClient &operator=(UnixStreamClient &&) = delete;
+  ~UnixStreamClient() = default;
+
+  explicit UnixStreamClient(const Loop &loop) : loop_{loop} {}
+
+  /// Connect to a Unix domain socket at the given path.
+  Promise<UnixStream> connect(std::string_view path);
+
+private:
+  const Loop &loop_;
+
+  /// An awaiter class used to wait for a connection to be established.
+  struct ConnectAwaiter_ {
+    explicit ConnectAwaiter_(uv_pipe_t &pipe, std::string_view path);
+
+    static void onConnect(uv_connect_t *req, uv_status status);
+
+    [[nodiscard]] static bool await_ready();
+
+    bool await_suspend(std::coroutine_handle<> handle);
+
+    void await_resume();
+
+    uv_connect_t request_{};
+    uv_pipe_t &pipe_;
+    std::string_view path_;
+    std::optional<uv_status> status_;
+    std::optional<std::coroutine_handle<>> handle_;
+  };
+};
+
+/// A server that listens for incoming connections on a Unix domain socket (type
+/// `SOCK_STREAM`).
+///
+/// After constructing the server, call `listen()` to start listening. This will
+/// return a `MultiPromise<UnixStream>`, which will yield a new `UnixStream` for
+/// each incoming connection. The peer address can be obtained using the
+/// `getPeerName()` method on `UnixStream`.
 class UnixStreamServer {
 public:
+  UnixStreamServer(const UnixStreamServer &) = delete;
+  UnixStreamServer(UnixStreamServer &&) = default;
+  UnixStreamServer &operator=(const UnixStreamServer &) = delete;
+  UnixStreamServer &operator=(UnixStreamServer &&) = default;
+  ~UnixStreamServer() = default;
+
   /// @brief Construct and bind a Unix SOCK_STREAM socket.
   /// @param loop The loop to run on.
   /// @param bindPath The path to bind to.
