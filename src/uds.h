@@ -59,7 +59,7 @@ private:
 
   /// An awaiter class used to wait for a connection to be established.
   struct ConnectAwaiter_ {
-    explicit ConnectAwaiter_(uv_pipe_t &pipe, std::string_view path);
+    explicit ConnectAwaiter_(const Loop &loop, std::string_view path);
 
     static void onConnect(uv_connect_t *req, uv_status status);
 
@@ -67,10 +67,10 @@ private:
 
     bool await_suspend(std::coroutine_handle<> handle);
 
-    void await_resume();
+    UnixStream await_resume();
 
     uv_connect_t request_{};
-    uv_pipe_t &pipe_;
+    std::unique_ptr<uv_pipe_t> pipe_;
     std::string_view path_;
     std::optional<uv_status> status_;
     std::optional<std::coroutine_handle<>> handle_;

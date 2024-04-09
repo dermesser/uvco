@@ -90,13 +90,13 @@ private:
 
   struct ConnectAwaiter_ {
     [[nodiscard]] bool await_ready() const;
-    bool await_suspend(std::coroutine_handle<> h);
-    int await_resume();
+    bool await_suspend(std::coroutine_handle<> handle);
+    uv_status await_resume();
 
     void onConnect(uv_status status);
 
-    std::optional<std::coroutine_handle<>> handle_ = {};
-    std::optional<int> status_ = {};
+    std::optional<std::coroutine_handle<>> handle_;
+    std::optional<uv_status> status_;
   };
 };
 

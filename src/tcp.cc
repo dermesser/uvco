@@ -89,7 +89,7 @@ bool TcpClient::ConnectAwaiter_::await_suspend(std::coroutine_handle<> handle) {
   return true;
 }
 
-int TcpClient::ConnectAwaiter_::await_resume() {
+uv_status TcpClient::ConnectAwaiter_::await_resume() {
   BOOST_ASSERT(status_);
   return *status_;
 }

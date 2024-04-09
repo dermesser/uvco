@@ -30,7 +30,8 @@ Promise<void> pingPongServer(const Loop &loop) {
       co_return;
     }
     fmt::print(stderr, "Server at {}\n", stream->getSockName());
-    fmt::print(stderr, "Received connection from client at {}\n", stream->getPeerName());
+    fmt::print(stderr, "Received connection from client at {}\n",
+               stream->getPeerName());
     std::optional<std::string> message = co_await stream->read();
     if (!message) {
       throw UvcoException{UV_EOF, "No data from client"};
@@ -53,7 +54,8 @@ Promise<void> pingPongClient(const Loop &loop) {
   try {
     UnixStream stream = co_await client.connect(testSocketPath);
     fmt::print(stderr, "Client connecting from {}\n", stream.getSockName());
-    fmt::print(stderr, "Client connected to server at {}\n", stream.getPeerName());
+    fmt::print(stderr, "Client connected to server at {}\n",
+               stream.getPeerName());
 
     co_await stream.write("Hello from client");
     fmt::print(stderr, "Sent; waiting for reply\n");
@@ -85,6 +87,20 @@ TEST(UdsTest, UnixStreamPingPong) {
   };
 
   run_loop(setup);
+}
+
+TEST(UdsTest, UnixStreamFailConnect) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    try {
+      UnixStreamClient client{loop};
+      UnixStream stream = co_await client.connect("/tmp/does_not_exist.sock");
+    } catch (const UvcoException &e) {
+      EXPECT_EQ(UV_ENOENT, e.status);
+      throw;
+    }
+  };
+
+  EXPECT_THROW({ run_loop(setup); }, UvcoException);
 }
 
 } // namespace

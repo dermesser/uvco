@@ -166,25 +166,40 @@ std::string UnixStream::getPeerName() {
 }
 
 Promise<UnixStream> UnixStreamClient::connect(std::string_view path) {
-  auto pipe = std::make_unique<uv_pipe_t>();
-  uv_pipe_init(loop_.uvloop(), pipe.get(), 0);
-  ConnectAwaiter_ awaiter{*pipe, path};
-  co_await awaiter;
-  co_return UnixStream{std::move(pipe)};
+  ConnectAwaiter_ awaiter{loop_, path};
+  std::optional<UvcoException> maybeError;
+  // Special error handling mechanism to properly close the
+  // open but not connected handle.
+  try {
+    UnixStream connection = co_await awaiter;
+    co_return std::move(connection);
+  } catch (const UvcoException &e) {
+    maybeError = e;
+  }
+  co_await closeHandle(awaiter.pipe_.get());
+  BOOST_ASSERT(maybeError);
+  throw std::move(maybeError).value();
 }
-UnixStreamClient::ConnectAwaiter_::ConnectAwaiter_(uv_pipe_t &pipe,
+
+UnixStreamClient::ConnectAwaiter_::ConnectAwaiter_(const Loop &loop,
                                                    std::string_view path)
-    : pipe_{pipe}, path_{path} {}
+    : pipe_{std::make_unique<uv_pipe_t>()}, path_{path} {
+  uv_pipe_init(loop.uvloop(), pipe_.get(), 0);
+}
+
 void UnixStreamClient::ConnectAwaiter_::onConnect(uv_connect_t *req,
                                                   uv_status status) {
   auto *awaiter = (ConnectAwaiter_ *)req->data;
+  BOOST_ASSERT(!awaiter->status_);
   awaiter->status_ = status;
   if (awaiter->handle_) {
     Loop::enqueue(awaiter->handle_.value());
     awaiter->handle_.reset();
   }
 }
+
 bool UnixStreamClient::ConnectAwaiter_::await_ready() { return false; }
+
 bool UnixStreamClient::ConnectAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
   handle_ = handle;
@@ -192,10 +207,10 @@ bool UnixStreamClient::ConnectAwaiter_::await_suspend(
 
 #if UV_VERSION_MAJOR == 1 && UV_VERSION_MINOR >= 46
   const uv_status connectStatus = uv_pipe_connect2(
-      &request_, &pipe_, path_.data(), path_.size(), 0, onConnect);
+      &request_, pipe_.get(), path_.data(), path_.size(), 0, onConnect);
 #else
   const uv_status connectStatus =
-      uv_pipe_connect(&request_, &pipe_, path_.data(), onConnect);
+      uv_pipe_connect(&request_, pipe_.get(), path_.data(), onConnect);
 #endif
   if (connectStatus != 0) {
     status_ = connectStatus;
@@ -207,12 +222,15 @@ bool UnixStreamClient::ConnectAwaiter_::await_suspend(
 
   return true;
 }
-void UnixStreamClient::ConnectAwaiter_::await_resume() {
+
+UnixStream UnixStreamClient::ConnectAwaiter_::await_resume() {
   BOOST_ASSERT(status_);
   if (*status_ != 0) {
     throw UvcoException{*status_, "UnixStreamClient failed to connect"};
   }
   status_.reset();
   handle_.reset();
+  return UnixStream{std::move(pipe_)};
 }
+
 } // namespace uvco

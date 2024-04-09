@@ -1,12 +1,18 @@
 
+#include "exception.h"
+#include "name_resolution.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
 #include "run.h"
+#include "stream.h"
 #include "tcp.h"
 
 #include "test_util.h"
 
 #include <gtest/gtest.h>
+#include <optional>
+#include <string>
+#include <utility>
 
 namespace {
 using namespace uvco;
