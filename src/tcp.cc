@@ -127,11 +127,13 @@ MultiPromise<TcpStream> TcpServer::listen(int backlog) {
   while (true) {
     std::optional<TcpStream> stream = co_await awaiter;
     if (!stream) {
+      // At this point, do not touch pipe_->data anymore!
+      // This is the result of ConnectionAwaiter_::stop(), and
+      // data points to a CloseAwaiter_ object.
       break;
     }
     co_yield std::move(*stream);
   }
-  tcp_->data = nullptr;
 }
 
 Promise<void> TcpServer::close() {

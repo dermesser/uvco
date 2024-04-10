@@ -12,9 +12,9 @@
 
 namespace uvco {
 
-void PromiseCore<void>::set_handle(std::coroutine_handle<> h) {
+void PromiseCore<void>::set_handle(std::coroutine_handle<> handle) {
   BOOST_ASSERT(state_ == PromiseState::init);
-  resume_ = h;
+  resume_ = handle;
   state_ = PromiseState::waitedOn;
 }
 
@@ -28,7 +28,8 @@ void PromiseCore<void>::resume() {
     resume_.reset();
     state_ = PromiseState::running;
     // Directly jump to the awaiting coroutine.
-    resumeHandle.resume();
+    // resumeHandle.resume();
+    Loop::enqueue(resumeHandle);
   } else {
     // If a coroutine returned immediately, or nobody is f
     // :co_awaitis for results.

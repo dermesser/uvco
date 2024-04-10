@@ -9,11 +9,13 @@
 namespace uvco {
 
 void Scheduler::runAll() {
-  resumableActive_.swap(resumableRunning_);
-  for (auto &coro : resumableRunning_) {
-    coro.resume();
+  while (!resumableActive_.empty()) {
+    resumableRunning_.swap(resumableActive_);
+    for (auto &coro : resumableRunning_) {
+      coro.resume();
+    }
+    resumableRunning_.clear();
   }
-  resumableRunning_.clear();
 }
 
 void Scheduler::close() { BOOST_ASSERT(resumableActive_.empty()); }

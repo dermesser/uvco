@@ -8,6 +8,7 @@
 #include "close.h"
 #include "exception.h"
 #include "internal/internal_utils.h"
+#include "loop/loop.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
 #include "run.h"
@@ -51,11 +52,13 @@ MultiPromise<UnixStream> UnixStreamServer::listen(int backlog) {
   while (true) {
     std::optional<UnixStream> stream = co_await connectionAwaiter;
     if (!stream) {
+      // At this point, do not touch pipe_->data anymore!
+      // This is the result of ConnectionAwaiter_::stop(), and
+      // data points to a CloseAwaiter_ object.
       break;
     }
     co_yield std::move(*stream);
   }
-  pipe_->data = nullptr;
 }
 
 Promise<void> UnixStreamServer::close() {

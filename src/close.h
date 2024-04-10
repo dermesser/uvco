@@ -29,9 +29,7 @@ Promise<void> closeHandle(T *handle, C closer) {
   CloseAwaiter awaiter{};
   handle->data = &awaiter;
   closer(handle, onCloseCallback);
-  fmt::print("closeHandle: handle->data = {}\n", handle->data);
   co_await awaiter;
-  fmt::print("closeHandle: done\n", handle->data);
   handle->data = nullptr;
   BOOST_ASSERT(awaiter.closed_);
 }
