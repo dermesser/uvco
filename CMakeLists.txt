@@ -29,10 +29,13 @@ if(ENABLE_COVERAGE)
     add_link_options(--coverage -lgcov)
 endif()
 
+# Core utilities not relying on uv-co-promise or uv-co-lib.
 add_library(uv-co-internal STATIC
     src/internal/internal_utils.cc
+    src/loop/loop.cc
+    src/loop/scheduler.cc
 )
-target_include_directories(uv-co-internal PRIVATE ${FMT_INCLUDEDIR})
+target_include_directories(uv-co-internal PRIVATE ${FMT_INCLUDEDIR} src/)
 
 add_library(uv-co-promise STATIC
     src/promise/multipromise.cc
@@ -48,7 +51,6 @@ add_library(uv-co-lib STATIC
     src/name_resolution.cc
     src/pipe.cc
     src/run.cc
-    src/scheduler.cc
     src/stream.cc
     src/tcp.cc
     src/timer.cc

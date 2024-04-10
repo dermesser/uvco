@@ -69,8 +69,7 @@ Promise<void> Udp::connect(std::string_view address, uint16_t port,
                            bool ipv6only) {
   Resolver resolver{*loop_};
   int hint = ipv6only ? AF_INET6 : AF_UNSPEC;
-  AddressHandle addressHandle =
-      co_await resolver.gai(address, fmt::format("{}", port), hint);
+  AddressHandle addressHandle = co_await resolver.gai(address, port, hint);
 
   uv_udp_connect(udp_.get(), nullptr);
   const uv_status status = uv_udp_connect(udp_.get(), addressHandle.sockaddr());

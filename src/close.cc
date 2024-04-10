@@ -3,6 +3,7 @@
 #include <uv.h>
 
 #include "close.h"
+#include "loop/loop.h"
 #include "run.h"
 
 #include <coroutine>

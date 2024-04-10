@@ -1,7 +1,9 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
 #include "promise/promise_core.h"
-#include "promise.h"
+#include "loop/loop.h"
+#include "loop/scheduler.h"
+
 #include <coroutine>
 #include <cstdio>
 #include <exception>
@@ -25,6 +27,7 @@ void PromiseCore<void>::resume() {
     auto resumeHandle = *resume_;
     resume_.reset();
     state_ = PromiseState::running;
+    // Directly jump to the awaiting coroutine.
     resumeHandle.resume();
   } else {
     // If a coroutine returned immediately, or nobody is f
