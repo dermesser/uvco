@@ -207,10 +207,6 @@ bool UnixStreamClient::ConnectAwaiter_::await_suspend(
 #if UV_VERSION_MAJOR == 1 && UV_VERSION_MINOR >= 46
   const uv_status connectStatus = uv_pipe_connect2(
       &request_, pipe_.get(), path_.data(), path_.size(), 0, onConnect);
-#else
-  const uv_status connectStatus =
-      uv_pipe_connect(&request_, pipe_.get(), path_.data(), onConnect);
-#endif
   if (connectStatus != 0) {
     status_ = connectStatus;
     if (handle_) {
@@ -218,6 +214,9 @@ bool UnixStreamClient::ConnectAwaiter_::await_suspend(
       handle_.reset();
     }
   }
+#else
+  uv_pipe_connect(&request_, pipe_.get(), path_.data(), onConnect);
+#endif
 
   return true;
 }
