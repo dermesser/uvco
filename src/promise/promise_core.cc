@@ -27,12 +27,9 @@ void PromiseCore<void>::resume() {
     auto resumeHandle = *resume_;
     resume_.reset();
     state_ = PromiseState::running;
-    // Directly jump to the awaiting coroutine.
-    // resumeHandle.resume();
     Loop::enqueue(resumeHandle);
   } else {
-    // If a coroutine returned immediately, or nobody is f
-    // :co_awaitis for results.
+    // If a coroutine returned immediately, or nobody is co_awaiting the result.
   }
   state_ = PromiseState::finished;
 }
