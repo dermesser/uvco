@@ -54,7 +54,11 @@ Promise<void> Udp::bind(std::string_view address, uint16_t port,
   AddressHandle addressHandle =
       co_await resolver.gai(address, fmt::format("{}", port), hint);
 
-  uv_status status = uv_udp_bind(udp_.get(), addressHandle.sockaddr(), flag);
+  co_await bind(addressHandle, flag);
+}
+
+Promise<void> Udp::bind(const AddressHandle &address, unsigned int flag) {
+  uv_status status = uv_udp_bind(udp_.get(), address.sockaddr(), flag);
   if (status != 0) {
     co_await close();
     throw UvcoException{status, "binding UDP socket"};
@@ -63,12 +67,23 @@ Promise<void> Udp::bind(std::string_view address, uint16_t port,
 
 Promise<void> Udp::connect(std::string_view address, uint16_t port,
                            bool ipv6only) {
-  Resolver r{*loop_};
+  Resolver resolver{*loop_};
   int hint = ipv6only ? AF_INET6 : AF_UNSPEC;
   AddressHandle addressHandle =
-      co_await r.gai(address, fmt::format("{}", port), hint);
+      co_await resolver.gai(address, fmt::format("{}", port), hint);
 
-  uv_status status = uv_udp_connect(udp_.get(), addressHandle.sockaddr());
+  uv_udp_connect(udp_.get(), nullptr);
+  const uv_status status = uv_udp_connect(udp_.get(), addressHandle.sockaddr());
+  if (status != 0) {
+    co_await close();
+    throw UvcoException{status, "connecting UDP socket"};
+  }
+  connected_ = true;
+}
+
+Promise<void> Udp::connect(const AddressHandle &address) {
+  uv_udp_connect(udp_.get(), nullptr);
+  const uv_status status = uv_udp_connect(udp_.get(), address.sockaddr());
   if (status != 0) {
     co_await close();
     throw UvcoException{status, "connecting UDP socket"};

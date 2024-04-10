@@ -44,16 +44,14 @@ public:
   ~Udp();
 
   /// Bind UDP socket to address.
-  ///
-  /// TODO: provide `AddressHandle` interface.
   Promise<void> bind(std::string_view address, uint16_t port,
                      unsigned int flag = 0);
+  Promise<void> bind(const AddressHandle &address, unsigned int flag = 0);
 
   /// Connect UDP socket to address.
-  ///
-  /// TODO: provide `AddressHandle` interface.
   Promise<void> connect(std::string_view address, uint16_t port,
                         bool ipv6only = false);
+  Promise<void> connect(const AddressHandle &address);
 
   /// Send to address, or send to connected peer. Must be a mutable
   /// buffer because libuv requires it - the buffer will not be modified.

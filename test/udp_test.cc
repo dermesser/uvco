@@ -45,7 +45,6 @@ Promise<void> udpServer(const Loop &loop, uint64_t &received) {
   // Necessary for the receiver promise to return and not leak memory!
   server.stopReceiveMany();
   co_await server.close();
-  fmt::print("udpServer(): done\n");
   co_return;
 }
 
@@ -66,6 +65,10 @@ Promise<void> udpClient(const Loop &loop, uint64_t &sent) {
 
   co_await client.connect("::1", 9999);
 
+  // Repeat but with AddressHandle
+  const AddressHandle dest{"::1", 9999};
+  co_await client.connect(dest);
+
   EXPECT_TRUE(client.getPeername());
   EXPECT_EQ(client.getPeername()->toString(), "[::1]:9999");
 
@@ -76,7 +79,6 @@ Promise<void> udpClient(const Loop &loop, uint64_t &sent) {
   }
 
   co_await client.close();
-  fmt::print("udpClient(): done\n");
   co_return;
 }
 

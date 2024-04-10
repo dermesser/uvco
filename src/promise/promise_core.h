@@ -4,7 +4,7 @@
 
 #include <exception>
 #include <fmt/core.h>
-#include <internal/internal_utils.h>
+#include "internal/internal_utils.h"
 
 #include <boost/assert.hpp>
 #include <fmt/format.h>
@@ -80,6 +80,7 @@ public:
       state_ = PromiseState::running;
       auto resume = *handle_;
       handle_.reset();
+      // TODO: build indirect mechanism to resume from loop (although more overhead?)
       resume.resume();
     } else {
       // This occurs if no co_await has occured until resume. Either the promise

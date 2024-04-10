@@ -104,7 +104,7 @@ private:
 
   struct AddrinfoAwaiter_ {
     AddrinfoAwaiter_() : req_{} {}
-    bool await_ready() const { return false; }
+    [[nodiscard]] bool await_ready() const { return false; }
     bool await_suspend(std::coroutine_handle<> handle);
 
     struct addrinfo *await_resume();
