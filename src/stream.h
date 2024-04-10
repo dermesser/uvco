@@ -2,10 +2,13 @@
 
 #pragma once
 
+#include <stdio.h>
+#include <utility>
 #include <uv.h>
 
 #include "exception.h"
 #include "internal/internal_utils.h"
+#include "loop/loop.h"
 #include "promise/promise.h"
 #include "run.h"
 
@@ -16,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <uv/unix.h>
 
 namespace uvco {
 
@@ -75,6 +79,7 @@ protected:
 
 private:
   std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
+  // Currently suspended readers/writers to be notified on close().
   std::optional<std::coroutine_handle<>> reader_;
   std::optional<std::coroutine_handle<>> writer_;
 

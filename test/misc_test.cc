@@ -1,5 +1,6 @@
 
 #include "exception.h"
+#include "loop/loop.h"
 #include "name_resolution.h"
 #include "pipe.h"
 #include "promise/multipromise.h"
@@ -19,6 +20,7 @@
 #include <gtest/gtest.h>
 #include <sys/socket.h>
 #include <uv.h>
+#include <vector>
 
 namespace {
 using namespace uvco;
@@ -71,19 +73,24 @@ TEST(NameResolutionTest, resolveGoogleDotCom) {
   run_loop(setup);
 }
 
-TEST(TtyTest, stdoutTest) {
+TEST(TtyTest, stdioTest) {
   uint64_t counter = 0;
   auto setup = [&counter](const Loop &loop) -> uvco::Promise<void> {
-    TtyStream stdout = TtyStream::stdout(loop);
+    std::vector<TtyStream> ttys;
+    ttys.emplace_back(TtyStream::stdin(loop));
+    ttys.emplace_back(TtyStream::stdout(loop));
+    ttys.emplace_back(TtyStream::stderr(loop));
 
-    co_await stdout.write(" ");
-    ++counter;
-    co_await stdout.close();
-    ++counter;
+    for (auto &tty : ttys) {
+      co_await tty.write(" ");
+      ++counter;
+      co_await tty.close();
+      ++counter;
+    }
   };
 
   run_loop(setup);
-  EXPECT_EQ(counter, 2);
+  EXPECT_EQ(counter, 6);
 }
 
 TEST(TtyTest, stdoutNoClose) {
@@ -105,6 +112,15 @@ TEST(TtyTest, stdoutNoClose) {
   // stream. In order to satisfy asan, we still need to free the memory in the
   // end.
   delete underlying;
+}
+
+TEST(TtyTest, invalidFd) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    EXPECT_THROW({ TtyStream tty = TtyStream::tty(loop, -1); }, UvcoException);
+    co_return;
+  };
+
+  run_loop(setup);
 }
 
 TEST(PipeTest, pipePingPong) {

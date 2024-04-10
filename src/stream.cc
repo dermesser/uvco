@@ -1,11 +1,13 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include <stdio.h>
 #include <uv.h>
 #include <uv/unix.h>
 
 #include "close.h"
 #include "exception.h"
 #include "internal/internal_utils.h"
+#include "loop/loop.h"
 #include "promise/promise.h"
 #include "run.h"
 #include "stream.h"
@@ -70,12 +72,14 @@ Promise<void> StreamBase::close() {
   auto stream = std::move(stream_);
   co_await closeHandle(stream.get());
   if (reader_) {
-    Loop::enqueue(*reader_);
+    const auto reader = *reader_;
     reader_.reset();
+    Loop::enqueue(reader);
   }
   if (writer_) {
-    Loop::enqueue(*writer_);
+    const auto writer = *writer_;
     writer_.reset();
+    Loop::enqueue(writer);
   }
 }
 

@@ -1,5 +1,6 @@
 
 #include "exception.h"
+#include "loop/loop.h"
 #include "promise/promise.h"
 #include "run.h"
 #include "test_util.h"
