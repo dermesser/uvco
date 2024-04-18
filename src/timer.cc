@@ -59,6 +59,11 @@ public:
     if (!timer_ || closed_) {
       co_return;
     }
+    // If the timer is already closing, we don't need to close it again.
+    // This would cause an error in libuv.
+    if (uv_is_closing((uv_handle_t *)timer_.get()) != 0) {
+      co_return;
+    }
     stop();
     co_await closeHandle(timer_.get());
     closed_ = true;
@@ -154,7 +159,8 @@ MultiPromise<uint64_t> TickerImpl::ticker() {
   if (!stopped_) {
     // Need to close timer so that libuv isn't blocked by the active handle on
     // the loop.
-    co_await close();
+    // co_await close();
+    awaiter_->stop();
   }
 }
 

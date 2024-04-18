@@ -72,8 +72,6 @@ TEST(TimerTest, finiteTickerTest) {
     for (counter = 0; counter < stopAfter; ++counter) {
       EXPECT_EQ(counter, *(co_await tickerProm));
     }
-    // Need to always wait for nullopt return value.
-    co_await tickerProm;
     co_await ticker->close();
   };
 

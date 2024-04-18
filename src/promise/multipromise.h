@@ -2,6 +2,7 @@
 #pragma once
 
 #include "exception.h"
+#include "loop/loop.h"
 #include "promise.h"
 #include "promise/promise_core.h"
 
@@ -52,6 +53,31 @@ public:
   /// See `Promise::resume`. Implemented here to provide a distinction in stack
   /// traces.
   void resume() override { PromiseCore<T>::resume(); }
+
+  void resumeGenerator() {
+    if (generatorHandle_) {
+      const auto handle = generatorHandle_.value();
+      generatorHandle_.reset();
+      Loop::enqueue(handle);
+    }
+  }
+
+  void suspendGenerator(std::coroutine_handle<> handle) {
+    BOOST_ASSERT_MSG(!generatorHandle_,
+                     "MultiPromiseCore::suspendGenerator: generatorHandle_ is "
+                     "already set");
+    generatorHandle_ = handle;
+  }
+
+  void cancelGenerator() {
+    if (generatorHandle_) {
+      generatorHandle_.value().destroy();
+      generatorHandle_.reset();
+    }
+  }
+
+private:
+  std::optional<std::coroutine_handle<>> generatorHandle_;
 };
 
 /// A `MultiPromise` is like a `Promise`, except that it can resolve more than
@@ -73,7 +99,9 @@ public:
 /// frequently, therefore the lack of optimization is not as grave.
 template <typename T> class MultiPromise {
 protected:
+  struct YieldAwaiter_;
   struct MultiPromiseAwaiter_;
+
   using PromiseCore_ = MultiPromiseCore<T>;
   using SharedCore_ = std::shared_ptr<PromiseCore_>;
 
@@ -127,18 +155,18 @@ public:
   /// back control to the event loop (and thus the receiver). Therefore you
   /// can't use it directly to implement generator functions without further I/O
   /// between yielded values.
-  std::suspend_never yield_value(T &&value) {
+  YieldAwaiter_ yield_value(T &&value) {
     BOOST_ASSERT(!core_->slot);
     core_->slot = std::move(value);
     core_->resume();
-    return {};
+    return YieldAwaiter_{core_};
   }
 
-  std::suspend_never yield_value(const T &value) {
+  YieldAwaiter_ yield_value(const T &value) {
     BOOST_ASSERT(!core_->slot);
     core_->slot = value;
     core_->resume();
-    return {};
+    return YieldAwaiter_{core_};
   }
 
   /// Return an awaiter for this MultiPromise.
@@ -152,7 +180,30 @@ public:
   /// Returns true if a value is available.
   bool ready() { return core_->slot.has_value(); }
 
+  /// Immediately cancel the generator coroutine. This will drop all stack
+  /// variables inside the generator (and run their destructors), and ensure
+  /// that the generator will never resume from the currently yielded value.
+  void cancel() { core_->cancelGenerator(); }
+
 protected:
+  /// A `YieldAwaiter_` suspends a coroutine returning a MultiPromise (i.e. a
+  /// generator) and resumes it when the value is read by the awaiting
+  /// coroutine.
+  struct YieldAwaiter_ {
+    explicit YieldAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
+
+    [[nodiscard]] bool await_ready() const { return !core_->slot.has_value(); }
+    bool await_suspend(std::coroutine_handle<> handle) {
+      core_->suspendGenerator(handle);
+      return true;
+    }
+    void await_resume() {
+      // Returning into the generator coroutine
+    }
+
+    SharedCore_ core_;
+  };
+
   /// A `MultiPromiseAwaiter_` handles suspension and resumption of coroutines
   /// receiving values from a generating (yielding) coroutine. This awaiter is
   /// used when applying the `co_await` operator on a `MultiPromise`.
@@ -167,13 +218,14 @@ protected:
 
     /// Part of the coroutine protocol. Returns `true` if the MultiPromise
     /// already has a value.
-    bool await_ready() const { return core_->slot.has_value(); }
+    [[nodiscard]] bool await_ready() const { return core_->slot.has_value(); }
     /// Part of the coroutine protocol. Always returns `true`; stores the
     /// suspension handle in the MultiPromiseCore for later resumption.
     virtual bool await_suspend(std::coroutine_handle<> handle) {
       BOOST_ASSERT_MSG(!core_->willResume(),
                        "promise is already being waited on!\n");
       core_->set_handle(handle);
+      core_->resumeGenerator();
       return true;
     }
     /// Part of the coroutine protocol. Returns a value if `co_yield` was called

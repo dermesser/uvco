@@ -69,8 +69,10 @@ public:
   /// Generate packets received on socket. Call stopReceiveMany() when no more
   /// packets are desired; otherwise this will continue indefinitely.
   MultiPromise<std::pair<std::string, AddressHandle>> receiveMany();
-  /// Stop receiving with `receiveMany()` after the next packet.
-  void stopReceiveMany();
+  /// Stop receiving with `receiveMany()` by cancelling the receiving generator
+  /// coroutine.
+  void
+  stopReceiveMany(MultiPromise<std::pair<std::string, AddressHandle>> &packets);
 
   /// Enable sending to broadcast addresses.
   void setBroadcast(bool enabled);

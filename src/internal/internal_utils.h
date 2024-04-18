@@ -157,6 +157,23 @@ private:
   bool &flag_;
 };
 
+template <typename T> class ZeroAtExit {
+public:
+  explicit ZeroAtExit(T **pointer) : ptr_{pointer} {}
+  ZeroAtExit(const ZeroAtExit &) = delete;
+  ZeroAtExit(ZeroAtExit &&) = delete;
+  ZeroAtExit &operator=(const ZeroAtExit &) = delete;
+  ZeroAtExit &operator=(ZeroAtExit &&) = delete;
+  ~ZeroAtExit() {
+    if (ptr_ != nullptr) {
+      *ptr_ = nullptr;
+    }
+  }
+
+private:
+  T **ptr_ = nullptr;
+};
+
 /// @}
 
 } // namespace uvco

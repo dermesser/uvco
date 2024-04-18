@@ -148,6 +148,11 @@ Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
 
 MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
   FlagGuard receivingGuard{is_receiving_};
+  // The udp_->data field points to the current awaiter and signifies that
+  // a receive operation is ongoing. However, this generator function may be
+  // cancelled externally. In that case we want to make sure not to leave
+  // dangling pointers into our stack.
+  ZeroAtExit<void> zeroAtExit{&udp_->data};
 
   RecvAwaiter_ awaiter{};
   awaiter.stop_receiving_ = false;
@@ -158,7 +163,7 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
     throw UvcoException(status, "receiveMany(): uv_udp_recv_start()");
   }
 
-  while (true) {
+  while (uv_is_active((uv_handle_t *)udp_.get()) != 0) {
     // Awaiter returns empty optional on requested stop (stopReceiveMany()).
     std::optional<std::string> buffer = co_await awaiter;
     if (!buffer) {
@@ -166,14 +171,13 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
     }
     BOOST_ASSERT(awaiter.addr_);
     co_yield std::make_pair(std::move(*buffer), *awaiter.addr_);
-  };
+  }
   udp_->data = nullptr;
   co_return;
 }
 
 Promise<void> Udp::close() {
   BOOST_ASSERT(udp_);
-  udpStopReceive();
   co_await closeHandle(udp_.get());
   udp_.reset();
   connected_ = false;
@@ -259,9 +263,14 @@ int Udp::SendAwaiter_::await_resume() {
   return *status_;
 }
 
-void Udp::stopReceiveMany() {
+void Udp::stopReceiveMany(
+    MultiPromise<std::pair<std::string, AddressHandle>> &packets) {
   udpStopReceive();
+  packets.cancel();
   auto *currentAwaiter = (RecvAwaiter_ *)udp_->data;
+  if (currentAwaiter == nullptr) {
+    return;
+  }
   currentAwaiter->nread_.reset();
   currentAwaiter->buffer_.reset();
   if (currentAwaiter->handle_) {

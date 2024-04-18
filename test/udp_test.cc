@@ -43,7 +43,7 @@ Promise<void> udpServer(const Loop &loop, uint64_t &received) {
   }
   EXPECT_EQ(server.getSockname().toString(), "[::1]:9999");
   // Necessary for the receiver promise to return and not leak memory!
-  server.stopReceiveMany();
+  server.stopReceiveMany(packets);
   co_await server.close();
   co_return;
 }
