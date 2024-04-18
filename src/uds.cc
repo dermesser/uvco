@@ -39,6 +39,7 @@ UnixStreamServer::UnixStreamServer(const Loop &loop, std::string_view bindPath,
 }
 
 MultiPromise<UnixStream> UnixStreamServer::listen(int backlog) {
+  ZeroAtExit<void> zeroAtExit{&pipe_->data};
   ConnectionAwaiter_ connectionAwaiter;
   pipe_->data = &connectionAwaiter;
 

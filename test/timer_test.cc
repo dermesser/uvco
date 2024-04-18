@@ -56,6 +56,7 @@ TEST(TimerTest, infiniteTickerTest) {
     for (counter = 0; counter < count; ++counter) {
       EXPECT_EQ(counter, *(co_await tickerProm));
     }
+    tickerProm.cancel();
     co_await ticker->close();
   };
 
@@ -72,6 +73,7 @@ TEST(TimerTest, finiteTickerTest) {
     for (counter = 0; counter < stopAfter; ++counter) {
       EXPECT_EQ(counter, *(co_await tickerProm));
     }
+    tickerProm.cancel();
     co_await ticker->close();
   };
 

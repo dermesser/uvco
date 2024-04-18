@@ -119,6 +119,7 @@ void TcpServer::bind(const struct sockaddr *addr, int flags) {
 }
 
 MultiPromise<TcpStream> TcpServer::listen(int backlog) {
+  ZeroAtExit<void> zeroAtExit(&tcp_->data);
   ConnectionAwaiter_ awaiter{*tcp_};
   tcp_->data = &awaiter;
 

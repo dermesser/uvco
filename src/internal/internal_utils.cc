@@ -12,7 +12,7 @@
 
 namespace uvco {
 
-const bool TRACK_LIFETIMES = false;
+const bool TRACK_LIFETIMES = true;
 
 /// libuv allocator.
 void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {

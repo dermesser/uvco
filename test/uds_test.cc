@@ -25,7 +25,9 @@ constexpr std::string_view testSocketPath = "/tmp/_uvco_test.sock";
 Promise<void> pingPongServer(const Loop &loop) {
   UnixStreamServer server{loop, testSocketPath};
   try {
-    std::optional<UnixStream> stream = co_await server.listen();
+    auto listener = server.listen();
+    std::optional<UnixStream> stream = co_await listener;
+    listener.cancel();
     if (!stream) {
       fmt::print(stderr, "No stream\n");
       co_return;

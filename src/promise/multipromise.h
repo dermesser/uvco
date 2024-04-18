@@ -2,6 +2,7 @@
 #pragma once
 
 #include "exception.h"
+#include "internal/internal_utils.h"
 #include "loop/loop.h"
 #include "promise.h"
 #include "promise/promise_core.h"
@@ -54,6 +55,8 @@ public:
   /// traces.
   void resume() override { PromiseCore<T>::resume(); }
 
+  /// Resume the generator from its last `co_yield` point, so it can yield the
+  /// next value.
   void resumeGenerator() {
     if (generatorHandle_) {
       const auto handle = generatorHandle_.value();
@@ -62,6 +65,8 @@ public:
     }
   }
 
+  /// Suspend the generator coroutine at the current `co_yield` point by storing
+  /// the handle for a later resumption.
   void suspendGenerator(std::coroutine_handle<> handle) {
     BOOST_ASSERT_MSG(!generatorHandle_,
                      "MultiPromiseCore::suspendGenerator: generatorHandle_ is "
@@ -69,9 +74,12 @@ public:
     generatorHandle_ = handle;
   }
 
+  /// Cancel the generator coroutine. This will drop all stack variables inside
+  /// the generator (and run their destructors), and ensure that the
+  /// generatorHandle_ will never resume from the currently yielded value.
   void cancelGenerator() {
     if (generatorHandle_) {
-      generatorHandle_.value().destroy();
+      generatorHandle_->destroy();
       generatorHandle_.reset();
     }
   }
@@ -85,14 +93,6 @@ private:
 /// to return values to the awaiting coroutine. It can therefore be used as
 /// generator (for example in the `Udp` class, a method exists which generates
 /// packets).
-///
-/// WARNING: Do not naively use e.g. a for loop, `co_yield`ing value after value
-/// without intermittent suspensioin points. This will not work! The yield
-/// operation does (currently) not suspend the yielding coroutine, and a yielded
-/// value must first be fetched by the awaiting coroutine. Typically, you should
-/// first `co_await` e.g. some socket operation, then `co_yield`, and repeat.
-/// That way the coroutine will return upon the next suspension point and giving
-/// an opportunity to the "receiving" coroutine to process the yielded value.
 ///
 /// NOTE: currently uses a `shared_ptr` PromiseCore, due to issues with
 /// inheritance. It is expected that normal `Promise<T>` will be used most
@@ -119,7 +119,9 @@ public:
   MultiPromise &operator=(const MultiPromise<T> &) = default;
   MultiPromise &operator=(MultiPromise<T> &&) noexcept = default;
   MultiPromise(const MultiPromise<T> &other) = default;
-  ~MultiPromise() = default;
+  ~MultiPromise() {
+    fmt::print("MultiPromise::~MultiPromise (core: {})\n", core_.use_count());
+  }
 
   /// A generator (yielding) coroutine returns a MultiPromise.
   MultiPromise<T> get_return_object() { return *this; }
@@ -183,6 +185,17 @@ public:
   /// Immediately cancel the generator coroutine. This will drop all stack
   /// variables inside the generator (and run their destructors), and ensure
   /// that the generator will never resume from the currently yielded value.
+  ///
+  /// `cancel()` MUST be called if the generator coroutine has not yielded a
+  /// `std::nullopt`; otherwise, it will keep hanging around and not free its
+  /// resources, leading to a memory leak.
+  ///
+  /// (This can be solved by distinguishing between the returned object and
+  /// the promise object, which may be part of a future refactor. In that case,
+  /// the generator's promise object should only contain a weak reference to
+  /// this MultiPromiseCore, and the caller contains a strong reference. The
+  /// core's destructor cancels the generator once the caller doesn't require
+  /// it anymore.)
   void cancel() { core_->cancelGenerator(); }
 
 protected:
@@ -190,18 +203,27 @@ protected:
   /// generator) and resumes it when the value is read by the awaiting
   /// coroutine.
   struct YieldAwaiter_ {
-    explicit YieldAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
+    explicit YieldAwaiter_(std::weak_ptr<PromiseCore_> core)
+        : core_{std::move(core)} {}
 
-    [[nodiscard]] bool await_ready() const { return !core_->slot.has_value(); }
+    [[nodiscard]] bool await_ready() const {
+      BOOST_ASSERT_MSG(!core_.expired(),
+                       "MultiPromiseCore has been destroyed; why am I still "
+                       "yielding? (await_ready)");
+      return !core_.lock()->slot.has_value();
+    }
     bool await_suspend(std::coroutine_handle<> handle) {
-      core_->suspendGenerator(handle);
+      BOOST_ASSERT_MSG(!core_.expired(),
+                       "MultiPromiseCore has been destroyed; why am I still "
+                       "yielding? (await_suspend)");
+      core_.lock()->suspendGenerator(handle);
       return true;
     }
     void await_resume() {
       // Returning into the generator coroutine
     }
 
-    SharedCore_ core_;
+    std::weak_ptr<PromiseCore_> core_;
   };
 
   /// A `MultiPromiseAwaiter_` handles suspension and resumption of coroutines
