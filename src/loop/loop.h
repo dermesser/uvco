@@ -2,27 +2,16 @@
 
 #pragma once
 
-#include "promise/promise.h"
 #include "scheduler.h"
 
 #include <coroutine>
 #include <memory>
-#include <type_traits>
 #include <uv.h>
 
 namespace uvco {
 
-/// @addtogroup Run
+/// @addtogroup Loop
 /// @{
-
-class Loop;
-
-// Forward declaration only for friend declaration.
-template <typename F, typename R>
-concept MainFunction = std::is_invocable_r_v<Promise<R>, F, const Loop &>;
-
-template <typename R, MainFunction<R> F>
-R runMain(F main, Scheduler::RunMode mode = Scheduler::RunMode::Deferred);
 
 /// A wrapper around a libuv event loop. Use `uvloop()` to get a reference
 /// to the loop, and `run()` to start the event loop.
@@ -33,6 +22,9 @@ R runMain(F main, Scheduler::RunMode mode = Scheduler::RunMode::Deferred);
 /// Use `uvco::runMain()` for a top-level interface.
 class Loop {
 public:
+  // Don't use this constructor. Use `runMain()` instead.
+  explicit Loop(Scheduler::RunMode mode = Scheduler::RunMode::Deferred);
+
   Loop(const Loop &) = delete;
   Loop(Loop &&) = delete;
   Loop &operator=(const Loop &) = delete;
@@ -54,10 +46,7 @@ private:
   static Loop *defaultLoop;
   static Scheduler &currentScheduler();
 
-  template <typename R, MainFunction<R> F>
-  friend R runMain(F main, Scheduler::RunMode mode);
-
-  explicit Loop(Scheduler::RunMode mode = Scheduler::RunMode::Deferred);
+  friend void runLoop(Loop &);
   /// Run the event loop. This will serve all promises initialized before
   /// calling it.
   void run();

@@ -1,10 +1,13 @@
 
 #include "channel.h"
+#include "exception.h"
+#include "promise/promise.h"
 #include "run.h"
 #include "test_util.h"
 #include "timer.h"
 
 #include <gtest/gtest.h>
+#include <utility>
 
 namespace {
 using namespace uvco;

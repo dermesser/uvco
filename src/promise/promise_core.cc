@@ -2,7 +2,6 @@
 
 #include "promise/promise_core.h"
 #include "loop/loop.h"
-#include "loop/scheduler.h"
 
 #include <coroutine>
 #include <cstdio>

@@ -33,12 +33,16 @@ public:
   virtual Promise<void> close() = 0;
 };
 
-/// Yields a counter value, counting up from 0, at interval `millis`. If count
+/// Yields a counter value, counting up from 0, at interval `millis`. If `count`
 /// is 0, the ticker will tick indefinitely.
 ///
-/// The returned ticker must be stoped using `co_await stop()` in order to avoid
-/// leaking resources. If `count` is not 0 (so that only the specified number of
-/// ticks is emitted), it must be co_awaited until it returns `std::nullopt`.
+/// If `count` is 0, the returned ticker must be stopped using `co_await stop()`
+/// in order to avoid leaking resources.
+///
+/// If `count` is not 0 (so that only the specified number of
+/// ticks is emitted), it must be co_awaited until it returns `std::nullopt`. If
+/// not co_awaited until `std::nullopt` is returned, resources may be leaked. In
+/// this case, `close()` needs not be called explicitly.
 std::unique_ptr<Ticker> tick(const Loop &loop, uint64_t millis, uint64_t count);
 
 /// @}

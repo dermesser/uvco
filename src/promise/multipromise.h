@@ -98,12 +98,7 @@ public:
 
   /// A MultiPromise coroutine ultimately returns void. This is signaled to the
   /// caller by returning an empty `std::optional`.
-  void return_void() {
-    // TODO: don't resume immediately, but schedule resumption. The MultiPromise
-    // is only destroyed after resume() returns, this has the MultiPromise hang
-    // around longer than needed.
-    core_->resume();
-  }
+  void return_void() { core_->resume(); }
 
   /// Part of the coroutine protocol (see `Promise`).
   // Note: if suspend_always is chosen, we can better control when the
@@ -129,24 +124,16 @@ public:
   /// TODO: this should suspend using a special awaiter which will return
   /// control to the generator routine once the "receiver" has read its value.
   /// Currently, this relies on another suspension point after the yield giving
-  /// back control to the event loop (and thus the receiver).
+  /// back control to the event loop (and thus the receiver). Therefore you
+  /// can't use it directly to implement generator functions without further I/O
+  /// between yielded values.
   std::suspend_never yield_value(T &&value) {
     BOOST_ASSERT(!core_->slot);
     core_->slot = std::move(value);
-    // TODO: schedule resume on event loop.
-    // However, this makes it less certain when the value will be taken from the
-    // slot. At the moment, the consumer is run directly here, and will receive
-    // the slot value; with a scheduled resume, the generator must not yield
-    // another value, i.e. this method to return `suspend_always`. But that
-    // doesn't jibe well (yet) with the event loop run model.
-    //
-    // TODO 2: invert the model by using the event loop scheduler: let the
-    // generator always suspend; schedule consumer on event loop; add "generator
-    // resume" to multipromise core and let consumer schedule generator for
-    // resumption.
     core_->resume();
     return {};
   }
+
   std::suspend_never yield_value(const T &value) {
     BOOST_ASSERT(!core_->slot);
     core_->slot = value;

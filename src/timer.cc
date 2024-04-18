@@ -56,7 +56,7 @@ public:
   }
 
   Promise<void> close() {
-    if (!timer_) {
+    if (!timer_ || closed_) {
       co_return;
     }
     stop();
@@ -146,15 +146,15 @@ MultiPromise<uint64_t> TickerImpl::ticker() {
       if (stopped_) {
         break;
       }
-      co_yield std::move(counter);
+      co_yield counter;
       ++counter;
     }
   }
   // Clean up if not stopped manually from stop().
   if (!stopped_) {
-    stopped_ = true;
-    awaiter_->stop();
-    co_await awaiter_->close();
+    // Need to close timer so that libuv isn't blocked by the active handle on
+    // the loop.
+    co_await close();
   }
 }
 

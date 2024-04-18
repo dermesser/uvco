@@ -1,11 +1,14 @@
 
+#include "loop/loop.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
 #include "timer.h"
 
 #include "test_util.h"
 
+#include <cstdint>
 #include <gtest/gtest.h>
+#include <optional>
 
 namespace {
 
@@ -37,6 +40,7 @@ TEST(TimerTest, tickerTest) {
         break;
       }
     }
+    co_await ticker->close();
   };
 
   run_loop(setup);
@@ -68,6 +72,8 @@ TEST(TimerTest, finiteTickerTest) {
     for (counter = 0; counter < stopAfter; ++counter) {
       EXPECT_EQ(counter, *(co_await tickerProm));
     }
+    // Need to always wait for nullopt return value.
+    co_await tickerProm;
     co_await ticker->close();
   };
 
