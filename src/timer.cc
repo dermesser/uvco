@@ -51,6 +51,7 @@ public:
     }
   }
   ~TimerAwaiter() {
+    stop();
     BOOST_ASSERT_MSG(
         closed_, "Timer still active: please close explicitly using close()");
   }
@@ -75,7 +76,7 @@ public:
     handle_ = handle;
     return true;
   }
-  bool await_resume() const { return !stopped_; }
+  [[nodiscard]] bool await_resume() const { return !stopped_; }
 
   bool isReady() {
     uint64_t due = uv_timer_get_due_in(timer_.get());
@@ -115,7 +116,7 @@ void onMultiTimerFired(uv_timer_t *handle) {
 
 Promise<void> sleep(const Loop &loop, uint64_t millis) {
   TimerAwaiter awaiter{loop, millis};
-  co_await awaiter;
+  BOOST_VERIFY(!co_await awaiter);
   co_await awaiter.close();
   co_return;
 }
@@ -159,8 +160,7 @@ MultiPromise<uint64_t> TickerImpl::ticker() {
   if (!stopped_) {
     // Need to close timer so that libuv isn't blocked by the active handle on
     // the loop.
-    // co_await close();
-    awaiter_->stop();
+    co_await close();
   }
 }
 

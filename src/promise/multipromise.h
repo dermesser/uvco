@@ -126,7 +126,7 @@ public:
     if (core_.use_count() == 2) {
       // -> cancel generator. Because the coroutine frame keeps a reference to
       // the core, we can't do this in the core's destructor.
-      PromiseCore_* weakCore = core_.get();
+      PromiseCore_ *weakCore = core_.get();
       core_.reset();
       // The core's dtor is called while cancelGenerator runs.
       weakCore->cancelGenerator();
@@ -196,7 +196,8 @@ public:
   /// variables inside the generator (and run their destructors), and ensure
   /// that the generator will never resume from the currently yielded value.
   ///
-  /// `cancel()` is called automatically once the MultiPromise instance referring to a coroutine is destroyed.
+  /// `cancel()` is called automatically once the MultiPromise instance
+  /// referring to a coroutine is destroyed.
   ///
   /// (This can be solved by distinguishing between the returned object and
   /// the promise object, which may be part of a future refactor. In that case,
