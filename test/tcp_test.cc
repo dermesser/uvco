@@ -47,7 +47,6 @@ Promise<void> echoTcpServer(const Loop &loop, bool &received, bool &responded) {
   Promise<void> clientLoop =
       echoReceived(std::move(*client), received, responded);
   co_await clientLoop;
-  clients.cancel();
   co_await server.close();
 }
 

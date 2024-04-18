@@ -79,8 +79,10 @@ public:
   /// generatorHandle_ will never resume from the currently yielded value.
   void cancelGenerator() {
     if (generatorHandle_) {
-      generatorHandle_->destroy();
+      const std::coroutine_handle<> handle = generatorHandle_.value();
       generatorHandle_.reset();
+      // Careful: within this function, this class' dtor is called!
+      handle.destroy();
     }
   }
 
@@ -120,7 +122,15 @@ public:
   MultiPromise &operator=(MultiPromise<T> &&) noexcept = default;
   MultiPromise(const MultiPromise<T> &other) = default;
   ~MultiPromise() {
-    fmt::print("MultiPromise::~MultiPromise (core: {})\n", core_.use_count());
+    // Us and the coroutine frame; but we're about to be destroyed
+    if (core_.use_count() == 2) {
+      // -> cancel generator. Because the coroutine frame keeps a reference to
+      // the core, we can't do this in the core's destructor.
+      PromiseCore_* weakCore = core_.get();
+      core_.reset();
+      // The core's dtor is called while cancelGenerator runs.
+      weakCore->cancelGenerator();
+    }
   }
 
   /// A generator (yielding) coroutine returns a MultiPromise.
@@ -186,9 +196,7 @@ public:
   /// variables inside the generator (and run their destructors), and ensure
   /// that the generator will never resume from the currently yielded value.
   ///
-  /// `cancel()` MUST be called if the generator coroutine has not yielded a
-  /// `std::nullopt`; otherwise, it will keep hanging around and not free its
-  /// resources, leading to a memory leak.
+  /// `cancel()` is called automatically once the MultiPromise instance referring to a coroutine is destroyed.
   ///
   /// (This can be solved by distinguishing between the returned object and
   /// the promise object, which may be part of a future refactor. In that case,

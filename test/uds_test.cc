@@ -27,7 +27,6 @@ Promise<void> pingPongServer(const Loop &loop) {
   try {
     auto listener = server.listen();
     std::optional<UnixStream> stream = co_await listener;
-    listener.cancel();
     if (!stream) {
       fmt::print(stderr, "No stream\n");
       co_return;
