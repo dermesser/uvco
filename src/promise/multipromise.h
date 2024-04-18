@@ -221,6 +221,7 @@ protected:
                        "yielding? (await_ready)");
       return !core_.lock()->slot.has_value();
     }
+
     bool await_suspend(std::coroutine_handle<> handle) {
       BOOST_ASSERT_MSG(!core_.expired(),
                        "MultiPromiseCore has been destroyed; why am I still "
@@ -228,6 +229,7 @@ protected:
       core_.lock()->suspendGenerator(handle);
       return true;
     }
+
     void await_resume() {
       // Returning into the generator coroutine
     }

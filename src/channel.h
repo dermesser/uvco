@@ -7,6 +7,7 @@
 #include <uv.h>
 
 #include "exception.h"
+#include "promise/multipromise.h"
 #include "promise/promise.h"
 #include "run.h"
 
@@ -152,6 +153,25 @@ public:
     co_return item;
   }
 
+  /// Continuously read items from channel by repeatedly `co_await`ing the
+  /// returned MultiPromise. (getAll() is a generator)
+  ///
+  /// Remember to call `MultiPromise<T>::cancel()` when you are done with the
+  /// channel, although this should happen automatically when the last
+  /// MultiPromise object is dropped.
+  MultiPromise<T> getAll() {
+    while (true) {
+      if (queue_.empty()) {
+        ChannelAwaiter_ awaiter{queue_, read_waiting_};
+        BOOST_VERIFY(co_await awaiter);
+      }
+      T item = queue_.get();
+      awake_writer();
+      // Suspends until consumer asks for next item.
+      co_yield item;
+    }
+  }
+
 private:
   BoundedQueue<T> queue_;
   // TODO: a multi-reader/writer queue is easily achieved by converting the
@@ -178,7 +198,9 @@ private:
     explicit ChannelAwaiter_(BoundedQueue<T> &queue,
                              BoundedQueue<std::coroutine_handle<>> &slot)
         : queue_{queue}, waiters_{slot} {}
+
     bool await_ready() { return false; }
+
     bool await_suspend(std::coroutine_handle<> handle) {
       if (!waiters_.hasSpace()) {
         throw UvcoException(
@@ -188,6 +210,7 @@ private:
       waiters_.put(handle);
       return true;
     }
+
     bool await_resume() { return !queue_.empty(); }
 
     // References Channel<T>::queue_

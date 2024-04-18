@@ -1,6 +1,7 @@
 
 #include "channel.h"
 #include "exception.h"
+#include "promise/multipromise.h"
 #include "promise/promise.h"
 #include "run.h"
 #include "test_util.h"
@@ -191,4 +192,29 @@ TEST(ChannelTest, tooManyWaiters) {
   // May not be the case if a co_await stalled: then run_loop finishes
   // prematurely.
   EXPECT_TRUE(reachedEnd);
+}
+
+TEST(ChannelTest, channelGenerator) {
+  auto writer = [](Channel<int> &chan, int numIters) -> Promise<void> {
+    for (int i = 0; i < numIters; ++i) {
+      co_await chan.put(i);
+    }
+  };
+
+  constexpr static int numIters = 10;
+  int counter = 0;
+
+  auto setup = [&](const Loop &) -> Promise<void> {
+    Channel<int> chan{2};
+
+    Promise<void> writerCoroutine = writer(chan, numIters);
+    MultiPromise<int> gen = chan.getAll();
+
+    for (int i = 0; i < numIters; ++i) {
+      EXPECT_EQ(counter = (co_await gen).value(), i);
+    }
+  };
+
+  run_loop(setup);
+  EXPECT_EQ(counter, numIters - 1);
 }
