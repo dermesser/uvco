@@ -52,7 +52,6 @@ UnixStreamServer::~UnixStreamServer() {
 }
 
 MultiPromise<UnixStream> UnixStreamServer::listen(int backlog) {
-  ZeroAtExit<void> zeroAtExit{&pipe_->data};
   ConnectionAwaiter_ connectionAwaiter;
   pipe_->data = &connectionAwaiter;
 
@@ -84,14 +83,19 @@ MultiPromise<UnixStream> UnixStreamServer::listen(int backlog) {
         // the already processed connections.
         connectionAwaiter.accepted_.erase(connectionAwaiter.accepted_.begin(),
                                           it);
+        pipe_->data = nullptr;
         throw UvcoException{status,
                             "UnixStreamServer failed to accept a connection!"};
       } else {
+        // Safety for when the generator is cancelled while awaiting resumption.
+        pipe_->data = nullptr;
         co_yield std::move(std::get<1>(streamSlot));
+        pipe_->data = &connectionAwaiter;
       }
     }
     connectionAwaiter.accepted_.clear();
   }
+  pipe_->data = nullptr;
 }
 
 Promise<void> UnixStreamServer::close() {

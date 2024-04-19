@@ -157,10 +157,13 @@ MultiPromise<TcpStream> TcpServer::listen(int backlog) {
         // and will process the remaining connections. Therefore, first remove
         // the already processed connections.
         awaiter.accepted_.erase(awaiter.accepted_.begin(), it);
+        tcp_->data = nullptr;
         throw UvcoException{status,
                             "UnixStreamServer failed to accept a connection!"};
       } else {
+        tcp_->data = nullptr;
         co_yield std::move(std::get<1>(streamSlot));
+        tcp_->data = &awaiter;
       }
     }
     awaiter.accepted_.clear();
