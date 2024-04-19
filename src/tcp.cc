@@ -135,7 +135,12 @@ MultiPromise<TcpStream> TcpServer::listen(int backlog) {
   ConnectionAwaiter_ awaiter{*tcp_};
   tcp_->data = &awaiter;
 
-  uv_listen((uv_stream_t *)tcp_.get(), backlog, onNewConnection);
+  const uv_status listenStatus =
+      uv_listen((uv_stream_t *)tcp_.get(), backlog, onNewConnection);
+  if (listenStatus != 0) {
+    tcp_->data = nullptr;
+    throw UvcoException{listenStatus, "UnixStreamServer failed to listen"};
+  }
 
   while (true) {
     bool ok = co_await awaiter;

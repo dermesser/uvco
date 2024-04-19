@@ -2,7 +2,6 @@
 #pragma once
 
 #include "exception.h"
-#include "internal/internal_utils.h"
 #include "loop/loop.h"
 #include "promise.h"
 #include "promise/promise_core.h"
@@ -58,6 +57,7 @@ public:
   /// Resume the generator from its last `co_yield` point, so it can yield the
   /// next value.
   void resumeGenerator() {
+    BOOST_ASSERT(PromiseCore<T>::state_ != PromiseState::finished);
     if (generatorHandle_) {
       const auto handle = generatorHandle_.value();
       generatorHandle_.reset();
@@ -78,6 +78,7 @@ public:
   /// the generator (and run their destructors), and ensure that the
   /// generatorHandle_ will never resume from the currently yielded value.
   void cancelGenerator() {
+    terminated_ = true;
     if (generatorHandle_) {
       const std::coroutine_handle<> handle = generatorHandle_.value();
       generatorHandle_.reset();
@@ -86,8 +87,16 @@ public:
     }
   }
 
+  /// Mark generator as finished, yielding no more values.
+  void terminated() { terminated_ = true; }
+  /// Check if the generator has been cancelled or has returned.
+  [[nodiscard]] bool isTerminated() const { return terminated_; }
+
 private:
   std::optional<std::coroutine_handle<>> generatorHandle_;
+  /// Set to true once the generator coroutine has returned or has been
+  /// cancelled.
+  bool terminated_ = false;
 };
 
 /// A `MultiPromise` is like a `Promise`, except that it can resolve more than
@@ -138,7 +147,10 @@ public:
 
   /// A MultiPromise coroutine ultimately returns void. This is signaled to the
   /// caller by returning an empty `std::optional`.
-  void return_void() { core_->resume(); }
+  void return_void() {
+    core_->terminated();
+    core_->resume();
+  }
 
   /// Part of the coroutine protocol (see `Promise`).
   // Note: if suspend_always is chosen, we can better control when the
@@ -150,6 +162,7 @@ public:
   /// Part of the coroutine protocol (see `Promise`).
   void unhandled_exception() {
     core_->slot = std::current_exception();
+    core_->terminated();
     core_->resume();
   }
 
@@ -186,6 +199,9 @@ public:
   /// Used when `co_await`ing a MultiPromise. The awaiter handles the actual
   /// suspension and resumption.
   MultiPromiseAwaiter_ operator co_await() {
+    BOOST_ASSERT(core_);
+    BOOST_ASSERT_MSG(!core_->isTerminated(),
+                     "MultiPromise has returned, thrown, or was cancelled.");
     return MultiPromiseAwaiter_{core_};
   }
 

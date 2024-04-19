@@ -85,20 +85,11 @@ public:
   /// (`co_await`) or `co_return`.
   Promise<T> get_return_object() { return *this; }
 
-  /// Part of the coroutine protocol: Called by `co_return`.
-  ///
-  /// In `uvco`, this method also resumes and runs the awaiting coroutine until
-  /// its next suspension point or `co_return`. This may lead to deep stacks if
-  /// a long chain of coroutines is resolved at once.
-  ///
-  /// The upside is that coroutines are run immediately after an event
-  /// occurring, reducing latency.
+  /// Part of the coroutine protocol: Called by `co_return`. Schedules the
+  /// awaiting coroutine for resumption.
   void return_value(T &&value) {
     BOOST_ASSERT(!core_->slot);
     core_->slot = std::move(value);
-    // TODO: don't resume immediately, but schedule resumption. The promise is
-    // only destroyed after resume() returns, this has the promise hang around
-    // longer than needed.
     core_->resume();
   }
 

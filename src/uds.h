@@ -4,7 +4,6 @@
 
 #include <fmt/core.h>
 #include <string>
-#include <utility>
 #include <uv.h>
 
 #include <coroutine>
@@ -12,14 +11,12 @@
 #include <optional>
 #include <string_view>
 #include <uv/version.h>
-#include <variant>
-#include <vector>
 
 #include "internal/internal_utils.h"
-#include "promise/multipromise.h"
 #include "promise/promise.h"
 #include "run.h"
 #include "stream.h"
+#include "stream_server_base.h"
 
 namespace uvco {
 
@@ -89,6 +86,12 @@ private:
   };
 };
 
+template <> struct UvStreamInitHelper<uv_pipe_t> {
+  static void init(uv_loop_t *loop, uv_pipe_t *handle) {
+    uv_pipe_init(loop, handle, 0);
+  }
+};
+
 /// A server that listens for incoming connections on a Unix domain socket (type
 /// `SOCK_STREAM`).
 ///
@@ -96,13 +99,13 @@ private:
 /// return a `MultiPromise<UnixStream>`, which will yield a new `UnixStream` for
 /// each incoming connection. The peer address can be obtained using the
 /// `getPeerName()` method on `UnixStream`.
-class UnixStreamServer {
+class UnixStreamServer : public StreamServerBase<uv_pipe_t, UnixStream> {
 public:
   UnixStreamServer(const UnixStreamServer &) = delete;
   UnixStreamServer(UnixStreamServer &&) = default;
   UnixStreamServer &operator=(const UnixStreamServer &) = delete;
   UnixStreamServer &operator=(UnixStreamServer &&) = default;
-  ~UnixStreamServer();
+  ~UnixStreamServer() = default;
 
   /// @brief Construct and bind a Unix SOCK_STREAM socket.
   /// @param loop The loop to run on.
@@ -113,33 +116,6 @@ public:
   /// Configure permissions for socket; flags may be either or a combination of
   /// `UV_READABLE` and `UV_WRITABLE`.
   void chmod(int mode);
-
-  /// Listen on the given socket. Yields a stream for each incoming connection.
-  MultiPromise<UnixStream> listen(int backlog = 128);
-
-  /// Close the server. Ensure to await this to avoid resource leaks.
-  Promise<void> close();
-
-private:
-  std::unique_ptr<uv_pipe_t> pipe_;
-
-  static void onNewConnection(uv_stream_t *server, uv_status status);
-
-  /// Used to track a pending listener, waiting for a connection.
-  struct ConnectionAwaiter_ {
-    [[nodiscard]] bool await_ready() const;
-    bool await_suspend(std::coroutine_handle<> awaitingCoroutine);
-    [[nodiscard]] bool await_resume() const;
-
-    // Notify the listener to stop.
-    void stop();
-
-    std::optional<std::coroutine_handle<>> handle_;
-
-    using Accepted = std::variant<uv_status, UnixStream>;
-    std::vector<Accepted> accepted_;
-    bool stopped_ = false;
-  };
 };
 
 /// @}

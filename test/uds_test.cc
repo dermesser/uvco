@@ -24,8 +24,8 @@ constexpr std::string_view testSocketPath = "/tmp/_uvco_test.sock";
 
 Promise<void> pingPongServer(const Loop &loop) {
   UnixStreamServer server{loop, testSocketPath};
+  auto listener = server.listen();
   try {
-    auto listener = server.listen();
     std::optional<UnixStream> stream = co_await listener;
     if (!stream) {
       fmt::print(stderr, "No stream\n");
@@ -46,6 +46,7 @@ Promise<void> pingPongServer(const Loop &loop) {
     fmt::print(stderr, "Error: {}\n", e.what());
     throw;
   }
+
   fmt::print(stderr, "Closing server\n");
   co_await server.close();
   fmt::print(stderr, "Listen finished\n");
@@ -103,6 +104,19 @@ TEST(UdsTest, UnixStreamFailConnect) {
   };
 
   EXPECT_THROW({ run_loop(setup); }, UvcoException);
+}
+
+TEST(UdsTest, UnixStreamListenerStop) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    UnixStreamServer server{loop, testSocketPath};
+    auto listener = server.listen();
+    co_await sleep(loop, 1);
+    co_await server.close();
+    co_await listener;
+    co_return;
+  };
+
+  run_loop(setup);
 }
 
 } // namespace
