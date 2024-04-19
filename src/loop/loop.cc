@@ -51,6 +51,7 @@ Loop::~Loop() {
 }
 
 void Loop::runOne() { uv_run(loop_.get(), UV_RUN_ONCE); }
+
 void Loop::run() {
   do {
     runOne();
@@ -58,6 +59,7 @@ void Loop::run() {
     scheduler_->runAll();
   } while (!scheduler_->empty() || uv_loop_alive(loop_.get()) != 0);
 }
+
 uv_loop_t *Loop::uvloop() const { return loop_.get(); }
 
 Loop::operator uv_loop_t *() const { return loop_.get(); }

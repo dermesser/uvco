@@ -21,6 +21,8 @@
 #include <string>
 #include <sys/socket.h>
 #include <utility>
+#include <variant>
+#include <vector>
 
 namespace uvco {
 
@@ -130,17 +132,25 @@ private:
   std::unique_ptr<uv_tcp_t> tcp_;
 
   struct ConnectionAwaiter_ {
-    explicit ConnectionAwaiter_(uv_tcp_t &tcp) : tcp_{tcp} {}
-    bool await_ready();
+    explicit ConnectionAwaiter_(uv_tcp_t &tcp) : tcp_{tcp} {
+      accepted_.reserve(4);
+    }
+    [[nodiscard]] bool await_ready() const;
     bool await_suspend(std::coroutine_handle<> handle);
-    std::optional<TcpStream> await_resume();
+    // Returns true if one or more connections were accepted.
+    // Returns false if the listener should stop.
+    bool await_resume();
 
+    /// Stop a listener coroutine.
     void stop();
 
     uv_tcp_t &tcp_;
     std::optional<std::coroutine_handle<>> handle_;
-    std::optional<TcpStream> streamSlot_;
-    std::optional<uv_status> status_;
+
+    // Set of accepted connections or errors.
+    using Accepted = std::variant<uv_status, TcpStream>;
+    std::vector<Accepted> accepted_;
+
     bool stopped_ = false;
   };
 };

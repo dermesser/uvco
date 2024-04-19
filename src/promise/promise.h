@@ -141,7 +141,6 @@ public:
     if (ready()) {
       auto &slot = core_->slot.value();
       switch (slot.index()) {
-        fmt::print(stderr, "index: {}\n", slot.index());
       case 0: {
         return std::move(std::get<0>(slot));
       case 1:

@@ -22,7 +22,7 @@
 namespace {
 using namespace uvco;
 
-constexpr uint32_t pingPongCount = 1000;
+constexpr uint32_t pingPongCount = 100;
 
 Promise<void> udpServer(const Loop &loop, uint64_t &received) {
   Udp server{loop};

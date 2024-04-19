@@ -163,6 +163,21 @@ Some more examples can be found in the `test/` directory. Those test files
 ending in `.exe.cc` are end-to-end binaries which also show how to set up
 the event loop.
 
+## Exception Safety
+
+Exceptions are propagated through the coroutine stack. If a coroutine throws an exception,
+it will be thrown at the point of the `co_await` that started the coroutine.
+
+There are two difficulties:
+
+1. Many uvco types must be `close()`d explicitly, because closing is an asynchronous operation.
+Complaints will be printed to the console if you forget to close a resource. Usually though, the
+resource will be closed asynchronously although a small amount of memory may be leaked (see
+`StreamBase::~StreamBase()`).
+1. Exceptions are only rethrown from the `runMain()` call if the event loop has finished. If a
+single active libuv handle is present, this will not be the case, and the application will appear
+to hang. Therefore, prefer handling exceptions within your asynchronous code.
+
 ## Dependencies
 
 * libuv (tested with 1.46, but > 1.0 probably works)

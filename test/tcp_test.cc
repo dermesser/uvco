@@ -8,6 +8,7 @@
 
 #include "test_util.h"
 
+#include <boost/assert.hpp>
 #include <gtest/gtest.h>
 #include <optional>
 #include <string>
