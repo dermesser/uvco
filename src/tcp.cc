@@ -134,13 +134,19 @@ MultiPromise<TcpStream> TcpServer::listen(int backlog) {
       break;
     }
 
-    for (auto &streamSlot : awaiter.accepted_) {
+    for (auto it = awaiter.accepted_.begin(); it != awaiter.accepted_.end();
+         it++) {
+      auto &streamSlot = *it;
+
       if (streamSlot.index() == 0) {
         const uv_status status = std::get<0>(streamSlot);
-        if (status != 0) {
-          throw UvcoException{
-              status, "TcpServer::listen() failed to accept a connection!"};
-        }
+        BOOST_ASSERT(status != 0);
+        // When the error is handled, the user code can again call listen()
+        // and will process the remaining connections. Therefore, first remove
+        // the already processed connections.
+        awaiter.accepted_.erase(awaiter.accepted_.begin(), it);
+        throw UvcoException{status,
+                            "UnixStreamServer failed to accept a connection!"};
       } else {
         co_yield std::move(std::get<1>(streamSlot));
       }

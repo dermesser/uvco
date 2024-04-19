@@ -12,6 +12,8 @@
 #include <optional>
 #include <string_view>
 #include <uv/version.h>
+#include <variant>
+#include <vector>
 
 #include "internal/internal_utils.h"
 #include "promise/multipromise.h"
@@ -127,12 +129,15 @@ private:
   struct ConnectionAwaiter_ {
     [[nodiscard]] bool await_ready() const;
     bool await_suspend(std::coroutine_handle<> awaitingCoroutine);
-    std::optional<UnixStream> await_resume();
+    [[nodiscard]] bool await_resume() const;
+
+    // Notify the listener to stop.
     void stop();
 
     std::optional<std::coroutine_handle<>> handle_;
-    std::optional<UnixStream> streamSlot_;
-    std::optional<uv_status> status_;
+
+    using Accepted = std::variant<uv_status, UnixStream>;
+    std::vector<Accepted> accepted_;
     bool stopped_ = false;
   };
 };

@@ -51,14 +51,33 @@ MultiPromise<UnixStream> UnixStreamServer::listen(int backlog) {
   }
 
   while (true) {
-    std::optional<UnixStream> stream = co_await connectionAwaiter;
-    if (!stream) {
+    bool ok = co_await connectionAwaiter;
+    if (!ok) {
       // At this point, do not touch pipe_->data anymore!
       // This is the result of ConnectionAwaiter_::stop(), and
       // data points to a CloseAwaiter_ object.
       break;
     }
-    co_yield std::move(*stream);
+
+    for (auto it = connectionAwaiter.accepted_.begin();
+         it != connectionAwaiter.accepted_.end(); it++) {
+      auto &streamSlot = *it;
+
+      if (streamSlot.index() == 0) {
+        const uv_status status = std::get<0>(streamSlot);
+        BOOST_ASSERT(status != 0);
+        // When the error is handled, the user code can again call listen()
+        // and will process the remaining connections. Therefore, first remove
+        // the already processed connections.
+        connectionAwaiter.accepted_.erase(connectionAwaiter.accepted_.begin(),
+                                          it);
+        throw UvcoException{status,
+                            "UnixStreamServer failed to accept a connection!"};
+      } else {
+        co_yield std::move(std::get<1>(streamSlot));
+      }
+    }
+    connectionAwaiter.accepted_.clear();
   }
 }
 
@@ -76,19 +95,18 @@ void UnixStreamServer::onNewConnection(uv_stream_t *server, uv_status status) {
   BOOST_ASSERT(server->type == UV_NAMED_PIPE);
   auto *connectionAwaiter = (ConnectionAwaiter_ *)server->data;
 
-  connectionAwaiter->status_ = status;
   if (status == 0) {
-    BOOST_ASSERT(!connectionAwaiter->streamSlot_);
     auto newStream = std::make_unique<uv_pipe_t>();
     uv_pipe_init(server->loop, newStream.get(), 0);
     const uv_status acceptStatus =
         uv_accept(server, (uv_stream_t *)newStream.get());
     if (acceptStatus != 0) {
-      BOOST_ASSERT(!connectionAwaiter->status_);
-      connectionAwaiter->status_ = acceptStatus;
+      connectionAwaiter->accepted_.emplace_back(acceptStatus);
       return;
     }
-    connectionAwaiter->streamSlot_ = UnixStream{std::move(newStream)};
+    connectionAwaiter->accepted_.emplace_back(UnixStream{std::move(newStream)});
+  } else {
+    connectionAwaiter->accepted_.emplace_back(status);
   }
 
   // Resume listener coroutine.
@@ -99,37 +117,19 @@ void UnixStreamServer::onNewConnection(uv_stream_t *server, uv_status status) {
 }
 
 bool UnixStreamServer::ConnectionAwaiter_::await_ready() const {
-  return streamSlot_.has_value();
+  return !accepted_.empty();
 }
 
 bool UnixStreamServer::ConnectionAwaiter_::await_suspend(
     std::coroutine_handle<> awaitingCoroutine) {
   BOOST_ASSERT(!handle_);
-  BOOST_ASSERT(!streamSlot_);
-  BOOST_ASSERT(!status_);
   handle_ = awaitingCoroutine;
   return true;
 }
 
-std::optional<UnixStream> UnixStreamServer::ConnectionAwaiter_::await_resume() {
+bool UnixStreamServer::ConnectionAwaiter_::await_resume() const {
   // Stopped or no callback received.
-  if (stopped_ || !status_) {
-    return std::nullopt;
-  }
-
-  if (*status_ == 0) {
-    BOOST_ASSERT(streamSlot_);
-    std::optional<UnixStream> result = std::move(streamSlot_);
-    streamSlot_.reset();
-    status_.reset();
-    return result;
-  } else {
-    BOOST_ASSERT(!streamSlot_);
-    const uv_status status = *status_;
-    status_.reset();
-    throw UvcoException{status,
-                        "UnixStreamServer received error while listening"};
-  }
+  return !stopped_;
 }
 
 void UnixStreamServer::ConnectionAwaiter_::stop() {
