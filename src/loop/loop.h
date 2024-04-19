@@ -13,13 +13,15 @@ namespace uvco {
 /// @addtogroup Loop
 /// @{
 
-/// A wrapper around a libuv event loop. Use `uvloop()` to get a reference
-/// to the loop, and `run()` to start the event loop.
+/// Not used by user code! Use `runMain()` for the top-level interface.
+///
+/// A wrapper around a libuv event loop. `uvloop()` returns a reference
+/// to the loop, and `run()` starts the event loop. `enqueue()` schedules a
+/// coroutine to run on the default loop at a later time, enabling any part of
+/// uvco to easily schedule work on the current loop.
 ///
 /// Typically this is only used by uvco's internal machinery. User code will
 /// pass around a reference to the loop.
-///
-/// Use `uvco::runMain()` for a top-level interface.
 class Loop {
 public:
   // Don't use this constructor. Use `runMain()` instead.

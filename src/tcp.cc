@@ -1,5 +1,6 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include <cstdio>
 #include <uv.h>
 
 #include "close.h"
@@ -111,6 +112,18 @@ TcpServer::TcpServer(const Loop &loop, AddressHandle bindAddress, bool ipv6Only)
   bind(sockaddr, flags);
 }
 
+TcpServer::~TcpServer() {
+  // close() MUST be called and awaited before dtor.
+  if (tcp_) {
+    fmt::print(stderr, "TcpServer::~TcpServer(): closing stream in dtor; "
+                       "this will leak memory. "
+                       "Please co_await stream.close() if possible.\n");
+    // Asynchronously close handle. It's better to leak memory than file
+    // descriptors.
+    closeHandle(tcp_.release());
+  }
+}
+
 void TcpServer::bind(const struct sockaddr *addr, int flags) {
   int result = uv_tcp_bind(tcp_.get(), addr, flags);
   if (result != 0) {
@@ -119,7 +132,6 @@ void TcpServer::bind(const struct sockaddr *addr, int flags) {
 }
 
 MultiPromise<TcpStream> TcpServer::listen(int backlog) {
-  ZeroAtExit<void> zeroAtExit(&tcp_->data);
   ConnectionAwaiter_ awaiter{*tcp_};
   tcp_->data = &awaiter;
 
@@ -128,7 +140,7 @@ MultiPromise<TcpStream> TcpServer::listen(int backlog) {
   while (true) {
     bool ok = co_await awaiter;
     if (!ok) {
-      // At this point, do not touch pipe_->data anymore!
+      // At this point, do not touch tcp_->data anymore!
       // This is the result of ConnectionAwaiter_::stop(), and
       // data points to a CloseAwaiter_ object.
       break;
@@ -153,15 +165,17 @@ MultiPromise<TcpStream> TcpServer::listen(int backlog) {
     }
     awaiter.accepted_.clear();
   }
+  tcp_->data = nullptr;
 }
 
 Promise<void> TcpServer::close() {
   auto *awaiter = (ConnectionAwaiter_ *)tcp_->data;
-  // Resume listener coroutine.
+  // Resume listener coroutine and tell it to exit.
   if (awaiter != nullptr && awaiter->handle_) {
     awaiter->stop();
   }
   co_await closeHandle(tcp_.get());
+  tcp_.reset();
 }
 
 void TcpServer::onNewConnection(uv_stream_t *stream, uv_status status) {
@@ -221,12 +235,17 @@ void TcpStream::noDelay(bool enable) {
   uv_tcp_nodelay((uv_tcp_t *)&stream(), static_cast<int>(enable));
 }
 
-bool TcpServer::ConnectionAwaiter_::await_resume() { return !stopped_; }
-
 void TcpServer::ConnectionAwaiter_::stop() {
+  if (stopped_) {
+    return;
+  }
   stopped_ = true;
   if (handle_) {
-    Loop::enqueue(handle_.value());
+    // Synchronous resume to ensure that the listener is stopped by the time
+    // the function returns.
+    const auto handle = *handle_;
+    handle_.reset();
+    handle.resume();
   }
 }
 

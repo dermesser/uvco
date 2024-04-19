@@ -1,6 +1,8 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #include <cstddef>
+#include <cstdio>
+#include <fmt/core.h>
 #include <string>
 #include <uv.h>
 #include <uv/version.h>
@@ -35,6 +37,17 @@ UnixStreamServer::UnixStreamServer(const Loop &loop, std::string_view bindPath,
 #endif
   if (bindStatus != 0) {
     throw UvcoException{bindStatus, "UnixStreamServer failed to bind"};
+  }
+}
+
+UnixStreamServer::~UnixStreamServer() {
+  if (pipe_) {
+    fmt::print(stderr, "UnixStreamServer::~UnixStreamServer(): closing server "
+                       "in dtor; this will leak memory. "
+                       "Please co_await server.close() if possible.\n");
+    // Asynchronously close handle. It's better to leak memory than file
+    // descriptors.
+    closeHandle(pipe_.release());
   }
 }
 
@@ -87,6 +100,7 @@ Promise<void> UnixStreamServer::close() {
     connectionAwaiter->stop();
   }
   co_await closeHandle(pipe_.get());
+  pipe_.reset();
 }
 
 void UnixStreamServer::chmod(int mode) { uv_pipe_chmod(pipe_.get(), mode); }
@@ -138,8 +152,11 @@ void UnixStreamServer::ConnectionAwaiter_::stop() {
   }
   stopped_ = true;
   if (handle_) {
-    Loop::enqueue(handle_.value());
+    // Synchronous resume to ensure that the listener is stopped by the time
+    // the function returns.
+    const auto handle = *handle_;
     handle_.reset();
+    handle.resume();
   }
 }
 

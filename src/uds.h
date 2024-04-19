@@ -102,7 +102,7 @@ public:
   UnixStreamServer(UnixStreamServer &&) = default;
   UnixStreamServer &operator=(const UnixStreamServer &) = delete;
   UnixStreamServer &operator=(UnixStreamServer &&) = default;
-  ~UnixStreamServer() = default;
+  ~UnixStreamServer();
 
   /// @brief Construct and bind a Unix SOCK_STREAM socket.
   /// @param loop The loop to run on.

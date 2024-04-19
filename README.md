@@ -174,7 +174,7 @@ There are two difficulties:
 Complaints will be printed to the console if you forget to close a resource. Usually though, the
 resource will be closed asynchronously although a small amount of memory may be leaked (see
 `StreamBase::~StreamBase()`).
-1. Exceptions are only rethrown from the `runMain()` call if the event loop has finished. If a
+2. Exceptions are only rethrown from the `runMain()` call if the event loop has finished. If a
 single active libuv handle is present, this will not be the case, and the application will appear
 to hang. Therefore, prefer handling exceptions within your asynchronous code.
 

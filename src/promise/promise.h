@@ -27,16 +27,9 @@ namespace uvco {
 /// used. The `PromiseCore` manages the low-level resumption while the `Promise`
 /// and `PromiseAwaiter_` types fulfill the C++ standard coroutine protocol.
 ///
-/// A Promise that is being awaited (`co_await promise;`) registers the state of
-/// the awaiting coroutine. Once it is fulfilled from elsewhere - almost always
-/// another coroutine reaching `co_return` -- the awaiting coroutine is resumed
-/// immediately on the stack of the returning coroutine.
-///
-/// This may lead to a relatively deep stack. The root of the stack
-/// is either a libuv callback, or `LoopData::runAll` (the scheduler's run
-/// method). As rule of thumb, once a libuv suspension point is reached, e.g. a
-/// socket read, the entire stack will be collapsed and control is transferred
-/// back to libuv.
+/// When a Promise is awaited, the awaiting coroutine is suspended until the
+/// promise is resolved. Once the promise is resolved, the suspended coroutine
+/// is scheduled to be resumed by `Loop` at a later time.
 template <typename T> class Promise {
 protected:
   struct PromiseAwaiter_;

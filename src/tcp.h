@@ -113,7 +113,7 @@ public:
   TcpServer(TcpServer &&) = default;
   TcpServer &operator=(const TcpServer &) = delete;
   TcpServer &operator=(TcpServer &&) = default;
-  ~TcpServer() = default;
+  ~TcpServer();
 
   /// Return client connections as clients connect.
   ///
@@ -139,7 +139,7 @@ private:
     bool await_suspend(std::coroutine_handle<> handle);
     // Returns true if one or more connections were accepted.
     // Returns false if the listener should stop.
-    bool await_resume();
+    bool await_resume() const { return !stopped_; }
 
     /// Stop a listener coroutine.
     void stop();

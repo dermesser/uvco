@@ -41,8 +41,8 @@ TtyStream TtyStream::tty(const Loop &loop, int fd) {
   auto tty = std::make_unique<uv_tty_t>();
   uv_status status = uv_tty_init(loop.uvloop(), tty.get(), fd, 0);
   if (status != 0) {
-    throw UvcoException(
-        fmt::format("opening TTY failed: {}", uv_err_name(status)));
+    throw UvcoException(status,
+                        fmt::format("opening TTY with fd {} failed", fd));
   }
   return TtyStream{std::move(tty)};
 }
