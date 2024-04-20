@@ -1,4 +1,4 @@
-// uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
+// uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #pragma once
 
@@ -9,54 +9,18 @@
 
 #include "internal/internal_utils.h"
 #include "name_resolution.h"
-#include "promise/multipromise.h"
 #include "promise/promise.h"
 #include "run.h"
-#include "stream.h"
 #include "stream_server_base.h"
+#include "tcp_stream.h"
 
 #include <coroutine>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <sys/socket.h>
-#include <utility>
-#include <variant>
-#include <vector>
 
 namespace uvco {
-
-/// @ingroup TCP
-/// @ingroup Stream
-/// A stream referring to a TCP connection.
-class TcpStream : public StreamBase {
-public:
-  explicit TcpStream(std::unique_ptr<uv_tcp_t> tcp)
-      : StreamBase{std::move(tcp)} {}
-  TcpStream(const TcpStream &) = delete;
-  TcpStream(TcpStream &&) = default;
-  TcpStream &operator=(const TcpStream &) = delete;
-  TcpStream &operator=(TcpStream &&) = default;
-
-  ~TcpStream() override = default;
-
-  /// Return address of peer.
-  [[nodiscard]] AddressHandle getPeerName() const;
-
-  /// Return bound address of socket.
-  [[nodiscard]] AddressHandle getSockName() const;
-
-  /// Sends RST to TCP peer and closes stream, frees associated memory.
-  /// Must be awaited to avoid resource leaks.
-  [[nodiscard]] Promise<void> closeReset();
-
-  /// Set keep-alive delay in seconds.
-  void keepAlive(bool enable, unsigned int delay = 10);
-
-  /// Enable Nagle's algorithm.
-  void noDelay(bool enable);
-};
 
 /// @addtogroup TCP
 /// @{

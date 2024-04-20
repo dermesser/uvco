@@ -6,6 +6,7 @@
 #include "run.h"
 #include "tcp.h"
 
+#include "tcp_stream.h"
 #include "test_util.h"
 
 #include <boost/assert.hpp>

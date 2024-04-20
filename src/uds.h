@@ -3,8 +3,13 @@
 #pragma once
 
 #include <fmt/core.h>
-#include <string>
 #include <uv.h>
+
+#include "internal/internal_utils.h"
+#include "promise/promise.h"
+#include "run.h"
+#include "stream_server_base.h"
+#include "uds_stream.h"
 
 #include <coroutine>
 #include <memory>
@@ -12,35 +17,10 @@
 #include <string_view>
 #include <uv/version.h>
 
-#include "internal/internal_utils.h"
-#include "promise/promise.h"
-#include "run.h"
-#include "stream.h"
-#include "stream_server_base.h"
-
 namespace uvco {
 
-/// @addtogroup Unix Sockets
+/// @addtogroup UnixSockets
 /// @{
-
-/// A stream served by a Unix domain socket. In addition to the `StreamBase`
-/// functionality, it provides getSockname() and getPeerName() methods.
-///
-/// A UnixStream cannot be created directly; use a `UnixStreamClient` or a
-/// `UnixStreamServer` to create streams.
-class UnixStream : public StreamBase {
-public:
-  UnixStream(const UnixStream &) = delete;
-  UnixStream(UnixStream &&) = default;
-  UnixStream &operator=(const UnixStream &) = delete;
-  UnixStream &operator=(UnixStream &&) = default;
-  ~UnixStream() override = default;
-
-  using StreamBase::StreamBase;
-
-  std::string getSockName();
-  std::string getPeerName();
-};
 
 /// A client that connects to a Unix domain socket (type `SOCK_STREAM`).
 ///
@@ -81,15 +61,9 @@ private:
     uv_connect_t request_{};
     std::unique_ptr<uv_pipe_t> pipe_;
     std::string_view path_;
-    std::optional<uv_status> status_;
     std::optional<std::coroutine_handle<>> handle_;
+    std::optional<uv_status> status_;
   };
-};
-
-template <> struct UvStreamInitHelper<uv_pipe_t> {
-  static void init(uv_loop_t *loop, uv_pipe_t *handle) {
-    uv_pipe_init(loop, handle, 0);
-  }
 };
 
 /// A server that listens for incoming connections on a Unix domain socket (type
