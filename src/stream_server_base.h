@@ -87,7 +87,8 @@ private:
 
 // Implementation contained in stream_server_base_impl.cc, where it's
 // instantiated for the currently two socket types using it (UnixServer and
-// TcpServer).
+// TcpServer). Include stream_server_base_impl.h to obtain declarations for
+// those specializations.
 
 /// @}
 

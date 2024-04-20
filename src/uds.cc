@@ -10,8 +10,7 @@
 #include "loop/loop.h"
 #include "promise/promise.h"
 #include "run.h"
-#include "stream.h"
-#include "stream_server_base.h"
+#include "stream_server_base_impl.h"
 #include "uds.h"
 #include "uds_stream.h"
 

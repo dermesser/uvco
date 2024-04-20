@@ -1,5 +1,9 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include <boost/assert.hpp>
+#include <fmt/core.h>
+#include <fmt/format.h>
+#include <sys/socket.h>
 #include <uv.h>
 
 #include "close.h"
@@ -8,19 +12,15 @@
 #include "name_resolution.h"
 #include "promise/promise.h"
 #include "run.h"
-#include "stream_server_base.h"
+#include "stream_server_base_impl.h"
 #include "tcp.h"
 #include "tcp_stream.h"
 
-#include <boost/assert.hpp>
 #include <coroutine>
 #include <cstdint>
-#include <fmt/core.h>
-#include <fmt/format.h>
 #include <memory>
 #include <optional>
 #include <string>
-#include <sys/socket.h>
 #include <utility>
 
 namespace uvco {
