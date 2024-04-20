@@ -13,6 +13,7 @@
 #include "promise/promise.h"
 #include "run.h"
 #include "stream.h"
+#include "stream_server_base.h"
 
 #include <coroutine>
 #include <cstdint>
@@ -104,7 +105,7 @@ private:
 
 /// A TCP server accepts client connections by listening on a specific bind
 /// address.
-class TcpServer {
+class TcpServer : public StreamServerBase<uv_tcp_t, TcpStream> {
 public:
   /// Sets up and bind socket to address.
   TcpServer(const Loop &loop, AddressHandle bindAddress, bool ipv6Only = false);
@@ -113,46 +114,10 @@ public:
   TcpServer(TcpServer &&) = default;
   TcpServer &operator=(const TcpServer &) = delete;
   TcpServer &operator=(TcpServer &&) = default;
-  ~TcpServer();
-
-  /// Return client connections as clients connect.
-  ///
-  /// Libuv does not appear to offer a way to stop listening and accepting
-  /// connections: so we won't either.
-  MultiPromise<TcpStream> listen(int backlog = 128);
-
-  /// Close server and stop accepting client connections; must be awaited.
-  Promise<void> close();
+  ~TcpServer() = default;
 
 private:
   void bind(const struct sockaddr *addr, int flags);
-
-  static void onNewConnection(uv_stream_t *stream, uv_status status);
-
-  std::unique_ptr<uv_tcp_t> tcp_;
-
-  struct ConnectionAwaiter_ {
-    explicit ConnectionAwaiter_(uv_tcp_t &tcp) : tcp_{tcp} {
-      accepted_.reserve(4);
-    }
-    [[nodiscard]] bool await_ready() const;
-    bool await_suspend(std::coroutine_handle<> handle);
-    // Returns true if one or more connections were accepted.
-    // Returns false if the listener should stop.
-    bool await_resume() const { return !stopped_; }
-
-    /// Stop a listener coroutine.
-    void stop();
-
-    uv_tcp_t &tcp_;
-    std::optional<std::coroutine_handle<>> handle_;
-
-    // Set of accepted connections or errors.
-    using Accepted = std::variant<uv_status, TcpStream>;
-    std::vector<Accepted> accepted_;
-
-    bool stopped_ = false;
-  };
 };
 
 /// @}

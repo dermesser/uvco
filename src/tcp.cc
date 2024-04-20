@@ -10,6 +10,7 @@
 #include "promise/multipromise.h"
 #include "promise/promise.h"
 #include "run.h"
+#include "stream_server_base.h"
 #include "tcp.h"
 
 #include <boost/assert.hpp>
@@ -105,110 +106,17 @@ void TcpClient::ConnectAwaiter_::onConnect(uv_status status) {
 }
 
 TcpServer::TcpServer(const Loop &loop, AddressHandle bindAddress, bool ipv6Only)
-    : tcp_{std::make_unique<uv_tcp_t>()} {
-  uv_tcp_init(loop.uvloop(), tcp_.get());
+    : StreamServerBase{std::make_unique<uv_tcp_t>()} {
+  uv_tcp_init(loop.uvloop(), socket_.get());
   const auto *sockaddr = bindAddress.sockaddr();
   const int flags = ipv6Only ? UV_TCP_IPV6ONLY : 0;
   bind(sockaddr, flags);
 }
 
-TcpServer::~TcpServer() {
-  // close() MUST be called and awaited before dtor.
-  if (tcp_) {
-    fmt::print(stderr, "TcpServer::~TcpServer(): closing stream in dtor; "
-                       "this will leak memory. "
-                       "Please co_await stream.close() if possible.\n");
-    // Asynchronously close handle. It's better to leak memory than file
-    // descriptors.
-    closeHandle(tcp_.release());
-  }
-}
-
 void TcpServer::bind(const struct sockaddr *addr, int flags) {
-  int result = uv_tcp_bind(tcp_.get(), addr, flags);
+  int result = uv_tcp_bind(socket_.get(), addr, flags);
   if (result != 0) {
     throw UvcoException{result, "TcpServer::bind()"};
-  }
-}
-
-MultiPromise<TcpStream> TcpServer::listen(int backlog) {
-  ConnectionAwaiter_ awaiter{*tcp_};
-  tcp_->data = &awaiter;
-
-  const uv_status listenStatus =
-      uv_listen((uv_stream_t *)tcp_.get(), backlog, onNewConnection);
-  if (listenStatus != 0) {
-    tcp_->data = nullptr;
-    throw UvcoException{listenStatus, "UnixStreamServer failed to listen"};
-  }
-
-  while (true) {
-    bool ok = co_await awaiter;
-    if (!ok) {
-      // At this point, do not touch tcp_->data anymore!
-      // This is the result of ConnectionAwaiter_::stop(), and
-      // data points to a CloseAwaiter_ object.
-      break;
-    }
-
-    for (auto it = awaiter.accepted_.begin(); it != awaiter.accepted_.end();
-         it++) {
-      auto &streamSlot = *it;
-
-      if (streamSlot.index() == 0) {
-        const uv_status status = std::get<0>(streamSlot);
-        BOOST_ASSERT(status != 0);
-        // When the error is handled, the user code can again call listen()
-        // and will process the remaining connections. Therefore, first remove
-        // the already processed connections.
-        awaiter.accepted_.erase(awaiter.accepted_.begin(), it);
-        tcp_->data = nullptr;
-        throw UvcoException{status,
-                            "UnixStreamServer failed to accept a connection!"};
-      } else {
-        tcp_->data = nullptr;
-        co_yield std::move(std::get<1>(streamSlot));
-        tcp_->data = &awaiter;
-      }
-    }
-    awaiter.accepted_.clear();
-  }
-  tcp_->data = nullptr;
-}
-
-Promise<void> TcpServer::close() {
-  auto *awaiter = (ConnectionAwaiter_ *)tcp_->data;
-  // Resume listener coroutine and tell it to exit.
-  if (awaiter != nullptr && awaiter->handle_) {
-    awaiter->stop();
-  }
-  co_await closeHandle(tcp_.get());
-  tcp_.reset();
-}
-
-void TcpServer::onNewConnection(uv_stream_t *stream, uv_status status) {
-  const auto *server = (uv_tcp_t *)stream;
-  auto *connectionAwaiter = (ConnectionAwaiter_ *)server->data;
-  uv_loop_t *const loop = connectionAwaiter->tcp_.loop;
-
-  if (status == 0) {
-    auto clientStream = std::make_unique<uv_tcp_t>();
-    uv_tcp_init(loop, clientStream.get());
-    const uv_status acceptStatus =
-        uv_accept((uv_stream_t *)server, (uv_stream_t *)clientStream.get());
-    if (acceptStatus == 0) {
-      connectionAwaiter->accepted_.emplace_back(
-          TcpStream{std::move(clientStream)});
-    } else {
-      connectionAwaiter->accepted_.emplace_back(acceptStatus);
-    }
-  } else {
-    connectionAwaiter->accepted_.emplace_back(status);
-  }
-
-  if (connectionAwaiter->handle_) {
-    Loop::enqueue(*connectionAwaiter->handle_);
-    connectionAwaiter->handle_.reset();
   }
 }
 
@@ -241,31 +149,6 @@ void TcpStream::keepAlive(bool enable, unsigned int delay) {
 
 void TcpStream::noDelay(bool enable) {
   uv_tcp_nodelay((uv_tcp_t *)&stream(), static_cast<int>(enable));
-}
-
-void TcpServer::ConnectionAwaiter_::stop() {
-  if (stopped_) {
-    return;
-  }
-  stopped_ = true;
-  if (handle_) {
-    // Synchronous resume to ensure that the listener is stopped by the time
-    // the function returns.
-    const auto handle = *handle_;
-    handle_.reset();
-    handle.resume();
-  }
-}
-
-bool TcpServer::ConnectionAwaiter_::await_suspend(
-    std::coroutine_handle<> handle) {
-  BOOST_ASSERT(!handle_);
-  handle_ = handle;
-  return true;
-}
-
-bool TcpServer::ConnectionAwaiter_::await_ready() const {
-  return !accepted_.empty();
 }
 
 } // namespace uvco
