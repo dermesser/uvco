@@ -101,6 +101,54 @@ TEST(UdpTest, testPingPong) {
   EXPECT_EQ(sent, pingPongCount);
 }
 
+TEST(UdpTest, testDropReceiver) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Udp server{loop};
+    co_await server.bind("::1", 9999, 0);
+
+    Udp client{loop};
+    co_await client.bind("::1", 7777);
+    co_await client.connect("::1", 9999);
+
+    MultiPromise<std::pair<std::string, AddressHandle>> packets =
+        server.receiveMany();
+    ;
+
+    std::string fromClient{"Hello there!"};
+    co_await client.send(fromClient, {});
+
+    const auto receivedFromClient = co_await packets;
+    EXPECT_TRUE(receivedFromClient.has_value());
+
+    std::string msg = "Hello there!";
+    co_await server.send(msg, AddressHandle{"::1", 7777});
+    co_await server.close();
+
+    const auto receivedFromServer = co_await client.receiveOne();
+    EXPECT_EQ(msg, receivedFromServer);
+
+    co_await client.close();
+  };
+
+  run_loop(setup);
+}
+
+TEST(UdpTest, cancelWhileReceiving) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Udp server{loop};
+    co_await server.bind("::1", 9999, 0);
+
+    MultiPromise<std::pair<std::string, AddressHandle>> packets =
+        server.receiveMany();
+
+    co_await sleep(loop, 1);
+    server.stopReceiveMany(packets);
+    co_await server.close();
+  };
+
+  run_loop(setup);
+}
+
 TEST(UdpTest, testTtl) {
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     Udp server{loop};

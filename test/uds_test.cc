@@ -112,7 +112,9 @@ TEST(UdsTest, UnixStreamListenerStop) {
     auto listener = server.listen();
     co_await sleep(loop, 1);
     co_await server.close();
-    co_await listener;
+    // The following line would result in a crash (intentional) because the
+    // listener generator has returned.
+    // co_await listener;
     co_return;
   };
 

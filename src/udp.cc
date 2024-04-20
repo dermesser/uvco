@@ -148,11 +148,6 @@ Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
 
 MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
   FlagGuard receivingGuard{is_receiving_};
-  // The udp_->data field points to the current awaiter and signifies that
-  // a receive operation is ongoing. However, this generator function may be
-  // cancelled externally. In that case we want to make sure not to leave
-  // dangling pointers into our stack.
-  ZeroAtExit<void> zeroAtExit{&udp_->data};
 
   RecvAwaiter_ awaiter{};
   awaiter.stop_receiving_ = false;
@@ -170,7 +165,11 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
       break;
     }
     BOOST_ASSERT(awaiter.addr_);
+    // It's possible that co_yield doesn't resume anymore, therefore clear
+    // reference to local awaiter.
+    udp_->data = nullptr;
     co_yield std::make_pair(std::move(*buffer), *awaiter.addr_);
+    udp_->data = &awaiter;
   }
   udp_->data = nullptr;
   co_return;
@@ -266,6 +265,7 @@ int Udp::SendAwaiter_::await_resume() {
 void Udp::stopReceiveMany(
     MultiPromise<std::pair<std::string, AddressHandle>> &packets) {
   udpStopReceive();
+  // Cancel receiving generator if currently suspended by co_yield.
   packets.cancel();
   auto *currentAwaiter = (RecvAwaiter_ *)udp_->data;
   if (currentAwaiter == nullptr) {
@@ -273,6 +273,8 @@ void Udp::stopReceiveMany(
   }
   currentAwaiter->nread_.reset();
   currentAwaiter->buffer_.reset();
+  // If generator is suspended on co_await, resume it synchronously so it can
+  // exit before the Udp instance is possibly destroyed.
   if (currentAwaiter->handle_) {
     // Don't schedule this on the event loop: we must synchronously terminate
     // the onReceiveMany() loop, otherwise it will exist after destruction of
