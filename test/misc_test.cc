@@ -156,4 +156,21 @@ TEST(MultiPromiseTest, exception) {
   run_loop(setup);
 }
 
+TEST(LoopTest, createNestedLoopFails) {
+  auto setup = [](const Loop & /*loop*/) -> uvco::Promise<void> {
+    auto innerSetup = [](const Loop & /*loop*/) -> uvco::Promise<void> {
+      EXPECT_THROW({ Loop innerLoop; }, UvcoException);
+      co_return;
+    };
+    run_loop(innerSetup);
+    co_return;
+  };
+
+  EXPECT_THROW({ run_loop(setup); }, UvcoException);
+}
+
+TEST(LoopTest, noLoop) {
+  EXPECT_THROW({ Loop::enqueue(std::coroutine_handle<>{}); }, UvcoException);
+}
+
 } // namespace

@@ -62,8 +62,6 @@ void Loop::run() {
 
 uv_loop_t *Loop::uvloop() const { return loop_.get(); }
 
-Loop::operator uv_loop_t *() const { return loop_.get(); }
-
 Loop *Loop::defaultLoop = nullptr;
 
 Scheduler &Loop::currentScheduler() {

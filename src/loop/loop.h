@@ -36,8 +36,6 @@ public:
   /// Get a non-owned pointer to the loop.
   [[nodiscard]] uv_loop_t *uvloop() const;
 
-  explicit operator uv_loop_t *() const;
-
   // Retrieve the currently active global scheduler associated with the default
   // loop.
   static void enqueue(std::coroutine_handle<> handle);
