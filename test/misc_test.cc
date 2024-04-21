@@ -145,6 +145,27 @@ MultiPromise<int> miniTicker(const Loop &loop) {
   throw UvcoException("ticker");
 }
 
+TEST(MultiPromiseTest, standardGenerator) {
+  constexpr static int countMax = 10;
+  auto yielder = []() -> uvco::MultiPromise<int> {
+    for (int i = 0; i < countMax; ++i) {
+      co_yield i;
+    }
+  };
+
+  auto setup = [&yielder](const Loop &loop) -> uvco::Promise<void> {
+    MultiPromise<int> ticker = yielder();
+    for (int i = 0; i < countMax; ++i) {
+      const auto value = co_await ticker;
+      EXPECT_TRUE(value.has_value());
+      EXPECT_EQ(i, value.value());
+    }
+    EXPECT_EQ(co_await ticker, std::nullopt);
+  };
+
+  run_loop(setup);
+}
+
 TEST(MultiPromiseTest, exception) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
     MultiPromise<int> ticker = miniTicker(loop);
@@ -153,6 +174,7 @@ TEST(MultiPromiseTest, exception) {
     EXPECT_EQ(co_await ticker, 2);
     EXPECT_THROW({ co_await ticker; }, UvcoException);
   };
+
   run_loop(setup);
 }
 
