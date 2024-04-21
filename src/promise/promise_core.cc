@@ -44,11 +44,6 @@ PromiseCore<void>::~PromiseCore() {
   }
 }
 
-void PromiseCore<void>::immediateFulfill() {
-  ready = true;
-  state_ = PromiseState::finished;
-}
-
 void PromiseCore<void>::except(std::exception_ptr exc) {
   BOOST_ASSERT(state_ == PromiseState::init ||
                state_ == PromiseState::waitedOn);

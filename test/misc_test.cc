@@ -19,6 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <sys/socket.h>
+#include <utility>
 #include <uv.h>
 #include <vector>
 
@@ -137,12 +138,14 @@ TEST(PipeTest, pipePingPong) {
   run_loop(setup);
 }
 
-MultiPromise<int> miniTicker(const Loop &loop) {
-  for (int i = 0; i < 3; ++i) {
-    co_yield i;
-    co_await sleep(loop, 1);
-  }
-  throw UvcoException("ticker");
+TEST(PromiseTest, moveCtor) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    Promise<int> promise1 = []() -> uvco::Promise<int> { co_return 1; }();
+    Promise<int> promise2 = std::move(promise1);
+    EXPECT_EQ(co_await promise2, 1);
+  };
+
+  run_loop(setup);
 }
 
 TEST(MultiPromiseTest, standardGenerator) {
@@ -164,6 +167,14 @@ TEST(MultiPromiseTest, standardGenerator) {
   };
 
   run_loop(setup);
+}
+
+MultiPromise<int> miniTicker(const Loop &loop) {
+  for (int i = 0; i < 3; ++i) {
+    co_yield i;
+    co_await sleep(loop, 1);
+  }
+  throw UvcoException("ticker");
 }
 
 TEST(MultiPromiseTest, exception) {
@@ -193,6 +204,20 @@ TEST(LoopTest, createNestedLoopFails) {
 
 TEST(LoopTest, noLoop) {
   EXPECT_THROW({ Loop::enqueue(std::coroutine_handle<>{}); }, UvcoException);
+}
+
+TEST(LoopTest, exceptionLeavesLoop) {
+  auto inner = [](const Loop &loop) -> uvco::Promise<void> {
+    co_await sleep(loop, 1);
+    TtyStream tty = TtyStream::tty(loop, -1);
+    co_await tty.write("Hello");
+  };
+  auto setup = [&inner](const Loop &loop) -> uvco::Promise<void> {
+    co_await inner(loop);
+    co_return;
+  };
+
+  EXPECT_THROW({ run_loop(setup); }, UvcoException);
 }
 
 } // namespace

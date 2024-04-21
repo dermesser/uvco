@@ -117,7 +117,7 @@ private:
   struct OutStreamAwaiter_ {
     OutStreamAwaiter_(StreamBase &stream, std::string &&buffer);
 
-    std::array<uv_buf_t, 1> prepare_buffers() const;
+    [[nodiscard]] std::array<uv_buf_t, 1> prepare_buffers() const;
 
     bool await_ready();
 

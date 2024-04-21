@@ -159,10 +159,6 @@ public:
 
   void except(std::exception_ptr exc);
 
-  // Immediately marks a core as fulfilled (but does not resume); used for
-  // Promise<void>::imediate().
-  void immediateFulfill();
-
   bool ready = false;
 
   std::optional<std::exception_ptr> exception_;
