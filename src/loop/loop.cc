@@ -53,11 +53,11 @@ Loop::~Loop() {
 void Loop::runOne() { uv_run(loop_.get(), UV_RUN_ONCE); }
 
 void Loop::run() {
-  do {
+  while (!scheduler_->empty() || uv_loop_alive(loop_.get()) != 0) {
     runOne();
     // Run any left-over coroutines, and check if they schedule callbacks.
     scheduler_->runAll();
-  } while (!scheduler_->empty() || uv_loop_alive(loop_.get()) != 0);
+  }
 }
 
 uv_loop_t *Loop::uvloop() const { return loop_.get(); }
@@ -73,6 +73,9 @@ Scheduler &Loop::currentScheduler() {
 
 void Loop::enqueue(std::coroutine_handle<> handle) {
   currentScheduler().enqueue(handle);
+  // If any handles are present, ensure that uv_run returns from waiting for I/O
+  // soon.
+  uv_stop(defaultLoop->uvloop());
 }
 
 } // namespace uvco
