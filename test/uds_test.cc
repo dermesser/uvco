@@ -1,3 +1,6 @@
+// uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
+
+#include <uv.h>
 
 #include "exception.h"
 #include "loop/loop.h"
@@ -6,16 +9,16 @@
 #include "test_util.h"
 #include "timer.h"
 #include "uds.h"
+#include "uds_stream.h"
 
-#include <cstdio>
 #include <fmt/core.h>
 #include <fmt/format.h>
-
 #include <gtest/gtest.h>
+
+#include <cstdio>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <uv.h>
 
 namespace {
 using namespace uvco;

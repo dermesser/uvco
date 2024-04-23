@@ -9,15 +9,25 @@
  */
 
 #include "name_resolution.h"
+#include "promise/promise.h"
 #include "run.h"
 #include "tcp.h"
+#include "tcp_stream.h"
+
 #include <boost/log/core.hpp>
+#include <boost/log/core/core.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/trivial.hpp>
+
 #include <cstdint>
-#include <promise/promise.h>
+#include <iterator>
+#include <optional>
 #include <ranges>
+#include <string>
+#include <string_view>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 using namespace uvco;
 

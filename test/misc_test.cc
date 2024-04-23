@@ -124,6 +124,17 @@ TEST(TtyTest, invalidFd) {
   run_loop(setup);
 }
 
+TEST(TtyTest, closeWhileReading) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    TtyStream tty = TtyStream::stdin(loop);
+    auto reader = tty.read();
+    co_await tty.close();
+    EXPECT_FALSE((co_await reader).has_value());
+  };
+
+  run_loop(setup);
+}
+
 TEST(PipeTest, pipePingPong) {
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     auto [read, write] = pipe(loop);
@@ -150,20 +161,45 @@ TEST(PromiseTest, moveCtor) {
 
 TEST(MultiPromiseTest, standardGenerator) {
   constexpr static int countMax = 10;
-  auto yielder = []() -> uvco::MultiPromise<int> {
+  auto generator = []() -> uvco::MultiPromise<int> {
     for (int i = 0; i < countMax; ++i) {
       co_yield i;
     }
   };
 
-  auto setup = [&yielder](const Loop &loop) -> uvco::Promise<void> {
-    MultiPromise<int> ticker = yielder();
+  auto setup = [&generator](const Loop &loop) -> uvco::Promise<void> {
+    MultiPromise<int> ticker = generator();
     for (int i = 0; i < countMax; ++i) {
       const auto value = co_await ticker;
       EXPECT_TRUE(value.has_value());
       EXPECT_EQ(i, value.value());
     }
     EXPECT_EQ(co_await ticker, std::nullopt);
+    EXPECT_EQ(co_await ticker, std::nullopt);
+  };
+
+  run_loop(setup);
+}
+
+TEST(MultiPromiseTest, generatorThrows) {
+  constexpr static int countMax = 3;
+  auto generator = []() -> uvco::MultiPromise<int> {
+    for (int i = 0; i < countMax; ++i) {
+      co_yield i;
+    }
+    throw UvcoException("ticker");
+  };
+
+  auto setup = [&generator](const Loop &loop) -> uvco::Promise<void> {
+    MultiPromise<int> ticker = generator();
+    for (int i = 0; i < countMax; ++i) {
+      const auto value = co_await ticker;
+      EXPECT_TRUE(value.has_value());
+      EXPECT_EQ(i, value.value());
+    }
+    // Repeatedly throws.
+    EXPECT_THROW({ co_await ticker; }, UvcoException);
+    EXPECT_THROW({ co_await ticker; }, UvcoException);
   };
 
   run_loop(setup);

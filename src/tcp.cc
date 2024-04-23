@@ -113,9 +113,9 @@ TcpServer::TcpServer(const Loop &loop, AddressHandle bindAddress, bool ipv6Only)
 }
 
 void TcpServer::bind(const struct sockaddr *addr, int flags) {
-  int result = uv_tcp_bind(socket_.get(), addr, flags);
-  if (result != 0) {
-    throw UvcoException{result, "TcpServer::bind()"};
+  const uv_status status = uv_tcp_bind(socket_.get(), addr, flags);
+  if (status != 0) {
+    throw UvcoException{status, "TcpServer::bind()"};
   }
 }
 

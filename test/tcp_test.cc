@@ -34,30 +34,35 @@ Promise<void> echoTcpServer(const Loop &loop, bool &received, bool &responded) {
 
   MultiPromise<TcpStream> clients = server.listen();
 
-  std::optional<TcpStream> client = co_await clients;
-  BOOST_ASSERT(client);
+  std::optional<TcpStream> maybeClient = co_await clients;
+  BOOST_ASSERT(maybeClient);
 
-  client->keepAlive(true);
-  client->noDelay(true);
+  TcpStream client{nullptr};
+  client = std::move(*maybeClient);
 
-  AddressHandle peer = client->getPeerName();
-  AddressHandle ours = client->getSockName();
+  client.keepAlive(true);
+  client.noDelay(true);
+
+  AddressHandle peer = client.getPeerName();
+  AddressHandle ours = client.getSockName();
 
   EXPECT_EQ(ours.toString(), "127.0.0.1:8090");
   EXPECT_EQ(peer.address(), "127.0.0.1");
 
   Promise<void> clientLoop =
-      echoReceived(std::move(*client), received, responded);
+      echoReceived(std::move(client), received, responded);
   co_await clientLoop;
   co_await server.close();
 }
 
 Promise<void> sendTcpClient(const Loop &loop, bool &sent,
                             bool &responseReceived) {
+  // Also test move ctors.
   TcpClient client{loop, "127.0.0.1", 8090};
   TcpClient client2{std::move(client)};
+  client = std::move(client2);
 
-  TcpStream stream = co_await client2.connect();
+  TcpStream stream = co_await client.connect();
 
   co_await stream.write("Hello World");
   sent = true;
@@ -105,7 +110,8 @@ TEST(TcpTest, validBind) {
 
 TEST(TcpTest, invalidLocalhostConnect) {
   auto main = [](const Loop &loop) -> Promise<void> {
-    TcpClient client{loop, "localhost", 39856};
+    const AddressHandle addr{"::1", 39856};
+    TcpClient client{loop, addr};
     EXPECT_THROW(
         {
           TcpStream stream = co_await client.connect();

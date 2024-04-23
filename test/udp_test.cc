@@ -44,6 +44,7 @@ Promise<void> udpServer(const Loop &loop, uint64_t &received) {
   EXPECT_EQ(server.getSockname().toString(), "[::1]:9999");
   // Necessary for the receiver promise to return and not leak memory!
   server.stopReceiveMany(packets);
+  EXPECT_FALSE((co_await packets).has_value());
   co_await server.close();
   co_return;
 }
@@ -86,8 +87,6 @@ Promise<void> join(Promise<void> promise1, Promise<void> promise2) {
   co_await promise1;
   co_await promise2;
 }
-
-} // namespace
 
 TEST(UdpTest, testPingPong) {
   uint64_t sent = 0;
@@ -216,3 +215,16 @@ TEST(UdpTest, sendNoAddress) {
 
   run_loop(setup);
 }
+
+TEST(UdpTest, closeWhileReceiving) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    Udp udp{loop};
+    co_await udp.bind("::1", 9999);
+    auto receiver = udp.receiveMany();
+    co_await udp.close();
+  };
+
+  run_loop(setup);
+}
+
+} // namespace

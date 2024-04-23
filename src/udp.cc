@@ -34,12 +34,12 @@ Udp::~Udp() {
   if (is_receiving_) {
     fmt::print(stderr, "Udp::~Udp(): please co_await udp.stopReceiveMany() "
                        "before dropping Udp instance.\n");
-    udpStopReceive();
   }
   if (udp_) {
     fmt::print(stderr, "Udp::~Udp(): closing UDP socket in dtor; "
                        "this will leak memory. "
                        "Please co_await udp.close() if possible.\n");
+    udpStopReceive();
     closeHandle(udp_.release());
   }
 }
@@ -68,7 +68,7 @@ Promise<void> Udp::bind(const AddressHandle &address, unsigned int flag) {
 Promise<void> Udp::connect(std::string_view address, uint16_t port,
                            bool ipv6only) {
   Resolver resolver{*loop_};
-  int hint = ipv6only ? AF_INET6 : AF_UNSPEC;
+  const int hint = ipv6only ? AF_INET6 : AF_UNSPEC;
   AddressHandle addressHandle = co_await resolver.gai(address, port, hint);
 
   uv_udp_connect(udp_.get(), nullptr);

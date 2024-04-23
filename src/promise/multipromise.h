@@ -200,8 +200,6 @@ public:
   /// suspension and resumption.
   MultiPromiseAwaiter_ operator co_await() {
     BOOST_ASSERT(core_);
-    BOOST_ASSERT_MSG(!core_->isTerminated(),
-                     "MultiPromise has returned, thrown, or was cancelled.");
     return MultiPromiseAwaiter_{core_};
   }
 
@@ -267,7 +265,9 @@ protected:
 
     /// Part of the coroutine protocol. Returns `true` if the MultiPromise
     /// already has a value.
-    [[nodiscard]] bool await_ready() const { return core_->slot.has_value(); }
+    [[nodiscard]] bool await_ready() const {
+      return core_->isTerminated() || core_->slot.has_value();
+    }
     /// Part of the coroutine protocol. Always returns `true`; stores the
     /// suspension handle in the MultiPromiseCore for later resumption.
     virtual bool await_suspend(std::coroutine_handle<> handle) {

@@ -10,6 +10,7 @@
 #include <fmt/core.h>
 #include <uv.h>
 
+#include "close.h"
 #include "exception.h"
 #include "internal/internal_utils.h"
 #include "loop/loop.h"
@@ -21,6 +22,8 @@
 
 #include <coroutine>
 #include <cstdio>
+#include <memory>
+#include <utility>
 
 namespace uvco {
 

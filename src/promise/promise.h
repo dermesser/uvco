@@ -252,7 +252,7 @@ private:
 
     /// Part of the coroutine protocol: returns if the promise is already
     /// fulfilled.
-    bool await_ready() const;
+    [[nodiscard]] bool await_ready() const;
     /// Part of the coroutine protocol: returns if suspension is desired (always
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
     bool await_suspend(std::coroutine_handle<> handle);
