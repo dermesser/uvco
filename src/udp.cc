@@ -177,6 +177,17 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
 
 Promise<void> Udp::close() {
   BOOST_ASSERT(udp_);
+  RecvAwaiter_ *awaiter = (RecvAwaiter_ *)udp_->data;
+  if (awaiter != nullptr) {
+    fmt::print(stderr, "Udp::close(): stopping receiving. Please instead use "
+                       "Udp::stopReceivingMany() explicitly.\n");
+    // Force return from receiveMany() generator.
+    if (awaiter->handle_) {
+      const auto resumeHandle = awaiter->handle_.value();
+      awaiter->handle_.reset();
+      resumeHandle.resume();
+    }
+  }
   co_await closeHandle(udp_.get());
   udp_.reset();
   connected_ = false;

@@ -282,6 +282,7 @@ protected:
     /// the generating coroutine has `co_return`ed.
     std::optional<T> await_resume() {
       if (!core_->slot) {
+        // Terminated by co_return
         return std::nullopt;
       } else {
         switch (core_->slot->index()) {
@@ -291,6 +292,8 @@ protected:
           return std::move(result);
         }
         case 1:
+          // Terminated by exception
+          BOOST_ASSERT(core_->isTerminated());
           std::rethrow_exception(std::get<1>(core_->slot.value()));
         default:
           throw UvcoException(
