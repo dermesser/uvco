@@ -78,7 +78,7 @@ public:
   /// the generator (and run their destructors), and ensure that the
   /// generatorHandle_ will never resume from the currently yielded value.
   void cancelGenerator() {
-    terminated_ = true;
+    terminated();
     if (generatorHandle_) {
       const std::coroutine_handle<> handle = generatorHandle_.value();
       generatorHandle_.reset();

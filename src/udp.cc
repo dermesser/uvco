@@ -193,6 +193,38 @@ Promise<void> Udp::close() {
   connected_ = false;
 }
 
+void Udp::stopReceiveMany(
+    MultiPromise<std::pair<std::string, AddressHandle>> &packets) {
+  udpStopReceive();
+  // Cancel receiving generator if currently suspended by co_yield.
+  packets.cancel();
+  auto *currentAwaiter = (RecvAwaiter_ *)udp_->data;
+  if (currentAwaiter == nullptr) {
+    return;
+  }
+  currentAwaiter->nread_.reset();
+  currentAwaiter->buffer_.reset();
+  // If generator is suspended on co_await, resume it synchronously so it can
+  // exit before the Udp instance is possibly destroyed.
+  if (currentAwaiter->handle_) {
+    // Don't schedule this on the event loop: we must synchronously terminate
+    // the onReceiveMany() loop, otherwise it will exist after destruction of
+    // the Udp instance and read invalid memory.
+    currentAwaiter->handle_->resume();
+    // Don't touch currentAwaiter after this!!
+  }
+}
+
+void Udp::udpStopReceive() {
+  BOOST_ASSERT(udp_);
+  uv_udp_recv_stop(udp_.get());
+}
+
+int Udp::udpStartReceive() {
+  BOOST_ASSERT(udp_);
+  return uv_udp_recv_start(udp_.get(), allocator, onReceiveOne);
+}
+
 void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
                        const struct sockaddr *addr, unsigned int flags) {
 
@@ -224,85 +256,6 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
     awaiter->handle_.reset();
     Loop::enqueue(resumeHandle);
   }
-}
-
-bool Udp::RecvAwaiter_::await_suspend(std::coroutine_handle<> h) {
-  BOOST_ASSERT(!handle_);
-  handle_ = h;
-  return true;
-}
-
-bool Udp::RecvAwaiter_::await_ready() const { return buffer_.has_value(); }
-
-std::optional<std::string> Udp::RecvAwaiter_::await_resume() {
-  // Woken up without read packet: stop receiving.
-  if (!nread_ && !buffer_) {
-    return {};
-  }
-  BOOST_ASSERT(nread_);
-  if (*nread_ < 0) {
-    throw UvcoException(*nread_,
-                        "Udp::RecvAwaiter_::await_resume: error during recv");
-  }
-  BOOST_ASSERT(buffer_);
-  auto b = std::move(*buffer_);
-  buffer_.reset();
-  return b;
-}
-
-void Udp::onSendDone(uv_udp_send_t *req, uv_status status) {
-  auto *awaiter = (SendAwaiter_ *)req->data;
-  awaiter->status_ = status;
-  if (awaiter->handle_) {
-    auto resumeHandle = *awaiter->handle_;
-    awaiter->handle_.reset();
-    Loop::enqueue(resumeHandle);
-  }
-}
-
-bool Udp::SendAwaiter_::await_ready() const { return status_.has_value(); }
-
-bool Udp::SendAwaiter_::await_suspend(std::coroutine_handle<> h) {
-  BOOST_ASSERT(!handle_);
-  handle_ = h;
-  return true;
-}
-
-int Udp::SendAwaiter_::await_resume() {
-  BOOST_ASSERT(status_);
-  return *status_;
-}
-
-void Udp::stopReceiveMany(
-    MultiPromise<std::pair<std::string, AddressHandle>> &packets) {
-  udpStopReceive();
-  // Cancel receiving generator if currently suspended by co_yield.
-  packets.cancel();
-  auto *currentAwaiter = (RecvAwaiter_ *)udp_->data;
-  if (currentAwaiter == nullptr) {
-    return;
-  }
-  currentAwaiter->nread_.reset();
-  currentAwaiter->buffer_.reset();
-  // If generator is suspended on co_await, resume it synchronously so it can
-  // exit before the Udp instance is possibly destroyed.
-  if (currentAwaiter->handle_) {
-    // Don't schedule this on the event loop: we must synchronously terminate
-    // the onReceiveMany() loop, otherwise it will exist after destruction of
-    // the Udp instance and read invalid memory.
-    currentAwaiter->handle_->resume();
-    // Don't touch currentAwaiter after this!!
-  }
-}
-
-void Udp::udpStopReceive() {
-  BOOST_ASSERT(udp_);
-  uv_udp_recv_stop(udp_.get());
-}
-
-int Udp::udpStartReceive() {
-  BOOST_ASSERT(udp_);
-  return uv_udp_recv_start(udp_.get(), allocator, onReceiveOne);
 }
 
 void Udp::setBroadcast(bool enabled) {
@@ -382,5 +335,52 @@ std::optional<AddressHandle> Udp::getPeername() const {
 }
 
 uv_udp_t *Udp::underlying() const { return udp_.get(); }
+
+bool Udp::RecvAwaiter_::await_suspend(std::coroutine_handle<> h) {
+  BOOST_ASSERT(!handle_);
+  handle_ = h;
+  return true;
+}
+
+bool Udp::RecvAwaiter_::await_ready() const { return buffer_.has_value(); }
+
+std::optional<std::string> Udp::RecvAwaiter_::await_resume() {
+  // Woken up without read packet: stop receiving.
+  if (!nread_ && !buffer_) {
+    return {};
+  }
+  BOOST_ASSERT(nread_);
+  if (*nread_ < 0) {
+    throw UvcoException(*nread_,
+                        "Udp::RecvAwaiter_::await_resume: error during recv");
+  }
+  BOOST_ASSERT(buffer_);
+  auto b = std::move(*buffer_);
+  buffer_.reset();
+  return b;
+}
+
+void Udp::onSendDone(uv_udp_send_t *req, uv_status status) {
+  auto *awaiter = (SendAwaiter_ *)req->data;
+  awaiter->status_ = status;
+  if (awaiter->handle_) {
+    auto resumeHandle = *awaiter->handle_;
+    awaiter->handle_.reset();
+    Loop::enqueue(resumeHandle);
+  }
+}
+
+bool Udp::SendAwaiter_::await_ready() const { return status_.has_value(); }
+
+bool Udp::SendAwaiter_::await_suspend(std::coroutine_handle<> h) {
+  BOOST_ASSERT(!handle_);
+  handle_ = h;
+  return true;
+}
+
+int Udp::SendAwaiter_::await_resume() {
+  BOOST_ASSERT(status_);
+  return *status_;
+}
 
 } // namespace uvco
