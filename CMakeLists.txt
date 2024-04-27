@@ -71,7 +71,7 @@ add_library(test-util STATIC test/test_util.cc)
 target_include_directories(test-util PRIVATE src/)
 target_link_libraries(test-util PRIVATE uv-co-lib)
 
-foreach(TESTCASE IN ITEMS channel timer udp uds tcp misc)
+foreach(TESTCASE IN ITEMS channel generator loop name_resolution promise stream timer udp uds tcp misc)
     add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
     target_link_libraries(${TESTCASE}-test PRIVATE uv-co-lib test-util GTest::gtest_main)
     add_test(NAME ${TESTCASE}-test COMMAND ${TESTCASE}-test)
@@ -80,7 +80,6 @@ foreach(TESTCASE IN ITEMS channel timer udp uds tcp misc)
         target_compile_options(${TESTCASE}-test PRIVATE "--coverage")
         target_link_libraries(${TESTCASE}-test PRIVATE gcov)
     endif()
-
 endforeach()
 
 foreach(TESTBINARY IN ITEMS tcp-broadcaster multicast http10 memcached-impl)
