@@ -216,11 +216,27 @@ TEST(UdpTest, sendNoAddress) {
   run_loop(setup);
 }
 
-TEST(UdpTest, closeWhileReceiving) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+TEST(UdpTest, closedWhileReceiving) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     Udp udp{loop};
     co_await udp.bind("::1", 9999);
     auto receiver = udp.receiveMany();
+    co_await udp.close();
+    EXPECT_FALSE((co_await receiver).has_value());
+  };
+
+  run_loop(setup);
+}
+
+TEST(UdpTest, closeWhileReceivingInOtherCoroutine) {
+  auto co_waiter =
+      [](MultiPromise<std::pair<std::string, AddressHandle>> packets)
+      -> uvco::Promise<void> { EXPECT_FALSE((co_await packets).has_value()); };
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Udp udp{loop};
+    co_await udp.bind("::1", 9999);
+    auto receiver = udp.receiveMany();
+    Promise<void> waiter = co_waiter(receiver);
     co_await udp.close();
   };
 

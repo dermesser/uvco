@@ -127,8 +127,8 @@ public:
   /// An unfulfilled `MultiPromise`.
   MultiPromise() : core_{std::make_shared<PromiseCore_>()} {}
   MultiPromise(MultiPromise<T> &&) noexcept = default;
-  MultiPromise &operator=(const MultiPromise<T> &) = default;
-  MultiPromise &operator=(MultiPromise<T> &&) noexcept = default;
+  MultiPromise &operator=(const MultiPromise<T> &) = delete;
+  MultiPromise &operator=(MultiPromise<T> &&) noexcept = delete;
   MultiPromise(const MultiPromise<T> &other) = default;
   ~MultiPromise() {
     // Us and the coroutine frame; but we're about to be destroyed
@@ -206,11 +206,12 @@ public:
   /// Returns true if a value is available.
   bool ready() { return core_->slot.has_value(); }
 
-  /// Immediately cancel the generator coroutine. This will drop all stack
-  /// variables inside the generator (and run their destructors), and ensure
-  /// that the generator will never resume from the currently yielded value.
+  /// Immediately cancel the suspended generator coroutine. This will drop all
+  /// stack variables inside the generator (and run their destructors), and
+  /// ensure that the generator will never resume from the currently yielded
+  /// value.
   ///
-  /// `cancel()` is called automatically once the MultiPromise instance
+  /// `cancel()` is called automatically once the (last) MultiPromise instance
   /// referring to a coroutine is destroyed.
   ///
   /// (This can be solved by distinguishing between the returned object and
