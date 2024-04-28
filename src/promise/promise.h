@@ -23,13 +23,14 @@ namespace uvco {
 /// `co_return`. The `Promise` type is therefore the *promise object* of a
 /// coroutine, in terms of the C++ standard.
 ///
-/// A Promise can be awaited on; for this the inner type `PromiseAwaiter_` is
-/// used. The `PromiseCore` manages the low-level resumption while the `Promise`
-/// and `PromiseAwaiter_` types fulfill the C++ standard coroutine protocol.
+/// A Promise doesn't need to be constructed directly; it is returned from a
+/// coroutine function. Declare a function with a return type of `Promise<T>`
+/// and use `co_return` to return a value - that's it! Inside the coroutine, you
+/// can use `co_await` etc.
 ///
-/// When a Promise is awaited, the awaiting coroutine is suspended until the
-/// promise is resolved. Once the promise is resolved, the suspended coroutine
-/// is scheduled to be resumed by `Loop` at a later time.
+/// When a Promise is awaited using `co_await`, the awaiting coroutine is
+/// suspended until the promise is resolved. Once the promise is resolved, the
+/// suspended coroutine is scheduled to be resumed by `Loop` at a later time.
 ///
 /// The internal state is held in a `PromiseCore_` shared by all copies of the
 /// same `Promise`. However, only one coroutine can await a promise at a time.

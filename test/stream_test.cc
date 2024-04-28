@@ -1,5 +1,7 @@
 
+#include <fstream>
 #include <gtest/gtest.h>
+#include <ios>
 #include <sys/socket.h>
 #include <uv.h>
 
@@ -92,6 +94,35 @@ TEST(PipeTest, pipePingPong) {
     EXPECT_EQ(co_await read.read(), std::make_optional("Hello\nHello"));
     co_await read.close();
     co_await write.close();
+  };
+
+  run_loop(setup);
+}
+
+TEST(PipeTest, largeWriteRead) {
+  std::ifstream urandom("/dev/urandom", std::ios::binary);
+  std::array<char, 1024> buffer{};
+  urandom.read(buffer.data(), buffer.size());
+
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    auto [read, write] = pipe(loop);
+
+    for (unsigned i = 0; i < 10; ++i) {
+      co_await write.write(std::string(buffer.data(), buffer.size()));
+    }
+    co_await write.close();
+
+    size_t bytesRead = 0;
+
+    while (true) {
+      auto chunk = co_await read.read();
+      if (!chunk.has_value()) {
+        break;
+      }
+      bytesRead += chunk->size();
+    }
+
+    co_await read.close();
   };
 
   run_loop(setup);
