@@ -117,10 +117,10 @@ private:
 };
 
 /// A `MultiPromise` is like a `Promise`, except that it can resolve more than
-/// just once. A coroutine returning a `MultiPromise` typically uses `co_yield`
-/// to return values to the awaiting coroutine. It can therefore be used as
-/// generator (for example in the `Udp` class, a method exists which generates
-/// packets).
+/// just once. A coroutine returning a `MultiPromise` (called a "generator
+/// coroutine") uses `co_yield` to return values to the awaiting
+/// coroutine. For example in the `Udp` class, a method exists which generates
+/// packets.
 ///
 /// NOTE: currently uses a `shared_ptr` PromiseCore, due to issues with
 /// inheritance. It is expected that normal `Promise<T>` will be used most
@@ -188,6 +188,11 @@ public:
   /// Equivalent to `co_yield = co_await promise.yield_value()` (defined in C++
   /// standard); suspends the generator coroutine and resumes the awaiting
   /// coroutine if there is one.
+  ///
+  /// If nobody is awaiting a value from this generator, the yielded value is
+  /// still moved into the generator's slot, but the generator is not resumed.
+  /// Upon the next `co_await`, the returned `MultiPromiseAwaiter_` will
+  /// immediately return the value without resuming the generator.
   ///
   /// TODO: this should suspend using a special awaiter which will return
   /// control to the generator routine once the "receiver" has read its value.

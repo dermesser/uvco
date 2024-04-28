@@ -71,7 +71,7 @@ MultiPromise<int> miniTicker(const Loop &loop) {
   throw UvcoException("ticker");
 }
 
-TEST(MultiPromiseTest, exception) {
+TEST(MultiPromiseTest, exceptionWithTimer) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
     MultiPromise<int> ticker = miniTicker(loop);
     EXPECT_EQ(co_await ticker, 0);

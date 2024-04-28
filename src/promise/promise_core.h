@@ -123,9 +123,8 @@ public:
                  typeid(T).name());
     }
     // This only happens if the awaiting coroutine has never been resumed, but
-    // the last promise provided by it is gone.
-    // Important: we may only destroy a suspended coroutine, not a finished one:
-    // co_return already destroys coroutine state.
+    // the last promise provided by it is gone (in turn calling ~PromiseCore()).
+    // Important: we may only destroy a suspended coroutine, not a finished one.
     if (handle_) {
       handle_->destroy();
     }
