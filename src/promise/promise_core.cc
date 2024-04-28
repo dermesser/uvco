@@ -11,7 +11,7 @@
 
 namespace uvco {
 
-void PromiseCore<void>::set_handle(std::coroutine_handle<> handle) {
+void PromiseCore<void>::setHandle(std::coroutine_handle<> handle) {
   BOOST_ASSERT(state_ == PromiseState::init);
   resume_ = handle;
   state_ = PromiseState::waitedOn;

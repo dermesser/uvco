@@ -7,7 +7,6 @@
 #include "promise_core.h"
 
 #include <boost/assert.hpp>
-#include <cstdio>
 #include <fmt/format.h>
 
 #include <coroutine>
@@ -21,7 +20,8 @@ namespace uvco {
 
 /// A `Promise` is the core type of `uvco`, and returned from coroutines. A
 /// coroutine is a function containing either of `co_await`, `co_yield`, or
-/// `co_return`.
+/// `co_return`. The `Promise` type is therefore the *promise object* of a
+/// coroutine, in terms of the C++ standard.
 ///
 /// A Promise can be awaited on; for this the inner type `PromiseAwaiter_` is
 /// used. The `PromiseCore` manages the low-level resumption while the `Promise`
@@ -30,6 +30,9 @@ namespace uvco {
 /// When a Promise is awaited, the awaiting coroutine is suspended until the
 /// promise is resolved. Once the promise is resolved, the suspended coroutine
 /// is scheduled to be resumed by `Loop` at a later time.
+///
+/// The internal state is held in a `PromiseCore_` shared by all copies of the
+/// same `Promise`. However, only one coroutine can await a promise at a time.
 template <typename T> class Promise {
 protected:
   struct PromiseAwaiter_;
@@ -161,8 +164,8 @@ protected:
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
     bool await_suspend(std::coroutine_handle<> handle) {
       BOOST_ASSERT_MSG(!core_->willResume(),
-                       "promise is already being waited on!\n");
-      core_->set_handle(handle);
+                       "promise is already being waited on!");
+      core_->setHandle(handle);
       return true;
     }
     /// Part of the coroutine protocol: extracts the resulting value from the

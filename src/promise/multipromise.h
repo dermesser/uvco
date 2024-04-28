@@ -31,9 +31,13 @@ public:
 
   ~MultiPromiseCore() override = default;
 
-  /// See `PromiseCore::set_handle`. In contrast, a finished multipromise core
-  /// can be reset to the waiting state, in order to yield the next value.
-  void set_handle(std::coroutine_handle<> handle) override {
+  /// See `PromiseCore::setHandle`. Called by a `MultiPromise` when it is
+  /// `co_await`ed.
+  ///
+  /// In contrast to a `PromiseCore`, a finished
+  /// multipromise core can be reset to the waiting state, in order to yield the
+  /// next value, when the MultiPromise is `co_await`ed again.
+  void setHandle(std::coroutine_handle<> handle) override {
     // Once an external scheduler works, Promises will not be nested anymore
     // (resume called by resume down in the stack)
     //
@@ -41,7 +45,7 @@ public:
     // == PromiseState::init || PromiseCore<T>::state_ ==
     // PromiseState::finished);
     //
-    // state is init or running (latter can occur if set_handle is called from a
+    // state is init or running (latter can occur if setHandle is called from a
     // stack originating at resume()).
     BOOST_ASSERT_MSG(PromiseCore<T>::state_ != PromiseState::waitedOn,
                      "MultiPromise must be co_awaited before next yield");
@@ -50,11 +54,16 @@ public:
     PromiseCore<T>::handle_ = handle;
     PromiseCore<T>::state_ = PromiseState::waitedOn;
   }
+
   /// See `Promise::resume`. Implemented here to provide a distinction in stack
   /// traces.
   void resume() override { PromiseCore<T>::resume(); }
 
   /// Resume the generator from its last `co_yield` point, so it can yield the
+  /// next value.
+  ///
+  /// Called by a `MultiPromiseAwaiter_` when the `MultiPromise` is
+  /// `co_await`ed, so that the generator coroutine can continue yielding the
   /// next value.
   void resumeGenerator() {
     BOOST_ASSERT(PromiseCore<T>::state_ != PromiseState::finished);
@@ -67,6 +76,9 @@ public:
 
   /// Suspend the generator coroutine at the current `co_yield` point by storing
   /// the handle for a later resumption.
+  ///
+  /// Called by the `MultiPromise<...>::yield_value` method when `co_yield` is
+  /// invoked inside the generator.
   void suspendGenerator(std::coroutine_handle<> handle) {
     BOOST_ASSERT_MSG(!generatorHandle_,
                      "MultiPromiseCore::suspendGenerator: generatorHandle_ is "
@@ -77,6 +89,8 @@ public:
   /// Cancel the generator coroutine. This will drop all stack variables inside
   /// the generator (and run their destructors), and ensure that the
   /// generatorHandle_ will never resume from the currently yielded value.
+  ///
+  /// Called by tje `MultiPromise` destructor and `MultiPromise::cancel()`.
   void cancelGenerator() {
     terminated();
     if (generatorHandle_) {
@@ -88,7 +102,10 @@ public:
   }
 
   /// Mark generator as finished, yielding no more values.
+  ///
+  /// Called when the generator coroutine returns or throws.
   void terminated() { terminated_ = true; }
+
   /// Check if the generator has been cancelled or has returned.
   [[nodiscard]] bool isTerminated() const { return terminated_; }
 
@@ -168,11 +185,9 @@ public:
 
   /// Yield a value to the calling (awaiting) coroutine.
   ///
-  /// Equivalent to `co_yield = co_await promise.yield_value()`; doesn't suspend
-  /// the yielding coroutine, thus it must yield using a different promise or
-  /// awaiter, in order to give the calling coroutine a chance to process the
-  /// event. This is purely due to the (lack of a) scheduling algorithm in
-  /// `uvco`.
+  /// Equivalent to `co_yield = co_await promise.yield_value()` (defined in C++
+  /// standard); suspends the generator coroutine and resumes the awaiting
+  /// coroutine if there is one.
   ///
   /// TODO: this should suspend using a special awaiter which will return
   /// control to the generator routine once the "receiver" has read its value.
@@ -194,10 +209,11 @@ public:
     return YieldAwaiter_{core_};
   }
 
-  /// Return an awaiter for this MultiPromise.
+  /// Return an awaiter for this MultiPromise, which resumes the waiting
+  /// coroutine once the generator yields its next value.
   ///
-  /// Used when `co_await`ing a MultiPromise. The awaiter handles the actual
-  /// suspension and resumption.
+  /// Used when `co_await`ing a MultiPromise created by a generator coroutine.
+  /// The awaiter handles the actual suspension and resumption.
   MultiPromiseAwaiter_ operator co_await() {
     BOOST_ASSERT(core_);
     return MultiPromiseAwaiter_{core_};
@@ -274,7 +290,7 @@ protected:
     virtual bool await_suspend(std::coroutine_handle<> handle) {
       BOOST_ASSERT_MSG(!core_->willResume(),
                        "promise is already being waited on!\n");
-      core_->set_handle(handle);
+      core_->setHandle(handle);
       core_->resumeGenerator();
       return true;
     }

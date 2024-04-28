@@ -52,6 +52,8 @@ enum class PromiseState {
 template <typename T> class PromiseCore : public RefCounted<PromiseCore<T>> {
 public:
   PromiseCore() = default;
+
+  // The promise core is pinned in memory until the coroutine has finished.
   PromiseCore(const PromiseCore &) = delete;
   PromiseCore(PromiseCore &&) = delete;
   PromiseCore &operator=(const PromiseCore &) = delete;
@@ -60,7 +62,7 @@ public:
       : slot{std::move(value)}, state_{PromiseState::finished} {}
 
   /// Set the coroutine to be resumed once a result is ready.
-  virtual void set_handle(std::coroutine_handle<> handle) {
+  virtual void setHandle(std::coroutine_handle<> handle) {
     BOOST_ASSERT(state_ == PromiseState::init);
     handle_ = handle;
     state_ = PromiseState::waitedOn;
@@ -69,9 +71,7 @@ public:
   /// Checks if a coroutine is waiting on this core.
   bool willResume() { return handle_.has_value(); }
 
-  /// Resume a suspended coroutine by directly running it on the current stack.
-  /// Upon encountering the first suspension point, or returning, control is
-  /// transferred back here.
+  /// Resume a suspended coroutine by enqueuing it in the global event loop.
   ///
   /// A promise core can only be resumed once.
   virtual void resume() {
@@ -88,6 +88,12 @@ public:
       // value. (await_ready() == true)
     }
 
+    // Note: with asynchronous resumption (Loop::enqueue), this state machine is
+    // a bit faulty. The promise awaiter is resumed in state `finished`.
+    // However, this works out fine for the purpose of enforcing the "protocol"
+    // of interactions with the promise core: a promise can be destroyed without
+    // the resumption having run, but that is an issue in the loop or the result
+    // of a premature termination.
     switch (state_) {
     case PromiseState::init:
     case PromiseState::running:
@@ -151,7 +157,7 @@ public:
   ~PromiseCore() override;
 
   /// See `PromiseCore::set_resume`.
-  void set_handle(std::coroutine_handle<> h);
+  void setHandle(std::coroutine_handle<> handle);
   /// See `PromiseCore::will_resume`.
   bool willResume();
   /// See `PromiseCore::resume`.

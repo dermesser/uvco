@@ -24,7 +24,7 @@ bool Promise<void>::PromiseAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
   BOOST_ASSERT_MSG(!core_->willResume(),
                    "promise is already being waited on!\n");
-  core_->set_handle(handle);
+  core_->setHandle(handle);
   return true;
 }
 
