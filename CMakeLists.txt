@@ -102,7 +102,7 @@ target_link_libraries(test-memcached-impl PRIVATE Boost::log Boost::log_setup)
 
 if(CURL_FOUND)
     add_executable(curl-test test/curl_test.cc)
-    target_link_libraries(curl-test PRIVATE uv-co-curl GTest::gtest_main)
+    target_link_libraries(curl-test PRIVATE uv-co-curl test-util GTest::gtest_main)
     add_test(NAME curl-test COMMAND curl-test)
 endif()
 
