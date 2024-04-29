@@ -1,5 +1,6 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include <cstddef>
 #include <fmt/core.h>
 #include <uv.h>
 
@@ -36,5 +37,11 @@ void Scheduler::enqueue(std::coroutine_handle<> handle) {
 void Scheduler::setUpLoop(uv_loop_t *loop) { uv_loop_set_data(loop, this); }
 
 Scheduler::~Scheduler() = default;
+
+Scheduler::Scheduler(RunMode mode) : run_mode_{mode} {
+  static constexpr size_t resumableBufferSize = 16;
+  resumableActive_.reserve(resumableBufferSize);
+  resumableRunning_.reserve(resumableBufferSize);
+}
 
 } // namespace uvco

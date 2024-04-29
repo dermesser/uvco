@@ -3,7 +3,6 @@
 #pragma once
 
 #include <uv.h>
-
 #include <boost/assert.hpp>
 
 #include <coroutine>
@@ -60,11 +59,7 @@ public:
   /// by call to `runAll()`.
   ///
   /// Call `setUpLoop()` to attach the scheduler to a libuv event loop.
-  explicit Scheduler(RunMode mode = RunMode::Deferred) : run_mode_{mode} {
-    static constexpr size_t resumableBufferSize = 16;
-    resumableActive_.reserve(resumableBufferSize);
-    resumableRunning_.reserve(resumableBufferSize);
-  }
+  explicit Scheduler(RunMode mode = RunMode::Deferred);
 
   Scheduler(const Scheduler &) = delete;
   Scheduler(Scheduler &&) = default;

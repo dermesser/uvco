@@ -2,8 +2,6 @@
 
 #pragma once
 
-#include <cerrno>
-#include <concepts>
 #include <uv.h>
 
 #include "exception.h"

@@ -2,13 +2,14 @@ cmake_minimum_required(VERSION 3.27)
 project(uv-co)
 
 include(CTest)
-find_package(GTest)
 
 find_package(PkgConfig)
 pkg_check_modules(FMT REQUIRED fmt)
 pkg_check_modules(UV REQUIRED libuv)
 
 find_package(Boost 1.80 COMPONENTS log log_setup program_options REQUIRED)
+find_package(CURL)
+find_package(GTest)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 add_compile_options(-std=c++2b -Wall -fno-inline -pipe)
@@ -48,6 +49,7 @@ target_include_directories(uv-co-promise PRIVATE src/)
 add_library(uv-co-lib STATIC
     src/channel.cc
     src/close.cc
+    src/exception.cc
     src/name_resolution.cc
     src/pipe.cc
     src/run.cc
@@ -64,6 +66,15 @@ target_link_libraries(uv-co-lib PRIVATE uv-co-internal ${UV_LIBRARIES} ${FMT_LIB
 target_link_libraries(uv-co-lib PUBLIC uv-co-promise)
 target_include_directories(uv-co-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
 target_include_directories(uv-co-lib PUBLIC src/)
+
+# Optional integrations
+
+if(CURL_FOUND)
+    add_library(uv-co-curl STATIC
+        src/integrations/curl/curl.cc
+    )
+    target_link_libraries(uv-co-curl PUBLIC uv-co-lib CURL::libcurl)
+endif()
 
 # Unit tests
 
@@ -88,6 +99,12 @@ foreach(TESTBINARY IN ITEMS tcp-broadcaster multicast http10 memcached-impl)
 endforeach()
 
 target_link_libraries(test-memcached-impl PRIVATE Boost::log Boost::log_setup)
+
+if(CURL_FOUND)
+    add_executable(curl-test test/curl_test.cc)
+    target_link_libraries(curl-test PRIVATE uv-co-curl GTest::gtest_main)
+    add_test(NAME curl-test COMMAND curl-test)
+endif()
 
 # Coverage
 

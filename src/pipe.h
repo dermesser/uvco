@@ -2,14 +2,13 @@
 
 #pragma once
 
-#include <uv.h>
-
-#include "run.h"
 #include "stream.h"
 
 #include <utility>
 
 namespace uvco {
+
+class Loop;
 
 /// @addtogroup pipe
 /// @{
