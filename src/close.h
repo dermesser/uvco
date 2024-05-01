@@ -26,6 +26,7 @@ void onCloseCallback(uv_handle_t *stream);
 
 template <typename T, typename C>
 Promise<void> closeHandle(T *handle, C closer) {
+  fmt::print("Closing handle {}\n", uv_handle_type_name(handle->type));
   BOOST_ASSERT(handle != nullptr);
   CloseAwaiter awaiter{};
   handle->data = &awaiter;

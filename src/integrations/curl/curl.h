@@ -5,34 +5,37 @@
 #include "promise/promise.h"
 #include <curl/curl.h>
 #include <curl/multi.h>
+#include <memory>
 #include <string>
 #include <uv.h>
 
 namespace uvco {
 
-struct Loop;
+class Loop;
+
+class UvCurlContext_;
 
 class Curl {
 public:
   explicit Curl(const Loop &loop);
 
-  Curl(const Curl &) = default;
-  Curl(Curl &&other) noexcept;
+  // Pinned in memory due to uv fields. Hide behind unique_ptr if moving
+  // is required.
+  Curl(const Curl &) = delete;
+  Curl(Curl &&other) = delete;
   Curl &operator=(const Curl &) = delete;
-  Curl &operator=(Curl &&other) noexcept;
+  Curl &operator=(Curl &&other) = delete;
   ~Curl();
 
-  Promise<void> close();
+  /// Download a file from the given URL. The generator will yield the received
+  /// chunks.
   MultiPromise<std::string> download(std::string url);
 
-  [[nodiscard]] CURLM* multi() const { return multi_; }
-  uv_timer_t& timer() { return timer_; }
-  uv_loop_t* loop() { return loop_; }
+  /// Close the curl handle in order to free all associated resources.
+  Promise<void> close();
 
 private:
-  CURLM *multi_;
-  uv_loop_t *loop_;
-  uv_timer_t timer_;
+  std::unique_ptr<UvCurlContext_> context_;
 };
 
 } // namespace uvco
