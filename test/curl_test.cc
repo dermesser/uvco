@@ -8,6 +8,7 @@
 #include <curl/curl.h>
 #include <fmt/core.h>
 #include <gtest/gtest.h>
+#include <string>
 
 namespace {
 
@@ -17,7 +18,7 @@ TEST(CurlTest, info) { fmt::print("curl: {}\n", curl_version()); }
 
 TEST(CurlTest, simpleDownload) {
   auto setup = [](const Loop &loop) -> Promise<void> {
-    uvco::Curl curl{loop};
+    Curl curl{loop};
     auto gen1 = curl.download("http://borgac.net/");
     auto gen2 = curl.download("https://lewinb.net/");
 
@@ -37,7 +38,7 @@ TEST(CurlTest, simpleDownload) {
         }
       }
 
-    } catch (const std::exception &e) {
+    } catch (const UvcoException &e) {
       fmt::print("Caught exception: {}\n", e.what());
     }
 
@@ -49,25 +50,25 @@ TEST(CurlTest, simpleDownload) {
   run_loop(setup);
 }
 
-Promise<void> provokeError(const Loop& loop, std::string url) {
-    uvco::Curl curl{loop};
-    auto gen = curl.download(url);
+Promise<void> provokeError(const Loop &loop, std::string url) {
+  Curl curl{loop};
+  auto gen = curl.download(url);
 
-    try {
-      while (true) {
-        auto result = co_await gen;
-        if (!result) {
-          fmt::print("Downloaded file\n");
-          break;
-        }
+  try {
+    while (true) {
+      auto result = co_await gen;
+      if (!result) {
+        fmt::print("Downloaded file\n");
+        break;
       }
-
-      EXPECT_FALSE(true) << "Should have thrown an exception";
-    } catch (const UvcoException &e) {
-      fmt::print("Caught expected exception: {}\n", e.what());
     }
 
-    co_await curl.close();
+    EXPECT_FALSE(true) << "Should have thrown an exception";
+  } catch (const UvcoException &e) {
+    fmt::print("Caught expected exception: {}\n", e.what());
+  }
+
+  co_await curl.close();
 }
 
 TEST(CurlTest, connectionRefused) {

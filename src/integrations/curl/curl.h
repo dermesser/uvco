@@ -3,11 +3,12 @@
 
 #include "promise/multipromise.h"
 #include "promise/promise.h"
+
 #include <curl/curl.h>
 #include <curl/multi.h>
+
 #include <memory>
 #include <string>
-#include <uv.h>
 
 namespace uvco {
 
@@ -15,6 +16,16 @@ class Loop;
 
 class UvCurlContext_;
 
+/// A simple Curl client that can download files from the internet.
+/// Errors are currently handled for HTTP; other protocols have status codes
+/// that this class doesn't yet know about.
+///
+/// The `download()` method is a generator yielding received chunks of the
+/// remote resource. Make sure to always `co_await` the download generator until
+/// receiving a `std::nullopt`, and call `close()` after you're done with the
+/// Curl handle.
+///
+/// Downloads can be started and progressing concurrently.
 class Curl {
 public:
   explicit Curl(const Loop &loop);

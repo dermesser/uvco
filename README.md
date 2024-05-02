@@ -16,6 +16,7 @@ Supported functionality:
 * Unix domain sockets (stream, client/server)
 * Anonymous pipes (operating-system-backed) and typed buffered channels (like Go's)
 * Timer functionality (`sleep`, `tick`)
+* A libcurl integration, allowing e.g. HTTP(S) downloads.
 
 ## Context
 
@@ -42,7 +43,7 @@ generalized.
 Provide ergonomic asynchronous abstractions of all libuv functionality, at
 satisfactory performance.
 
-## Example
+## Examples
 
 To run a coroutine, you need to set up an event loop. This is done by calling
 `uvco::runMain` with a lambda that returns a `uvco::Promise<T>`. `runMain()` either
@@ -64,6 +65,10 @@ all callbacks are finished and all coroutines have been completed. Callbacks (by
 trigger coroutine resumption from the event loop, which is defined in `src/run.cc`.
 
 ```cpp
+#include "loop/loop.h"
+#include "run.h"
+#include "promise/promise.h"
+
 void run_loop() {
   // A coroutine promise is run without having to wait on it: every co_await
   // triggers a callback subscription with libuv.
@@ -76,11 +81,63 @@ void run_loop() {
 }
 ```
 
+### HTTP(S) download via libcurl
+
+Here we download a single file. The `Curl` class is a wrapper around libcurl, and provides a
+`download` method, which is a generator method returning a `MultiPromise`. The `MultiPromise` yields
+`std::optional<std::string>`, which is a `std::nullopt` once the download has finished. An exception
+is thrown if the download fails.
+
+Of course, more than one download can be triggered at once: `download()` MultiPromises are
+independent.
+
+```cpp
+#include "integrations/curl/curl.h"
+#include "loop/loop.h"
+#include "promise/promise.h"
+#include "run.h"
+
+// and other includes ...
+
+using namespace uvco;
+
+Promise<void> testCurl(const Loop& loop) {
+    Curl curl{loop};
+    auto download = curl.download("https://borgac.net/~lbo/doc/uvco");
+
+    try {
+      while (true) {
+        auto result = co_await download;
+        if (!result) {
+          fmt::print("Downloaded file\n");
+          break;
+        }
+        fmt::print("Received data: {}\n", *result);
+      }
+    } catch (const UvcoException &e) {
+      fmt::print("Caught exception: {}\n", e.what());
+    }
+
+    co_await curl.close();
+}
+
+int main() {
+  runMain<void>([](const Loop& loop) -> Promise<void> {
+    return testCurl(loop);
+  });
+}
+```
+
 ### HTTP 1.0 client
 
 Build the project, and run the `test-http10` binary. It works like the following code:
 
 ```cpp
+#include "loop/loop.h"
+#include "promise/promise.h"
+#include "tcp.h"
+#include "tcp_stream.h"
+
 using namespace uvco;
 
 // Using co_await in a function turns it into a coroutine. You can co_await all
@@ -114,6 +171,8 @@ void run_loop() {
 ### TCP Echo server
 
 ```cpp
+// includes ...
+
 using namespace uvco;
 
 Promise<void> echoReceived(TcpStream stream) {
