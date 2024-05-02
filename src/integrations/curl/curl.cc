@@ -20,14 +20,18 @@
 #include <coroutine>
 #include <cstddef>
 #include <fmt/core.h>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <uv.h>
 #include <vector>
 
 namespace uvco {
+
+class CurlRequest_;
 
 /// Contains references to the libcurl multi handle and the libuv loop.
 /// Only valid as long as one loop instance is running. Used as context for
@@ -44,7 +48,15 @@ public:
     curl_multi_cleanup(multi_);
   }
 
+  /// Add a Curl easy handle to the multi handle.
+  void addHandle(CURL *handle) { curl_multi_add_handle(multi_, handle); }
+
+  /// Remove a Curl easy handle from the multi handle.
+  void removeHandle(CURL *handle) { curl_multi_remove_handle(multi_, handle); }
+
+  /// Checks with Curl for any completed/errored requests.
   void checkCurlInfo() const;
+
   // Curl callbacks:
 
   /// Called by Curl to inform us of a new socket to monitor or a socket to be
@@ -64,9 +76,68 @@ public:
   /// Called by libuv when there is activity on a curl socket.
   static void onCurlSocketActive(uv_poll_t *poll, int status, int events);
 
+  // I/O: tying together libuv and curl.
+
+  void initPoll(CurlRequest_ *request, curl_socket_t newSocket) noexcept {
+    if (polls_.contains(newSocket)) {
+      return;
+    }
+    const auto newPollCtx = polls_.emplace(newSocket, uv_poll_t{});
+    uv_poll_t &poll = newPollCtx.first->second.poll;
+    newPollCtx.first->second.request = request;
+    uv_poll_init_socket(loop_, &poll, newSocket);
+    uv_handle_set_data((uv_handle_t *)&poll, this);
+  }
+
+  void uvStartPoll(curl_socket_t socket, unsigned int events) noexcept {
+    const auto it = polls_.find(socket);
+    BOOST_ASSERT(it != polls_.end());
+    uv_poll_t &poll = it->second.poll;
+    uv_poll_start(&poll, static_cast<int>(events),
+                  UvCurlContext_::onCurlSocketActive);
+  }
+
+  void uvStopPoll(curl_socket_t socket) noexcept {
+    const auto it = polls_.find(socket);
+    if (it != polls_.end()) {
+      uv_poll_stop(&it->second.poll);
+    }
+  }
+
+  /// Returns the CurlRequest associated with the given socket. This is
+  /// essential for notifying individual requests of socket errors; socket
+  /// errors occur in a uv callbcak which only has access to the socket.
+  CurlRequest_ &getRequest(curl_socket_t socket) {
+    const auto it = polls_.find(socket);
+    BOOST_ASSERT(it != polls_.end());
+    return *it->second.request;
+  }
+
+  /// Close all open sockets and the timer.
+  Promise<void> close() {
+    co_await closeHandle(&timer_);
+
+    std::vector<Promise<void>> promises;
+    promises.reserve(polls_.size());
+    for (auto &[socket, poll] : polls_) {
+      promises.push_back(closeHandle(&poll));
+    }
+    for (auto &promise : promises) {
+      co_await promise;
+    }
+  }
+
+private:
+  /// A uv poll handle with its associated CurlRequest_.
+  struct PollCtx {
+    uv_poll_t poll;
+    CurlRequest_ *request;
+  };
+
   CURLM *multi_;
   uv_loop_t *loop_;
   uv_timer_t timer_;
+  std::map<curl_socket_t, PollCtx> polls_;
 };
 
 /// Used as awaiter by Curl::download.
@@ -90,22 +161,22 @@ public:
     curl_easy_setopt(easyHandle_, CURLOPT_WRITEDATA, this);
     // Set private data for use in curlSocketFunction.
     curl_easy_setopt(easyHandle_, CURLOPT_PRIVATE, this);
-    curl_multi_add_handle(context_.multi_, easyHandle_);
+    curl_easy_setopt(easyHandle_, CURLOPT_FOLLOWLOCATION, 1L);
+    context_.addHandle(easyHandle_);
   }
 
   ~CurlRequest_() {
-    curl_multi_remove_handle(context_.multi_, easyHandle_);
+    context_.removeHandle(easyHandle_);
     curl_easy_cleanup(easyHandle_);
     easyHandle_ = nullptr;
   }
 
-  Promise<void> close() {
-    uvStopPoll();
-    return closeHandle(&poll_);
-  }
+  /// Get the URL of the request.
+  [[nodiscard]] std::string_view url() const noexcept { return url_; }
 
-  /// Called when data is available.
+  /// Called when data is available. Resumes the downloader coroutine.
   void onDataAvailable(char *data, size_t size) {
+    BOOST_ASSERT(data != nullptr);
     chunks_.emplace_back(data, size);
     if (downloaderHandle_) {
       auto handle = downloaderHandle_.value();
@@ -114,10 +185,13 @@ public:
     }
   }
 
+  /// Called when an error occurs, but also upon completion (then status == 0).
+  ///
+  /// Resumes the downloader coroutine.
   void onError(uv_status status) noexcept {
     if (downloaderHandle_) {
       auto handle = downloaderHandle_.value();
-      lastStatus_ = status;
+      setUvStatus(status);
       downloaderHandle_.reset();
       Loop::enqueue(handle);
     }
@@ -125,21 +199,29 @@ public:
 
   // CurlRequest_ is an awaiter yielding chunks as they are downloaded.
 
+  /// Awaiter protocol: ready if there are chunks to yield or the download is
+  /// done.
   [[nodiscard]] bool await_ready() const noexcept {
-    return !chunks_.empty() || curlStatus_ > 0;
+    return !chunks_.empty() || responseCode_ > 0;
   }
 
+  /// Awaiter protocol: suspend the downloader coroutine.
   bool await_suspend(std::coroutine_handle<> handle) noexcept {
     BOOST_ASSERT(!downloaderHandle_);
     downloaderHandle_ = handle;
     return true;
   }
 
+  /// Awaiter protocol: yield the next chunk or signal end of stream.
   std::optional<std::string> await_resume() {
-    if (lastStatus_ && *lastStatus_ != 0) {
-      throw UvcoException{*lastStatus_, "while downloading " + url_};
+    if (uvStatus_ && *uvStatus_ != 0) {
+      return std::nullopt;
     }
-    if (curlStatus_ && *curlStatus_ != 200) {
+    if (verifyResult_ && *verifyResult_ != 0) {
+      // SSL verification to be checked by downloader.
+      return std::nullopt;
+    }
+    if (responseCode_ && *responseCode_ != 200) {
       // HTTP Status to be checked by downloader.
       return std::nullopt;
     }
@@ -153,50 +235,56 @@ public:
     return std::nullopt;
   }
 
-  UvCurlContext_ &context() noexcept { return context_; }
-  void initPoll(curl_socket_t newSocket) noexcept {
-    if (poll_) {
-      return;
-    }
-    socket_ = newSocket;
-    uv_poll_init_socket(context_.loop_, &poll_.emplace(), socket_);
-    uv_handle_set_data((uv_handle_t *)(&poll_.value()), this);
-  }
+  // Error codes.
 
-  void uvStartPoll(unsigned int events) noexcept {
-    BOOST_ASSERT(poll_);
-    uv_poll_start(&poll_.value(), static_cast<int>(events),
-                  UvCurlContext_::onCurlSocketActive);
-  }
-  void uvStopPoll() noexcept {
-    if (poll_) {
-      uv_poll_stop(&poll_.value());
+  /// Set socket error status.
+  void setUvStatus(uv_status status) noexcept {
+    if (!uvStatus_) {
+      uvStatus_ = status;
     }
   }
 
-  [[nodiscard]] curl_socket_t socket() const noexcept { return socket_; }
-  void setCurlStatus(int status) noexcept {
-    if (!curlStatus_) {
-      curlStatus_ = status;
+  /// Set HTTP response code.
+  void setResponseCode(int status) noexcept {
+    if (!responseCode_) {
+      responseCode_ = status;
     }
   }
-  [[nodiscard]] int curlStatus() const noexcept {
-    return curlStatus_.value_or(0);
+
+  /// Set SSL verification result.
+  void setVerifyResult(int result) noexcept {
+    if (!verifyResult_) {
+      verifyResult_ = result;
+    }
+  }
+
+  /// Get uv error status. 0 if success.
+  [[nodiscard]] uv_status uvStatus() const noexcept {
+    return uvStatus_.value_or(0);
+  }
+
+  /// Get HTTP response code. 0 if not set.
+  [[nodiscard]] int responseCode() const noexcept {
+    return responseCode_.value_or(0);
+  }
+
+  /// Get SSL verification result. 0 means success, > 0 means failure.
+  [[nodiscard]] int verifyResult() const noexcept {
+    return verifyResult_.value_or(0);
   }
 
 private:
   UvCurlContext_ &context_;
   CURL *easyHandle_;
-  curl_socket_t socket_ = -1;
 
   std::string url_;
   std::optional<std::coroutine_handle<>> downloaderHandle_;
-  std::optional<uv_poll_t> poll_;
 
   // Misuse vector as deque for now.
   std::vector<std::string> chunks_;
-  std::optional<uv_status> lastStatus_;
-  std::optional<int> curlStatus_;
+  std::optional<uv_status> uvStatus_;
+  std::optional<int> responseCode_;
+  std::optional<int> verifyResult_;
 };
 
 void CurlRequest_::onCurlDataAvailable(char *data, size_t size, size_t nmemb,
@@ -222,7 +310,8 @@ UvCurlContext_::UvCurlContext_(const Loop &loop)
 
 void UvCurlContext_::checkCurlInfo() const {
   CURLMsg *msg{};
-  int curlStatus{};
+  int responseCode{};
+  int verifyResult{};
   int inQueue{};
 
   // Check for completed requests.
@@ -230,8 +319,12 @@ void UvCurlContext_::checkCurlInfo() const {
     if (msg->msg == CURLMSG_DONE) {
       CurlRequest_ *request{};
       curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, &request);
-      curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &curlStatus);
-      request->setCurlStatus(curlStatus);
+      curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE,
+                        &responseCode);
+      curl_easy_getinfo(msg->easy_handle, CURLINFO_SSL_VERIFYRESULT,
+                        &verifyResult);
+      request->setResponseCode(responseCode);
+      request->setVerifyResult(verifyResult);
       request->onError(0);
     }
   }
@@ -261,11 +354,17 @@ void UvCurlContext_::onCurlSocketActive(uv_poll_t *poll, int status,
                                         int events) {
   int runningHandles{};
   unsigned int flags{};
-  auto *request =
-      static_cast<CurlRequest_ *>(uv_handle_get_data((uv_handle_t *)poll));
+  auto *context =
+      static_cast<UvCurlContext_ *>(uv_handle_get_data((uv_handle_t *)poll));
+
+  curl_socket_t socket{};
+  const uv_status filenoStatus = uv_fileno((uv_handle_t *)poll, &socket);
+  if (filenoStatus != 0) {
+    throw UvcoException{filenoStatus, "while getting file descriptor"};
+  }
 
   if (status != 0) {
-    request->onError(status);
+    context->getRequest(socket).onError(status);
     return;
   }
 
@@ -276,23 +375,26 @@ void UvCurlContext_::onCurlSocketActive(uv_poll_t *poll, int status,
     flags |= CURL_CSELECT_OUT;
   }
 
-  curl_multi_socket_action(request->context().multi_, request->socket(),
-                           static_cast<int>(flags), &runningHandles);
-  request->context().checkCurlInfo();
+  curl_multi_socket_action(context->multi_, socket, static_cast<int>(flags),
+                           &runningHandles);
+  context->checkCurlInfo();
 }
 
 int UvCurlContext_::curlSocketFunction(CURL *easy, curl_socket_t socket,
                                        int action, void *userp,
                                        void * /* socketp */) {
-  auto *curl = static_cast<UvCurlContext_ *>(userp);
-  CurlRequest_ *request;
-  curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
+  auto *context = static_cast<UvCurlContext_ *>(userp);
 
   switch (action) {
   case CURL_POLL_IN:
   case CURL_POLL_OUT:
   case CURL_POLL_INOUT: {
     unsigned int watchFor{};
+
+    // Obtain request object so it can be associated with socket for error
+    // handling.
+    CurlRequest_ *request{};
+    curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
 
     if (action != CURL_POLL_IN) {
       watchFor |= UV_WRITABLE;
@@ -301,13 +403,13 @@ int UvCurlContext_::curlSocketFunction(CURL *easy, curl_socket_t socket,
       watchFor |= UV_READABLE;
     }
 
-    request->initPoll(socket);
-    request->uvStartPoll(watchFor);
+    context->initPoll(request, socket);
+    context->uvStartPoll(socket, watchFor);
     break;
   }
 
   case CURL_POLL_REMOVE: {
-    request->uvStopPoll();
+    context->uvStopPoll(socket);
     break;
   }
 
@@ -315,7 +417,7 @@ int UvCurlContext_::curlSocketFunction(CURL *easy, curl_socket_t socket,
     BOOST_ASSERT(false);
   }
 
-  curl->checkCurlInfo();
+  context->checkCurlInfo();
 
   return 0;
 }
@@ -325,7 +427,7 @@ Curl::Curl(const Loop &loop)
 
 Curl::~Curl() = default;
 
-Promise<void> Curl::close() { return closeHandle(&context_->timer_); }
+Promise<void> Curl::close() { co_await context_->close(); }
 
 MultiPromise<std::string> Curl::download(std::string url) {
   // Sets up download.
@@ -340,12 +442,22 @@ MultiPromise<std::string> Curl::download(std::string url) {
     // End of stream.
     break;
   }
-  co_await request.close();
 
-  if (request.curlStatus() != 200) {
-    throw UvcoException{UV_EINVAL,
-                        fmt::format("HTTP Error {}", request.curlStatus())};
+  if (request.uvStatus() != 0) {
+    throw UvcoException{
+        request.uvStatus(),
+        fmt::format("Socket error while fetching {}", request.url())};
   }
+  if (request.verifyResult() != 0) {
+    throw UvcoException{UV_EINVAL, fmt::format("SSL verification failed for {}",
+                                               request.url())};
+  }
+  if (request.responseCode() != 200) {
+    throw UvcoException{UV_EINVAL,
+                        fmt::format("HTTP Error {} while fetching {}",
+                                    request.responseCode(), request.url())};
+  }
+
   co_return;
 }
 

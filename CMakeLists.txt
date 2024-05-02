@@ -7,6 +7,8 @@ find_package(PkgConfig)
 pkg_check_modules(FMT REQUIRED fmt)
 pkg_check_modules(UV REQUIRED libuv)
 
+link_directories(BEFORE /usr/local/lib64)
+
 find_package(Boost 1.80 COMPONENTS log log_setup program_options REQUIRED)
 find_package(CURL)
 find_package(GTest)
