@@ -1,6 +1,4 @@
-
-// WIP! A very ugly, early version of Curl support. Basic HTTP/HTTPS downloads
-// work, but there are many issues, not the least in code quality.
+// uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #include <boost/assert.hpp>
 #include <cstdio>
@@ -79,7 +77,11 @@ public:
   // I/O: tying together libuv and curl.
 
   void initPoll(CurlRequest_ *request, curl_socket_t newSocket) noexcept {
-    if (polls_.contains(newSocket)) {
+    const auto it = polls_.find(newSocket);
+    if (it != polls_.end()) {
+      // Already initialized. Ensure that socket is associated with the correct
+      // request in case Curl reuses a socket.
+      it->second.request = request;
       return;
     }
     const auto newPollCtx = polls_.emplace(newSocket, uv_poll_t{});

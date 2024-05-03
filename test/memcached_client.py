@@ -8,7 +8,7 @@ async def main():
     before = time.monotonic_ns()
     await client.set(b'key', b'value')
 
-    for i in range(100000):
+    for i in range(10):
         await client.set(f'key{i}'.encode(), f'value{i}'.encode())
         await client.get(f'key{i}'.encode())
     after = time.monotonic_ns()

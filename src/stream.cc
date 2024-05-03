@@ -126,7 +126,6 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
                                                   const uv_buf_t *buf) {
   auto *awaiter = (InStreamAwaiter_ *)stream->data;
   awaiter->stop_read();
-  fmt::print(stderr, "onInStreamRead: nread = {}\n", nread);
 
   if (nread == UV_EOF) {
     awaiter->slot_ = std::optional<std::string>{};
