@@ -31,8 +31,11 @@ public:
   CurlRequest &operator=(CurlRequest &&) = delete;
   ~CurlRequest();
 
-  /// Download a file from the given URL. The generator will yield the received
-  /// chunks.
+  /// Start the request. This method is a generator that yields received chunks
+  /// of the remote resource. Make sure to always `co_await` the returned MultiPromise
+  /// until receiving a `std::nullopt`.
+  ///
+  /// The `Curl` instance must not be closed before the request has finished.
   MultiPromise<std::string> start();
 
   /// Return the status code of the request. Only valid after the request has
@@ -76,7 +79,10 @@ public:
   Curl &operator=(Curl &&other) = delete;
   ~Curl();
 
+  /// Prepare a GET request.
   CurlRequest get(std::string url);
+
+  /// Prepare a POST request.
   CurlRequest post(std::string url,
                    std::span<const std::pair<std::string, std::string>> fields);
 
