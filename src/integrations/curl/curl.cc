@@ -1,6 +1,7 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #include <boost/assert.hpp>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 #include <curl/curl.h>
@@ -20,7 +21,9 @@
 #include <fmt/core.h>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -29,7 +32,38 @@
 
 namespace uvco {
 
-class CurlRequest_;
+namespace {
+
+std::string urlEncode(CURL *curl, std::string_view url) {
+  char *result = curl_easy_escape(curl, url.data(), url.size());
+  const std::string encoded{result};
+  curl_free(result);
+  return encoded;
+}
+
+/// Format a list of fields for POST requests.
+std::string
+formattedFields(CURL *curl,
+                std::span<const std::pair<std::string, std::string>> fields) {
+  std::string result;
+  result.reserve(std::accumulate(
+      fields.begin(), fields.end(), 0, [](size_t acc, const auto &pair) {
+        return acc + pair.first.size() + pair.second.size() + 2;
+      }));
+
+  // TODO: URL encoding
+  for (const auto &[key, value] : fields) {
+    result += urlEncode(curl, key);
+    result += '=';
+    result += urlEncode(curl, value);
+    result += '&';
+  }
+  return result;
+}
+
+} // namespace
+
+class CurlRequestCore_;
 
 /// Contains references to the libcurl multi handle and the libuv loop.
 /// Only valid as long as one loop instance is running. Used as context for
@@ -76,7 +110,7 @@ public:
 
   // I/O: tying together libuv and curl.
 
-  void initPoll(CurlRequest_ *request, curl_socket_t newSocket) noexcept {
+  void initPoll(CurlRequestCore_ *request, curl_socket_t newSocket) noexcept {
     const auto it = polls_.find(newSocket);
     if (it != polls_.end()) {
       // Already initialized. Ensure that socket is associated with the correct
@@ -109,7 +143,7 @@ public:
   /// Returns the CurlRequest associated with the given socket. This is
   /// essential for notifying individual requests of socket errors; socket
   /// errors occur in a uv callbcak which only has access to the socket.
-  CurlRequest_ &getRequest(curl_socket_t socket) {
+  CurlRequestCore_ &getRequest(curl_socket_t socket) {
     const auto it = polls_.find(socket);
     BOOST_ASSERT(it != polls_.end());
     return *it->second.request;
@@ -127,13 +161,14 @@ public:
     for (auto &promise : promises) {
       co_await promise;
     }
+    polls_.clear();
   }
 
 private:
   /// A uv poll handle with its associated CurlRequest_.
   struct PollCtx {
     uv_poll_t poll;
-    CurlRequest_ *request;
+    CurlRequestCore_ *request;
   };
 
   CURLM *multi_;
@@ -143,19 +178,40 @@ private:
 };
 
 /// Used as awaiter by Curl::download.
-class CurlRequest_ {
+class CurlRequestCore_ {
   static void onCurlDataAvailable(char *data, size_t size, size_t nmemb,
                                   void *userp);
 
 public:
-  CurlRequest_(const CurlRequest_ &) = delete;
-  CurlRequest_(CurlRequest_ &&) = delete;
-  CurlRequest_ &operator=(const CurlRequest_ &) = delete;
-  CurlRequest_ &operator=(CurlRequest_ &&) = delete;
+  CurlRequestCore_(const CurlRequestCore_ &) = delete;
+  CurlRequestCore_(CurlRequestCore_ &&) = delete;
+  CurlRequestCore_ &operator=(const CurlRequestCore_ &) = delete;
+  CurlRequestCore_ &operator=(CurlRequestCore_ &&) = delete;
+
+  explicit CurlRequestCore_(std::weak_ptr<UvCurlContext_> ctx)
+      : context_{std::move(ctx)}, easyHandle_{curl_easy_init()} {}
 
   /// Construct and initialize download.
-  CurlRequest_(UvCurlContext_ &ctx, std::string url)
-      : context_{ctx}, easyHandle_(curl_easy_init()), url_{std::move(url)} {
+  CurlRequestCore_(std::weak_ptr<UvCurlContext_> ctx, std::string url)
+      : context_{std::move(ctx)}, easyHandle_(curl_easy_init()) {
+    initGet(std::move(url));
+  }
+
+  ~CurlRequestCore_() {
+    curl_easy_cleanup(easyHandle_);
+    if (!context_.expired()) {
+      context_.lock()->removeHandle(easyHandle_);
+    }
+    easyHandle_ = nullptr;
+  }
+
+  void initCommon(std::string url) {
+    BOOST_ASSERT(easyHandle_ != nullptr);
+    BOOST_ASSERT_MSG(url_.empty(), "cannot work with empty URL");
+    BOOST_ASSERT_MSG(!context_.expired(),
+                     "Curl object must outlive any request");
+
+    url_ = std::move(url);
     // Configure easy handle and initiate download.
     curl_easy_setopt(easyHandle_, CURLOPT_URL, url_.data());
     curl_easy_setopt(easyHandle_, CURLOPT_WRITEFUNCTION, onCurlDataAvailable);
@@ -164,13 +220,23 @@ public:
     // Set private data for use in curlSocketFunction.
     curl_easy_setopt(easyHandle_, CURLOPT_PRIVATE, this);
     curl_easy_setopt(easyHandle_, CURLOPT_FOLLOWLOCATION, 1L);
-    context_.addHandle(easyHandle_);
   }
 
-  ~CurlRequest_() {
-    context_.removeHandle(easyHandle_);
-    curl_easy_cleanup(easyHandle_);
-    easyHandle_ = nullptr;
+  void initGet(std::string url) {
+    initCommon(std::move(url));
+    context_.lock()->addHandle(easyHandle_);
+  }
+
+  void initPost(std::string url,
+                std::span<const std::pair<std::string, std::string>> fields) {
+    initCommon(std::move(url));
+    BOOST_ASSERT(!payload_);
+
+    // Must keep payload alive until request is done.
+    payload_ = formattedFields(easyHandle_, fields);
+    curl_easy_setopt(easyHandle_, CURLOPT_POST, 1L);
+    curl_easy_setopt(easyHandle_, CURLOPT_POSTFIELDS, payload_->c_str());
+    context_.lock()->addHandle(easyHandle_);
   }
 
   /// Get the URL of the request.
@@ -276,10 +342,13 @@ public:
   }
 
 private:
-  UvCurlContext_ &context_;
+  friend class CurlRequest;
+
+  std::weak_ptr<UvCurlContext_> context_;
   CURL *easyHandle_;
 
   std::string url_;
+  std::optional<std::string> payload_;
   std::optional<std::coroutine_handle<>> downloaderHandle_;
 
   // Misuse vector as deque for now.
@@ -289,9 +358,9 @@ private:
   std::optional<int> verifyResult_;
 };
 
-void CurlRequest_::onCurlDataAvailable(char *data, size_t size, size_t nmemb,
-                                       void *userp) {
-  auto *request = static_cast<CurlRequest_ *>(userp);
+void CurlRequestCore_::onCurlDataAvailable(char *data, size_t size,
+                                           size_t nmemb, void *userp) {
+  auto *request = static_cast<CurlRequestCore_ *>(userp);
   request->onDataAvailable(data, size * nmemb);
 }
 
@@ -319,7 +388,7 @@ void UvCurlContext_::checkCurlInfo() const {
   // Check for completed requests.
   while (nullptr != (msg = curl_multi_info_read(multi_, &inQueue))) {
     if (msg->msg == CURLMSG_DONE) {
-      CurlRequest_ *request{};
+      CurlRequestCore_ *request{};
       curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, &request);
       curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE,
                         &responseCode);
@@ -395,7 +464,7 @@ int UvCurlContext_::curlSocketFunction(CURL *easy, curl_socket_t socket,
 
     // Obtain request object so it can be associated with socket for error
     // handling.
-    CurlRequest_ *request{};
+    CurlRequestCore_ *request{};
     curl_easy_getinfo(easy, CURLINFO_PRIVATE, &request);
 
     if (action != CURL_POLL_IN) {
@@ -429,14 +498,54 @@ Curl::Curl(const Loop &loop)
 
 Curl::~Curl() = default;
 
+CurlRequest Curl::get(std::string url) {
+  return CurlRequest{context_, CurlRequest::Method::GET, std::move(url)};
+}
+
+CurlRequest
+Curl::post(std::string url,
+           std::span<const std::pair<std::string, std::string>> fields) {
+  return CurlRequest{context_, CurlRequest::Method::POST, std::move(url),
+                     fields};
+}
+
 Promise<void> Curl::close() { co_await context_->close(); }
 
-MultiPromise<std::string> Curl::download(std::string url) {
-  // Sets up download.
-  CurlRequest_ request{*context_, std::move(url)};
+CurlRequest::~CurlRequest() = default;
+
+CurlRequest::CurlRequest(std::weak_ptr<UvCurlContext_> context, Method method,
+                         std::string url)
+    : core_{std::make_unique<CurlRequestCore_>(std::move(context))} {
+  switch (method) {
+  case Method::GET:
+    core_->initGet(std::move(url));
+    break;
+  default:
+    BOOST_ASSERT(false);
+  }
+}
+
+CurlRequest::CurlRequest(
+    std::weak_ptr<UvCurlContext_> context, Method method, std::string url,
+    std::span<const std::pair<std::string, std::string>> fields)
+    : core_{std::make_unique<CurlRequestCore_>(std::move(context))} {
+
+  switch (method) {
+  case Method::POST:
+    core_->initPost(std::move(url), fields);
+    break;
+  default:
+    BOOST_ASSERT(false);
+  }
+}
+
+int CurlRequest::statusCode() const { return core_->responseCode(); }
+
+MultiPromise<std::string> CurlRequest::start() {
+  // Run transfer of response.
 
   while (true) {
-    auto result = co_await request;
+    auto result = co_await *core_;
     if (result.has_value()) {
       co_yield std::move(result.value());
       continue;
@@ -445,22 +554,21 @@ MultiPromise<std::string> Curl::download(std::string url) {
     break;
   }
 
-  if (request.uvStatus() != 0) {
+  if (core_->uvStatus() != 0) {
     throw UvcoException{
-        request.uvStatus(),
-        fmt::format("Socket error while fetching {}", request.url())};
+        core_->uvStatus(),
+        fmt::format("Socket error while fetching {}", core_->url())};
   }
-  if (request.verifyResult() != 0) {
-    throw UvcoException{UV_EINVAL, fmt::format("SSL verification failed for {}",
-                                               request.url())};
+  if (core_->verifyResult() != 0) {
+    throw UvcoException{
+        UV_EINVAL, fmt::format("SSL verification failed for {}", core_->url())};
   }
-  if (request.responseCode() != 200) {
+  if (core_->responseCode() != 200) {
     throw UvcoException{UV_EINVAL,
                         fmt::format("HTTP Error {} while fetching {}",
-                                    request.responseCode(), request.url())};
+                                    core_->responseCode(), core_->url())};
   }
 
   co_return;
 }
-
 } // namespace uvco

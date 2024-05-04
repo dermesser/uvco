@@ -103,7 +103,9 @@ using namespace uvco;
 
 Promise<void> testCurl(const Loop& loop) {
     Curl curl{loop};
-    auto download = curl.download("https://borgac.net/~lbo/doc/uvco");
+    // API subject to change! (request must outlive download)
+    auto request = curl.get("https://borgac.net/~lbo/doc/uvco");
+    auto download = request.start();
 
     try {
       while (true) {

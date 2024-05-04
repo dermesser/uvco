@@ -9,13 +9,50 @@
 #include <curl/multi.h>
 
 #include <memory>
+#include <span>
 #include <string>
+#include <utility>
 
 namespace uvco {
 
 class Loop;
 
 class UvCurlContext_;
+class CurlRequestCore_;
+class Curl;
+
+class CurlRequest {
+public:
+  enum class Method { GET, POST };
+
+  CurlRequest(const CurlRequest &) = delete;
+  CurlRequest(CurlRequest &&) = delete;
+  CurlRequest &operator=(const CurlRequest &) = delete;
+  CurlRequest &operator=(CurlRequest &&) = delete;
+  ~CurlRequest();
+
+  /// Download a file from the given URL. The generator will yield the received
+  /// chunks.
+  MultiPromise<std::string> start();
+
+  /// Return the status code of the request. Only valid after the request has
+  /// finished (i.e. the `start()` generator has returned `std::nullopt`).
+  /// Otherwise 0.
+  [[nodiscard]] int statusCode() const;
+
+private:
+  friend class Curl;
+  /// Initialize a GET request.
+  CurlRequest(std::weak_ptr<UvCurlContext_> context, Method method,
+              std::string url);
+  /// Initialize a POST request.
+  CurlRequest(std::weak_ptr<UvCurlContext_> context, Method method,
+              std::string url,
+              std::span<const std::pair<std::string, std::string>> fields);
+
+  // Core must be pinned in memory.
+  std::unique_ptr<CurlRequestCore_> core_;
+};
 
 /// A simple Curl client that can download files from the internet.
 /// Errors are currently handled for HTTP; other protocols have status codes
@@ -39,15 +76,15 @@ public:
   Curl &operator=(Curl &&other) = delete;
   ~Curl();
 
-  /// Download a file from the given URL. The generator will yield the received
-  /// chunks.
-  MultiPromise<std::string> download(std::string url);
+  CurlRequest get(std::string url);
+  CurlRequest post(std::string url,
+                   std::span<const std::pair<std::string, std::string>> fields);
 
   /// Close the curl handle in order to free all associated resources.
   Promise<void> close();
 
 private:
-  std::unique_ptr<UvCurlContext_> context_;
+  std::shared_ptr<UvCurlContext_> context_;
 };
 
 } // namespace uvco

@@ -112,7 +112,7 @@ TEST(PipeTest, largeWriteRead) {
     }
     co_await write.close();
 
-    size_t bytesRead = 0;
+    size_t bytesRead{};
 
     while (true) {
       auto chunk = co_await read.read();

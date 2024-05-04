@@ -9,6 +9,8 @@
 #include <fmt/core.h>
 #include <gtest/gtest.h>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -19,8 +21,10 @@ TEST(CurlTest, info) { fmt::print("curl: {}\n", curl_version()); }
 TEST(CurlTest, simpleDownload) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     Curl curl{loop};
-    auto gen1 = curl.download("http://borgac.net/");
-    auto gen2 = curl.download("https://lewinb.net/");
+    auto req1 = curl.get("https://borgac.net/");
+    auto req2 = curl.get("http://lewinb.net/");
+    auto gen1 = req1.start();
+    auto gen2 = req2.start();
 
     try {
       while (true) {
@@ -52,7 +56,8 @@ TEST(CurlTest, simpleDownload) {
 
 Promise<void> provokeError(const Loop &loop, std::string url) {
   Curl curl{loop};
-  auto gen = curl.download(url);
+  auto req = curl.get(url);
+  auto gen = req.start();
 
   try {
     while (true) {
@@ -86,6 +91,35 @@ TEST(CurlTest, sslVerifyFailed) {
 TEST(CurlTest, invalidHost) {
   run_loop([](const Loop &loop) -> Promise<void> {
     return provokeError(loop, "https://borgac-evil-sibling.net/");
+  });
+}
+
+TEST(CurlTest, invalidPost) {
+  run_loop([](const Loop &loop) -> Promise<void> {
+    Curl curl{loop};
+    const std::vector<std::pair<std::string, std::string>> fields = {
+        {"key1", "value1"}, {"key2", "value2"}};
+    auto req = curl.post("https://borgac.net/", fields);
+    auto gen = req.start();
+
+    try {
+      while (true) {
+        auto result = co_await gen;
+        if (!result) {
+          fmt::print("Downloaded file\n");
+          break;
+        }
+      }
+
+      EXPECT_FALSE(true) << "Should have thrown an exception";
+    } catch (const UvcoException &e) {
+      fmt::print("Caught expected exception: {}\n", e.what());
+      EXPECT_TRUE(std::string(e.what()).contains("HTTP Error 405"));
+    }
+
+    EXPECT_EQ(req.statusCode(), 405);
+
+    co_await curl.close();
   });
 }
 
