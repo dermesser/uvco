@@ -224,7 +224,58 @@ Some more examples can be found in the `test/` directory. Those test files
 ending in `.exe.cc` are end-to-end binaries which also show how to set up
 the event loop.
 
-## Exception Safety
+## Safety
+
+### Lifetimes/references
+
+Passing references and pointers into a coroutine (i.e. a function returning `[Multi]Promise<T>`) is fine as long as the
+underlying value outlives the coroutine returning. Typically, this is done like this:
+
+```c++
+Promise<void> fun() {
+    Temporary value;
+    Promise<void> promise = asynchronousFunction(&value);
+
+    co_await promise;
+
+    // At this point, the coroutine has returned.
+
+    co_return;
+}
+```
+
+The temporary value is kept alive in the coroutine frame, which has been allocated dynamically.
+
+### Loop Lifetime
+
+The `Loop` is singular, and outlives all coroutines running on it; therefore it's passed as `const Loop&` to any
+coroutine needing to initiate I/O.
+
+### Unfulfilled promises
+
+If your application exits prematurely and receives an error about `EAGAIN`, and "unwrap called on unfulfilled promise",
+it means that the event loop - either libuv's loop or uvco's - have decided that there's no more work to do, and thus
+leave the loop:
+
+```
+Loop::~Loop(): uv_loop_close() failed; there were still resources on the loop: resource busy or locked
+```
+
+In a properly written application, this is the case once all the work has been done, i.e. no more open handles on the
+libuv event loop, and no coroutines waiting to be resumed; for example, every unit test is required to behave like this
+(see `test/`) and finish all operations before terminating.
+
+Forgetting to `co_await` a Promise can lead to this condition, but a bug in uvco is also a potential explanation.
+The most frequent mistake leading to this kind of error is forgetting to add
+
+```c++
+co_await obj.close();
+```
+
+at the end of `obj`'s lifetime; many sockets, clients, streams, etc. have an asynchronous `close()` method that must be
+awaited (and can therefore not be part of a destructor call). Check the documentation for whether you need to do this.
+
+## Exceptions
 
 Exceptions are propagated through the coroutine stack. If a coroutine throws an exception,
 it will be thrown at the point of the `co_await` that started the coroutine.
