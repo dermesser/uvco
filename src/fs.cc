@@ -1,8 +1,12 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
+#include <array>
 #include <boost/assert.hpp>
+#include <cstddef>
+#include <cstdint>
 #include <fcntl.h>
 #include <functional>
+#include <string>
 #include <string_view>
 #include <sys/types.h>
 #include <utility>
@@ -23,7 +27,8 @@ namespace {
 
 class FileOpAwaiter_ {
   static void onFileOpDone(uv_fs_t *req) {
-    auto *awaiter = static_cast<FileOpAwaiter_ *>(req->data);
+    auto *awaiter =
+        static_cast<FileOpAwaiter_ *>(uv_req_get_data((uv_req_t *)req));
     awaiter->result_ = req->result;
     if (awaiter->cb_) {
       awaiter->cb_(req);
@@ -59,7 +64,7 @@ public:
   bool await_suspend(std::coroutine_handle<> handle) {
     BOOST_ASSERT(!result_);
     BOOST_ASSERT_MSG(!handle_, "FileOpAwaiter_ can only be awaited once");
-    req_.data = this;
+    uv_req_set_data((uv_req_t *)&req_, this);
     handle_ = handle;
     return true;
     ;
@@ -94,27 +99,51 @@ private:
 
 } // namespace
 
-Promise<File> openFile(const Loop &loop, std::string_view path, int mode,
-                       int flags) {
+Promise<File> File::open(const Loop &loop, std::string_view path, int mode,
+                         int flags) {
   FileOpAwaiter_ awaiter;
   uv_file file{};
-  auto &req = awaiter.req();
 
   awaiter.setCallback(
       [&file](uv_fs_t *req) { file = static_cast<uv_file>(req->result); });
 
-  uv_fs_open(loop.uvloop(), &req, path.data(), flags, mode,
+  uv_fs_open(loop.uvloop(), &awaiter.req(), path.data(), flags, mode,
              FileOpAwaiter_::uvCallback());
 
   co_await awaiter;
-  co_return File{file};
+  co_return File{loop.uvloop(), static_cast<uv_file>(awaiter.req().result)};
 }
 
-Promise<void> closeFile(const Loop &loop, File file) {
+Promise<size_t> File::read(std::string &buffer, int64_t offset) {
+  FileOpAwaiter_ awaiter;
+  size_t result = 0;
+
+  std::array<uv_buf_t, 1> bufs{};
+  bufs[0].base = buffer.data();
+  bufs[0].len = buffer.length();
+
+  uv_fs_read(loop_, &awaiter.req(), file(), bufs.data(), 1, offset,
+             FileOpAwaiter_::uvCallback());
+
+  co_await awaiter;
+
+  result = awaiter.req().result;
+  buffer.resize(result);
+  co_return result;
+}
+
+uv_file File::file() const {
+  BOOST_ASSERT(file_ >= 0);
+  return file_;
+}
+
+Promise<void> File::close(const Loop &loop) {
   FileOpAwaiter_ awaiter;
   auto &req = awaiter.req();
 
-  uv_fs_close(loop.uvloop(), &req, file.file(), FileOpAwaiter_::uvCallback());
+  uv_fs_close(loop_, &req, file(), FileOpAwaiter_::uvCallback());
+
+  file_ = -1;
 
   co_await awaiter;
 }
