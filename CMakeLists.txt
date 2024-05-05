@@ -52,6 +52,7 @@ add_library(uv-co-lib STATIC
     src/channel.cc
     src/close.cc
     src/exception.cc
+    src/fs.cc
     src/name_resolution.cc
     src/pipe.cc
     src/run.cc
@@ -84,7 +85,7 @@ add_library(test-util STATIC test/test_util.cc)
 target_include_directories(test-util PRIVATE src/)
 target_link_libraries(test-util PRIVATE uv-co-lib)
 
-foreach(TESTCASE IN ITEMS channel generator loop name_resolution promise stream timer udp uds tcp misc)
+foreach(TESTCASE IN ITEMS channel fs generator loop name_resolution promise stream timer udp uds tcp misc)
     add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
     target_link_libraries(${TESTCASE}-test PRIVATE uv-co-lib test-util GTest::gtest_main)
     add_test(NAME ${TESTCASE}-test COMMAND ${TESTCASE}-test)
