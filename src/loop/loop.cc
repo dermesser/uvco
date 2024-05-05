@@ -4,8 +4,8 @@
 #include <uv.h>
 
 #include "exception.h"
-#include "loop/loop.h"
 #include "internal/internal_utils.h"
+#include "loop/loop.h"
 #include "loop/scheduler.h"
 
 #include <cstdio>
@@ -46,8 +46,10 @@ Loop::~Loop() {
 
   const uv_status status = uv_loop_close(loop_.get());
   if (0 != status) {
-    fmt::print(stderr, "Loop::~Loop(): uv_loop_close() failed; there were "
-                       "still resources on the loop: {}\n", uv_strerror(status));
+    fmt::print(stderr,
+               "Loop::~Loop(): uv_loop_close() failed; there were "
+               "still resources on the loop: {}\n",
+               uv_strerror(status));
   }
   defaultLoop = nullptr;
 }

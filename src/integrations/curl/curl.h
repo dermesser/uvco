@@ -32,8 +32,8 @@ public:
   ~CurlRequest();
 
   /// Start the request. This method is a generator that yields received chunks
-  /// of the remote resource. Make sure to always `co_await` the returned MultiPromise
-  /// until receiving a `std::nullopt`.
+  /// of the remote resource. Make sure to always `co_await` the returned
+  /// MultiPromise until receiving a `std::nullopt`.
   ///
   /// The `Curl` instance must not be closed before the request has finished.
   MultiPromise<std::string> start();

@@ -26,7 +26,7 @@ public:
   static Promise<File> open(const Loop &loop, std::string_view path,
                             int mode = O_RDWR, int flags = 0);
 
-  Promise<size_t> read(std::string& buffer, int64_t offset = -1);
+  Promise<size_t> read(std::string &buffer, int64_t offset = -1);
 
   /// Access the libuv file handle.
   [[nodiscard]] uv_file file() const;
@@ -35,9 +35,9 @@ public:
   Promise<void> close(const Loop &loop);
 
 private:
-  File(uv_loop_t* loop, uv_file file) : loop_{loop}, file_(file) {}
+  File(uv_loop_t *loop, uv_file file) : loop_{loop}, file_(file) {}
 
-  uv_loop_t* loop_;
+  uv_loop_t *loop_;
   uv_file file_;
 };
 
