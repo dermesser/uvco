@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <fcntl.h>
 #include <string>
 #include <uv.h>
@@ -26,6 +27,11 @@ public:
   static Promise<File> open(const Loop &loop, std::string_view path,
                             int mode = O_RDWR, int flags = 0);
 
+  /// Read up to `buffer.size()` bytes into that buffer, starting at `offset`
+  /// (if `offset >= 0`) or at the current file position.
+  ///
+  /// `buffer` is resized to the number of bytes read, if it could not be filled
+  /// completely; The number of bytes read is also returned.
   Promise<size_t> read(std::string &buffer, int64_t offset = -1);
 
   /// Access the libuv file handle.

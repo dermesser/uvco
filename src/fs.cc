@@ -30,9 +30,6 @@ class FileOpAwaiter_ {
     auto *awaiter =
         static_cast<FileOpAwaiter_ *>(uv_req_get_data((uv_req_t *)req));
     awaiter->result_ = req->result;
-    if (awaiter->cb_) {
-      awaiter->cb_(req);
-    }
     awaiter->schedule();
   }
 
@@ -50,12 +47,6 @@ public:
   /// Obtain the `uv_fs_t` struct to fill in before starting the operation.
   [[nodiscard]] uv_fs_t &req() { return req_; }
   [[nodiscard]] static uv_fs_cb uvCallback() { return onFileOpDone; }
-
-  /// Set the callback to be called when the operation is done, which is used to
-  /// extract the result from the request.
-  void setCallback(std::function<void(uv_fs_t *)> callback) {
-    cb_ = std::move(callback);
-  }
 
   [[nodiscard]] bool await_ready() const noexcept {
     return result_.has_value();
@@ -84,7 +75,6 @@ public:
 
 private:
   uv_fs_t req_ = {};
-  std::function<void(uv_fs_t *)> cb_;
   std::optional<std::coroutine_handle<>> handle_;
   std::optional<ssize_t> result_ = std::nullopt;
 
@@ -102,16 +92,15 @@ private:
 Promise<File> File::open(const Loop &loop, std::string_view path, int mode,
                          int flags) {
   FileOpAwaiter_ awaiter;
-  uv_file file{};
-
-  awaiter.setCallback(
-      [&file](uv_fs_t *req) { file = static_cast<uv_file>(req->result); });
 
   uv_fs_open(loop.uvloop(), &awaiter.req(), path.data(), flags, mode,
              FileOpAwaiter_::uvCallback());
 
   co_await awaiter;
-  co_return File{loop.uvloop(), static_cast<uv_file>(awaiter.req().result)};
+
+  const auto fileDesc = static_cast<uv_file>(awaiter.req().result);
+
+  co_return File{loop.uvloop(), fileDesc};
 }
 
 Promise<size_t> File::read(std::string &buffer, int64_t offset) {
