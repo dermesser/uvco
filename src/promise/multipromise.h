@@ -193,13 +193,6 @@ public:
   /// still moved into the generator's slot, but the generator is not resumed.
   /// Upon the next `co_await`, the returned `MultiPromiseAwaiter_` will
   /// immediately return the value without resuming the generator.
-  ///
-  /// TODO: this should suspend using a special awaiter which will return
-  /// control to the generator routine once the "receiver" has read its value.
-  /// Currently, this relies on another suspension point after the yield giving
-  /// back control to the event loop (and thus the receiver). Therefore you
-  /// can't use it directly to implement generator functions without further I/O
-  /// between yielded values.
   YieldAwaiter_ yield_value(T &&value) {
     BOOST_ASSERT(!core_->slot);
     core_->slot = std::move(value);
