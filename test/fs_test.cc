@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <gtest/gtest.h>
 #include <string>
+#include <string_view>
 #include <uv.h>
 
 namespace {
@@ -20,7 +21,7 @@ TEST(FsTest, OpenFile) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     auto file = co_await File::open(loop, "/dev/null", O_RDONLY);
     EXPECT_GT(file.file(), 0);
-    co_await file.close(loop);
+    co_await file.close();
   };
 
   run_loop(setup);
@@ -67,7 +68,30 @@ TEST(FsTest, simpleRead) {
     EXPECT_TRUE(std::all_of(buffer.begin(), buffer.end(),
                             [](char c) { return c == 0; }));
 
-    co_await file.close(loop);
+    co_await file.close();
+  };
+
+  run_loop(setup);
+}
+
+TEST(FsTest, simpleReadWriteUnlink) {
+  static constexpr std::string_view contents = "Hello World\n";
+  static constexpr std::string_view fileName = "/tmp/_uvco_test_file";
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto file = co_await File::open(loop, fileName, O_RDWR | O_CREAT);
+
+    co_await file.write(contents);
+
+    std::string buffer(64, '\0');
+
+    const size_t bytesRead = co_await file.read(buffer, 0);
+
+    EXPECT_EQ(contents.size(), bytesRead);
+    EXPECT_EQ(contents, buffer);
+
+    co_await file.close();
+
+    co_await File::unlink(loop, fileName);
   };
 
   run_loop(setup);

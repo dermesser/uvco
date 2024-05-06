@@ -89,8 +89,8 @@ private:
 
 } // namespace
 
-Promise<File> File::open(const Loop &loop, std::string_view path, int mode,
-                         int flags) {
+Promise<File> File::open(const Loop &loop, std::string_view path, int flags,
+                         int mode) {
   FileOpAwaiter_ awaiter;
 
   uv_fs_open(loop.uvloop(), &awaiter.req(), path.data(), flags, mode,
@@ -101,6 +101,16 @@ Promise<File> File::open(const Loop &loop, std::string_view path, int mode,
   const auto fileDesc = static_cast<uv_file>(awaiter.req().result);
 
   co_return File{loop.uvloop(), fileDesc};
+}
+
+Promise<void> File::unlink(const Loop &loop, std::string_view path) {
+  FileOpAwaiter_ awaiter;
+
+  uv_fs_unlink(loop.uvloop(), &awaiter.req(), path.data(),
+               FileOpAwaiter_::uvCallback());
+
+  co_await awaiter;
+  co_return;
 }
 
 Promise<size_t> File::read(std::string &buffer, int64_t offset) {
@@ -121,12 +131,30 @@ Promise<size_t> File::read(std::string &buffer, int64_t offset) {
   co_return result;
 }
 
+Promise<size_t> File::write(std::string_view buffer, int64_t offset) {
+  FileOpAwaiter_ awaiter;
+  size_t result = 0;
+
+  std::array<uv_buf_t, 1> bufs{};
+  // Unfortunately necessary: const_cast
+  bufs[0].base = const_cast<char *>(buffer.data());
+  bufs[0].len = buffer.length();
+
+  uv_fs_write(loop_, &awaiter.req(), file(), bufs.data(), 1, offset,
+              FileOpAwaiter_::uvCallback());
+
+  co_await awaiter;
+
+  result = awaiter.req().result;
+  co_return result;
+}
+
 uv_file File::file() const {
   BOOST_ASSERT(file_ >= 0);
   return file_;
 }
 
-Promise<void> File::close(const Loop &loop) {
+Promise<void> File::close() {
   FileOpAwaiter_ awaiter;
   auto &req = awaiter.req();
 
