@@ -119,6 +119,8 @@ Promise<void> testCurl(const Loop& loop) {
       }
     } catch (const UvcoException &e) {
       fmt::print("Caught exception: {}\n", e.what());
+    } catch (const CurlException& e) {
+      fmt::print("Caught curl exception: {}\n", e.what());
     }
 
     co_await curl.close();
