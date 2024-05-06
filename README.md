@@ -16,6 +16,7 @@ Supported functionality:
 * Unix domain sockets (stream, client/server)
 * Anonymous pipes (operating-system-backed) and typed buffered channels (like Go's)
 * Timer functionality (`sleep`, `tick`)
+* File functionality (`read`, `write`, `mkdir`, `unlink`, ...)
 * A libcurl integration, allowing e.g. HTTP(S) downloads.
 
 ## Context
