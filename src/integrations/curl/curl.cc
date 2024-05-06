@@ -381,19 +381,19 @@ UvCurlContext_::UvCurlContext_(const Loop &loop)
 
 void UvCurlContext_::checkCurlInfo() const {
   CURLMsg *msg{};
-  int responseCode{};
-  int verifyResult{};
+  long responseCode{};
+  long verifyResult{};
   int inQueue{};
 
   // Check for completed requests.
   while (nullptr != (msg = curl_multi_info_read(multi_, &inQueue))) {
     if (msg->msg == CURLMSG_DONE) {
       CurlRequestCore_ *request{};
-      curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, &request);
-      curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE,
-                        &responseCode);
-      curl_easy_getinfo(msg->easy_handle, CURLINFO_SSL_VERIFYRESULT,
-                        &verifyResult);
+      BOOST_VERIFY(CURLE_OK == curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, &request));
+      BOOST_VERIFY(CURLE_OK == curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE,
+                        &responseCode));
+      BOOST_VERIFY(CURLE_OK == curl_easy_getinfo(msg->easy_handle, CURLINFO_SSL_VERIFYRESULT,
+                        &verifyResult));
       request->setResponseCode(responseCode);
       request->setVerifyResult(verifyResult);
       request->onError(0);
