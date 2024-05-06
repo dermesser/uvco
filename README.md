@@ -269,7 +269,7 @@ libuv event loop, and no coroutines waiting to be resumed; for example, every un
 Forgetting to `co_await` a Promise can lead to this condition, but a bug in uvco is also a potential explanation.
 The most frequent mistake leading to this kind of error is forgetting to add
 
-```c++
+```cpp
 co_await obj.close();
 ```
 
