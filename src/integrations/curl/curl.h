@@ -8,7 +8,9 @@
 #include <curl/curl.h>
 #include <curl/multi.h>
 
+#include <exception>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <utility>
@@ -20,6 +22,20 @@ class Loop;
 class UvCurlContext_;
 class CurlRequestCore_;
 class Curl;
+
+class CurlException : public std::exception {
+public:
+  CurlException(CURLcode code, std::string url)
+      : url_{std::move(url)}, code_{code} {}
+
+  [[nodiscard]] const char *what() const noexcept override {
+    return curl_easy_strerror(code_);
+  }
+
+private:
+  std::string url_;
+  CURLcode code_;
+};
 
 class CurlRequest {
 public:
@@ -40,10 +56,8 @@ public:
   /// The `Curl` instance must not be closed before the request has finished.
   MultiPromise<std::string> start();
 
-  /// Return the status code of the request. Only valid after the request has
-  /// finished (i.e. the `start()` generator has returned `std::nullopt`).
-  /// Otherwise 0.
-  [[nodiscard]] long statusCode() const;
+  /// Return the status code of the request after it has finished.
+  [[nodiscard]] std::optional<long> statusCode() const;
 
 private:
   friend class Curl;
@@ -82,9 +96,13 @@ public:
   ~Curl();
 
   /// Prepare a GET request.
+  ///
+  /// Important: don't drop the returned object until the request has finished.
   CurlRequest get(std::string url);
 
   /// Prepare a POST request.
+  ///
+  /// Important: don't drop the returned object until the request has finished.
   CurlRequest post(std::string url,
                    std::span<const std::pair<std::string, std::string>> fields);
 

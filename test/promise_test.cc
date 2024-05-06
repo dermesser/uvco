@@ -23,7 +23,7 @@ TEST(PromiseTest, moveCtor) {
 TEST(PromiseTest, destroyWithoutResume) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
     Promise<int> promise = [&loop]() -> uvco::Promise<int> {
-      co_await sleep(loop, 1);
+      co_await sleep(loop, 50);
       // Will put promise core in state finished, all good.
       co_return 1;
     }();

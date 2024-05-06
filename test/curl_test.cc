@@ -45,7 +45,7 @@ TEST(CurlTest, simpleDownload) {
         }
       }
 
-    } catch (const UvcoException &e) {
+    } catch (const CurlException &e) {
       fmt::print("Caught exception: {}\n", e.what());
     }
 
@@ -72,6 +72,8 @@ Promise<void> provokeError(const Loop &loop, std::string url) {
     }
 
     EXPECT_FALSE(true) << "Should have thrown an exception";
+  } catch (const CurlException &e) {
+    fmt::print("Caught expected exception: {}\n", e.what());
   } catch (const UvcoException &e) {
     fmt::print("Caught expected exception: {}\n", e.what());
   }
@@ -105,22 +107,15 @@ TEST(CurlTest, invalidPost) {
     auto req = curl.post("https://borgac.net/", fields);
     auto gen = req.start();
 
-    try {
-      while (true) {
-        auto result = co_await gen;
-        if (!result) {
-          fmt::print("Downloaded file\n");
-          break;
-        }
+    while (true) {
+      auto result = co_await gen;
+      if (!result) {
+        fmt::print("Downloaded file\n");
+        break;
       }
-
-      EXPECT_FALSE(true) << "Should have thrown an exception";
-    } catch (const UvcoException &e) {
-      fmt::print("Caught expected exception: {}\n", e.what());
-      EXPECT_TRUE(std::string(e.what()).contains("HTTP Error 405"));
     }
 
-    EXPECT_EQ(req.statusCode(), 405);
+    EXPECT_EQ(405, req.statusCode().value());
 
     co_await curl.close();
   });

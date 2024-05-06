@@ -179,8 +179,8 @@ private:
 
 /// Used as awaiter by Curl::download.
 class CurlRequestCore_ {
-  static void onCurlDataAvailable(char *data, size_t size, size_t nmemb,
-                                  void *userp);
+  static size_t onCurlDataAvailable(char *data, size_t size, size_t nmemb,
+                                    void *userp);
 
 public:
   CurlRequestCore_(const CurlRequestCore_ &) = delete;
@@ -326,19 +326,31 @@ public:
     }
   }
 
+  /// Set Curl error code.
+  void setCurlStatus(CURLcode status) noexcept {
+    if (!curlStatus_) {
+      curlStatus_ = status;
+    }
+  }
+
   /// Get uv error status. 0 if success.
-  [[nodiscard]] uv_status uvStatus() const noexcept {
-    return uvStatus_.value_or(0);
+  [[nodiscard]] std::optional<uv_status> uvStatus() const noexcept {
+    return uvStatus_;
   }
 
   /// Get HTTP response code. 0 if not set.
-  [[nodiscard]] long responseCode() const noexcept {
-    return responseCode_.value_or(0);
+  [[nodiscard]] std::optional<long> responseCode() const noexcept {
+    return responseCode_;
   }
 
   /// Get SSL verification result. 0 means success, > 0 means failure.
-  [[nodiscard]] long verifyResult() const noexcept {
-    return verifyResult_.value_or(0);
+  [[nodiscard]] std::optional<long> verifyResult() const noexcept {
+    return verifyResult_;
+  }
+
+  /// Get Curl error code once the request has finished.
+  [[nodiscard]] std::optional<CURLcode> curlStatus() const noexcept {
+    return curlStatus_;
   }
 
 private:
@@ -354,14 +366,16 @@ private:
   // Misuse vector as deque for now.
   std::vector<std::string> chunks_;
   std::optional<uv_status> uvStatus_;
+  std::optional<CURLcode> curlStatus_;
   std::optional<long> responseCode_;
   std::optional<long> verifyResult_;
 };
 
-void CurlRequestCore_::onCurlDataAvailable(char *data, size_t size,
-                                           size_t nmemb, void *userp) {
+size_t CurlRequestCore_::onCurlDataAvailable(char *data, size_t size,
+                                             size_t nmemb, void *userp) {
   auto *request = static_cast<CurlRequestCore_ *>(userp);
   request->onDataAvailable(data, size * nmemb);
+  return nmemb;
 }
 
 UvCurlContext_::UvCurlContext_(const Loop &loop)
@@ -397,6 +411,7 @@ void UvCurlContext_::checkCurlInfo() const {
       BOOST_VERIFY(CURLE_OK == curl_easy_getinfo(msg->easy_handle,
                                                  CURLINFO_SSL_VERIFYRESULT,
                                                  &verifyResult));
+      request->setCurlStatus(msg->data.result);
       request->setResponseCode(responseCode);
       request->setVerifyResult(verifyResult);
       request->onError(0);
@@ -546,7 +561,9 @@ void CurlRequest::setTimeoutMs(long timeoutMs) {
   curl_easy_setopt(core_->easyHandle_, CURLOPT_TIMEOUT_MS, timeoutMs);
 }
 
-long CurlRequest::statusCode() const { return core_->responseCode(); }
+std::optional<long> CurlRequest::statusCode() const {
+  return core_->responseCode();
+}
 
 MultiPromise<std::string> CurlRequest::start() {
   // Run transfer of response.
@@ -561,19 +578,13 @@ MultiPromise<std::string> CurlRequest::start() {
     break;
   }
 
-  if (core_->uvStatus() != 0) {
+  if (core_->curlStatus() && core_->curlStatus().value() != CURLE_OK) {
+    throw CurlException(core_->curlStatus().value(), std::string{core_->url()});
+  }
+  if (core_->uvStatus() && core_->uvStatus().value() != 0) {
     throw UvcoException{
-        core_->uvStatus(),
+        core_->uvStatus().value(),
         fmt::format("Socket error while fetching {}", core_->url())};
-  }
-  if (core_->verifyResult() != 0) {
-    throw UvcoException{
-        UV_EINVAL, fmt::format("SSL verification failed for {}", core_->url())};
-  }
-  if (core_->responseCode() != 200) {
-    throw UvcoException{UV_EINVAL,
-                        fmt::format("HTTP Error {} while fetching {}",
-                                    core_->responseCode(), core_->url())};
   }
 
   co_return;
