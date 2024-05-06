@@ -5,15 +5,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <fcntl.h>
-#include <functional>
 #include <string>
 #include <string_view>
 #include <sys/types.h>
-#include <utility>
 #include <uv.h>
 
 #include "exception.h"
 #include "fs.h"
+#include "internal/internal_utils.h"
 #include "loop/loop.h"
 #include "promise/promise.h"
 
@@ -65,8 +64,9 @@ public:
   /// is resumed.
   void await_resume() {
     BOOST_ASSERT(result_);
-    if (result_ && *result_ < 0) {
-      throw UvcoException(*result_, "file operation failed");
+    if (result_ && result_.value() < 0) {
+      throw UvcoException(static_cast<uv_status>(result_.value()),
+                          "file operation failed");
     } else if (!result_) {
       throw UvcoException(UV_EAGAIN,
                           "file operation not yet finished (this is a bug)");
@@ -108,6 +108,26 @@ Promise<void> File::unlink(const Loop &loop, std::string_view path) {
 
   uv_fs_unlink(loop.uvloop(), &awaiter.req(), path.data(),
                FileOpAwaiter_::uvCallback());
+
+  co_await awaiter;
+  co_return;
+}
+
+Promise<void> File::mkdir(const Loop &loop, std::string_view path, int mode) {
+  FileOpAwaiter_ awaiter;
+
+  uv_fs_mkdir(loop.uvloop(), &awaiter.req(), path.data(), mode,
+              FileOpAwaiter_::uvCallback());
+
+  co_await awaiter;
+  co_return;
+}
+
+Promise<void> File::rmdir(const Loop &loop, std::string_view path) {
+  FileOpAwaiter_ awaiter;
+
+  uv_fs_rmdir(loop.uvloop(), &awaiter.req(), path.data(),
+              FileOpAwaiter_::uvCallback());
 
   co_await awaiter;
   co_return;

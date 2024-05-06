@@ -97,4 +97,21 @@ TEST(FsTest, simpleReadWriteUnlink) {
   run_loop(setup);
 }
 
+TEST(FsTest, mkDirRmDir) {
+  static constexpr std::string_view dirName = "/tmp/_uvco_test_dir";
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    co_await File::mkdir(loop, dirName);
+
+    try {
+      co_await File::mkdir(loop, dirName);
+    } catch (const UvcoException &e) {
+      EXPECT_EQ(e.status, UV_EEXIST);
+    }
+
+    co_await File::rmdir(loop, dirName);
+  };
+
+  run_loop(setup);
+}
+
 } // namespace
