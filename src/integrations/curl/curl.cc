@@ -1,7 +1,6 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #include <boost/assert.hpp>
-#include <cctype>
 #include <cstdio>
 #include <cstring>
 #include <curl/curl.h>
@@ -35,7 +34,8 @@ namespace uvco {
 namespace {
 
 std::string urlEncode(CURL *curl, std::string_view url) {
-  char *result = curl_easy_escape(curl, url.data(), url.size());
+  char *result =
+      curl_easy_escape(curl, url.data(), static_cast<int>(url.size()));
   const std::string encoded{result};
   curl_free(result);
   return encoded;
@@ -313,14 +313,14 @@ public:
   }
 
   /// Set HTTP response code.
-  void setResponseCode(int status) noexcept {
+  void setResponseCode(long status) noexcept {
     if (!responseCode_) {
       responseCode_ = status;
     }
   }
 
   /// Set SSL verification result.
-  void setVerifyResult(int result) noexcept {
+  void setVerifyResult(long result) noexcept {
     if (!verifyResult_) {
       verifyResult_ = result;
     }
@@ -332,12 +332,12 @@ public:
   }
 
   /// Get HTTP response code. 0 if not set.
-  [[nodiscard]] int responseCode() const noexcept {
+  [[nodiscard]] long responseCode() const noexcept {
     return responseCode_.value_or(0);
   }
 
   /// Get SSL verification result. 0 means success, > 0 means failure.
-  [[nodiscard]] int verifyResult() const noexcept {
+  [[nodiscard]] long verifyResult() const noexcept {
     return verifyResult_.value_or(0);
   }
 
@@ -354,8 +354,8 @@ private:
   // Misuse vector as deque for now.
   std::vector<std::string> chunks_;
   std::optional<uv_status> uvStatus_;
-  std::optional<int> responseCode_;
-  std::optional<int> verifyResult_;
+  std::optional<long> responseCode_;
+  std::optional<long> verifyResult_;
 };
 
 void CurlRequestCore_::onCurlDataAvailable(char *data, size_t size,
@@ -389,11 +389,14 @@ void UvCurlContext_::checkCurlInfo() const {
   while (nullptr != (msg = curl_multi_info_read(multi_, &inQueue))) {
     if (msg->msg == CURLMSG_DONE) {
       CurlRequestCore_ *request{};
-      BOOST_VERIFY(CURLE_OK == curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, &request));
-      BOOST_VERIFY(CURLE_OK == curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE,
-                        &responseCode));
-      BOOST_VERIFY(CURLE_OK == curl_easy_getinfo(msg->easy_handle, CURLINFO_SSL_VERIFYRESULT,
-                        &verifyResult));
+      BOOST_VERIFY(CURLE_OK == curl_easy_getinfo(msg->easy_handle,
+                                                 CURLINFO_PRIVATE, &request));
+      BOOST_VERIFY(CURLE_OK == curl_easy_getinfo(msg->easy_handle,
+                                                 CURLINFO_RESPONSE_CODE,
+                                                 &responseCode));
+      BOOST_VERIFY(CURLE_OK == curl_easy_getinfo(msg->easy_handle,
+                                                 CURLINFO_SSL_VERIFYRESULT,
+                                                 &verifyResult));
       request->setResponseCode(responseCode);
       request->setVerifyResult(verifyResult);
       request->onError(0);
@@ -539,7 +542,11 @@ CurlRequest::CurlRequest(
   }
 }
 
-int CurlRequest::statusCode() const { return core_->responseCode(); }
+void CurlRequest::setTimeoutMs(long timeoutMs) {
+  curl_easy_setopt(core_->easyHandle_, CURLOPT_TIMEOUT_MS, timeoutMs);
+}
+
+long CurlRequest::statusCode() const { return core_->responseCode(); }
 
 MultiPromise<std::string> CurlRequest::start() {
   // Run transfer of response.

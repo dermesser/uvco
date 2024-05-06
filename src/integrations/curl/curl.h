@@ -31,6 +31,8 @@ public:
   CurlRequest &operator=(CurlRequest &&) = delete;
   ~CurlRequest();
 
+  void setTimeoutMs(long timeoutMs);
+
   /// Start the request. This method is a generator that yields received chunks
   /// of the remote resource. Make sure to always `co_await` the returned
   /// MultiPromise until receiving a `std::nullopt`.
@@ -41,7 +43,7 @@ public:
   /// Return the status code of the request. Only valid after the request has
   /// finished (i.e. the `start()` generator has returned `std::nullopt`).
   /// Otherwise 0.
-  [[nodiscard]] int statusCode() const;
+  [[nodiscard]] long statusCode() const;
 
 private:
   friend class Curl;

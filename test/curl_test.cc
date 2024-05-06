@@ -23,6 +23,9 @@ TEST(CurlTest, simpleDownload) {
     Curl curl{loop};
     auto req1 = curl.get("https://borgac.net/");
     auto req2 = curl.get("http://lewinb.net/");
+
+    req2.setTimeoutMs(4000);
+
     auto gen1 = req1.start();
     auto gen2 = req2.start();
 
