@@ -20,10 +20,30 @@ TEST(PromiseTest, moveCtor) {
   run_loop(setup);
 }
 
+TEST(PromiseTest, movePromiseBetweenFunctions) {
+  auto coro1 = [](Promise<int> promise) -> uvco::Promise<void> {
+    EXPECT_EQ(co_await promise, 42);
+  };
+  auto coro2 = [&](Promise<int> promise) -> uvco::Promise<void> {
+    co_return co_await coro1(std::move(promise));
+  };
+
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Promise<int> promise1 = [&loop]() -> uvco::Promise<int> {
+      co_await sleep(loop, 5);
+      co_return 42;
+    }();
+
+    co_await coro2(std::move(promise1));
+  };
+
+  run_loop(setup);
+}
+
 TEST(PromiseTest, destroyWithoutResume) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
     Promise<int> promise = [&loop]() -> uvco::Promise<int> {
-      co_await sleep(loop, 50);
+      co_await sleep(loop, 5);
       // Will put promise core in state finished, all good.
       co_return 1;
     }();

@@ -249,6 +249,10 @@ Promise<void> fun() {
 
 The temporary value is kept alive in the coroutine frame, which has been allocated dynamically.
 
+It's a different story when moving around promises: if the calling coroutine returns before the awaited promise is
+finished, the result will be an illegal stack access. Don't do this :) Instead make sure to e.g. use a `shared_ptr`
+instead of a reference, or a `std::string` instead of a `std::string_view`.
+
 ### Loop Lifetime
 
 The `Loop` is singular, and outlives all coroutines running on it; therefore it's passed as `const Loop&` to any
