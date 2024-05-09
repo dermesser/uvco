@@ -84,13 +84,13 @@ void run_loop() {
 
 ### HTTP(S) download via libcurl
 
-Here we download a single file. The `Curl` class is a wrapper around libcurl, and provides a
-`download` method, which is a generator method returning a `MultiPromise`. The `MultiPromise` yields
-`std::optional<std::string>`, which is a `std::nullopt` once the download has finished. An exception
-is thrown if the download fails.
+Here we download a single file. The `Curl` class is a wrapper around libcurl, and provides a `download` method, which is
+a generator method returning a `MultiPromise`. The `MultiPromise` yields `std::optional<std::string>`, which is a
+`std::nullopt` once the download has finished. An exception is thrown if the download fails. To build the `curl-test`,
+which demonstrates this using a real server, make sure to have `libcurl` and its headers installed. CMake should find it
+automatically.
 
-Of course, more than one download can be triggered at once: `download()` MultiPromises are
-independent.
+Of course, more than one download can be triggered at once: `download()` MultiPromises are independent.
 
 ```cpp
 #include "integrations/curl/curl.h"

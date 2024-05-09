@@ -38,15 +38,35 @@ add_library(uv-co-internal STATIC
     src/loop/loop.cc
     src/loop/scheduler.cc
 )
+target_sources(uv-co-internal INTERFACE
+    FILE_SET HEADERS
+    TYPE HEADERS
+    BASE_DIRS src/
+    FILES
+    src/internal/internal_utils.h
+    src/loop/loop.h
+    src/loop/scheduler.h
+)
 target_include_directories(uv-co-internal PRIVATE ${FMT_INCLUDEDIR} src/)
+install(TARGETS uv-co-internal FILE_SET HEADERS DESTINATION include/uvco)
 
 add_library(uv-co-promise STATIC
     src/promise/multipromise.cc
     src/promise/promise.cc
     src/promise/promise_core.cc
 )
+target_sources(uv-co-promise INTERFACE
+    FILE_SET HEADERS
+    TYPE HEADERS
+    BASE_DIRS src/
+    FILES
+    src/promise/multipromise.h
+    src/promise/promise.h
+    src/promise/promise_core.h
+)
 target_link_libraries(uv-co-promise PRIVATE uv-co-internal)
 target_include_directories(uv-co-promise PRIVATE src/)
+install(TARGETS uv-co-promise FILE_SET HEADERS DESTINATION include/uvco)
 
 add_library(uv-co-lib STATIC
     src/channel.cc
@@ -65,10 +85,34 @@ add_library(uv-co-lib STATIC
     src/uds.cc
     src/uds_stream.cc
 )
+target_sources(uv-co-lib INTERFACE
+    FILE_SET HEADERS
+    TYPE HEADERS
+    BASE_DIRS src/
+    FILES
+    src/channel.h
+    src/close.h
+    src/exception.h
+    src/fs.h
+    src/name_resolution.h
+    src/pipe.h
+    src/run.h
+    src/stream.h
+    src/stream_server_base_impl.h
+    src/tcp.h
+    src/tcp_stream.h
+    src/timer.h
+    src/udp.h
+    src/uds.h
+    src/uds_stream.h
+)
+
 target_link_libraries(uv-co-lib PRIVATE uv-co-internal ${UV_LIBRARIES} ${FMT_LIBRARIES})
 target_link_libraries(uv-co-lib PUBLIC uv-co-promise)
 target_include_directories(uv-co-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
 target_include_directories(uv-co-lib PUBLIC src/)
+install(TARGETS uv-co-lib)
+install(TARGETS uv-co-lib FILE_SET HEADERS DESTINATION include/uvco)
 
 # Optional integrations
 
@@ -76,7 +120,16 @@ if(CURL_FOUND)
     add_library(uv-co-curl STATIC
         src/integrations/curl/curl.cc
     )
+    target_sources(uv-co-curl INTERFACE
+        FILE_SET HEADERS
+        TYPE HEADERS
+        BASE_DIRS src/
+        FILES
+        src/integrations/curl/curl.h
+    )
     target_link_libraries(uv-co-curl PUBLIC uv-co-lib CURL::libcurl)
+    install(TARGETS uv-co-curl)
+    install(TARGETS uv-co-curl FILE_SET HEADERS DESTINATION include/uvco)
 endif()
 
 # Unit tests
