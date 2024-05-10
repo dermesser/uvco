@@ -5,7 +5,9 @@
 #include "test_util.h"
 #include "timer.h"
 
+#include <fmt/core.h>
 #include <gtest/gtest.h>
+#include <string_view>
 #include <utility>
 
 namespace {
@@ -30,6 +32,35 @@ TEST(PromiseTest, awaitTwice) {
   };
 
   run_loop(setup);
+}
+
+Promise<void> testTemporaryFunction(const Loop &loop,
+                                    std::string_view message) {
+  co_await sleep(loop, 1);
+  fmt::print("Message is {}\n", message);
+  co_return;
+}
+
+TEST(PromiseTest, temporaryOk) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    // Temporary promise.
+    co_await testTemporaryFunction(loop, fmt::format("Hello {}", "World"));
+  };
+  run_loop(setup);
+}
+
+TEST(PromiseTest, danglingReferenceCrashesAsan) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    Promise<void> promise =
+        testTemporaryFunction(loop, fmt::format("Hello {}", "World"));
+
+    // This will crash in asan.
+    co_await promise;
+  };
+
+#if defined(__SANITIZE_ADDRESS__) || __has_feature(address_sanitizer)
+  EXPECT_DEATH({ run_loop(setup); }, "stack-use-after-return");
+#endif
 }
 
 TEST(PromiseTest, movePromiseBetweenFunctions) {

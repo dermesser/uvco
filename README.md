@@ -234,7 +234,7 @@ the event loop.
 Passing references and pointers into a coroutine (i.e. a function returning `[Multi]Promise<T>`) is fine as long as the
 underlying value outlives the coroutine returning. Typically, this is done like this:
 
-```c++
+```cpp
 Promise<void> fun() {
     Temporary value;
     Promise<void> promise = asynchronousFunction(&value);
@@ -252,6 +252,27 @@ The temporary value is kept alive in the coroutine frame, which has been allocat
 It's a different story when moving around promises: if the calling coroutine returns before the awaited promise is
 finished, the result will be an illegal stack access. Don't do this :) Instead make sure to e.g. use a `shared_ptr`
 instead of a reference, or a `std::string` instead of a `std::string_view`.
+
+Be extra careful of the following dangerous pattern:
+
+```cpp
+Promise<void> takesStringView(std::string_view sv) {
+    // sv is a reference to a temporary string, which will be destroyed
+    // when the coroutine returns.
+    fmt::print("Received string: {}\n", sv);
+}
+
+void run() {
+    runMain<void>([](const Loop& loop) -> Promise<void> {
+        // This is fine!
+        co_await someAsyncFunction(fmt::format("Hello {}", "world");
+        // But this isn't!
+        Promise<void> p = takesStringView(fmt::format("Hello {}", "world"));
+        co_await p;
+    });
+}
+```
+
 
 ### Loop Lifetime
 
