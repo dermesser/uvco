@@ -53,13 +53,29 @@ template <typename T> class PromiseCore : public RefCounted<PromiseCore<T>> {
 public:
   PromiseCore() = default;
 
+  explicit PromiseCore(T &&value)
+      : slot{std::move(value)}, state_{PromiseState::finished} {}
   // The promise core is pinned in memory until the coroutine has finished.
   PromiseCore(const PromiseCore &) = delete;
   PromiseCore(PromiseCore &&) = delete;
   PromiseCore &operator=(const PromiseCore &) = delete;
   PromiseCore &operator=(PromiseCore &&) = delete;
-  explicit PromiseCore(T &&value)
-      : slot{std::move(value)}, state_{PromiseState::finished} {}
+  /// Destroys a promise core. Also destroys a coroutine if there is one
+  /// suspended and has not been resumed yet. In that case, a warning is
+  /// emitted ("PromiseCore destroyed without ever being resumed").
+  virtual ~PromiseCore() {
+    if (state_ != PromiseState::finished) {
+      fmt::print(stderr,
+                 "PromiseCore destroyed without ever being resumed ({})\n",
+                 typeid(T).name());
+    }
+    // This only happens if the awaiting coroutine has never been resumed, but
+    // the last promise provided by it is gone (in turn calling ~PromiseCore()).
+    // Important: we may only destroy a suspended coroutine, not a finished one.
+    if (handle_) {
+      handle_->destroy();
+    }
+  }
 
   /// Set the coroutine to be resumed once a result is ready.
   virtual void setHandle(std::coroutine_handle<> handle) {
@@ -111,23 +127,6 @@ public:
       // Happens in MultiPromiseCore on co_return if the co_awaiter has lost
       // interest. Harmless if !resume_ (asserted above).
       break;
-    }
-  }
-
-  /// Destroys a promise core. Also destroys a coroutine if there is one
-  /// suspended and has not been resumed yet. In that case, a warning is
-  /// emitted ("PromiseCore destroyed without ever being resumed").
-  virtual ~PromiseCore() {
-    if (state_ != PromiseState::finished) {
-      fmt::print(stderr,
-                 "PromiseCore destroyed without ever being resumed ({})\n",
-                 typeid(T).name());
-    }
-    // This only happens if the awaiting coroutine has never been resumed, but
-    // the last promise provided by it is gone (in turn calling ~PromiseCore()).
-    // Important: we may only destroy a suspended coroutine, not a finished one.
-    if (handle_) {
-      handle_->destroy();
     }
   }
 

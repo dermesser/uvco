@@ -1,5 +1,6 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
+#include <utility>
 #include <uv.h>
 
 #include "exception.h"
@@ -84,8 +85,8 @@ TEST(UdsTest, UnixStreamPingPong) {
       Promise<void> server = pingPongServer(loop);
       co_await sleep(loop, 1);
       Promise<void> client = pingPongClient(loop);
-      co_await server;
-      co_await client;
+      co_await std::move(server);
+      co_await std::move(client);
     } catch (const UvcoException &e) {
       fmt::print(stderr, "Error in setup function: {}\n", e.what());
       throw;

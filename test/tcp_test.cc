@@ -51,7 +51,7 @@ Promise<void> echoTcpServer(const Loop &loop, bool &received, bool &responded) {
 
   Promise<void> clientLoop =
       echoReceived(std::move(client), received, responded);
-  co_await clientLoop;
+  co_await std::move(clientLoop);
   co_await server.close();
 }
 
@@ -74,8 +74,8 @@ Promise<void> sendTcpClient(const Loop &loop, bool &sent,
 }
 
 Promise<void> join(Promise<void> promise1, Promise<void> promise2) {
-  co_await promise1;
-  co_await promise2;
+  co_await std::move(promise1);
+  co_await std::move(promise2);
 }
 
 } // namespace

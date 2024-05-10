@@ -158,7 +158,7 @@ public:
       promises.push_back(closeHandle(&poll));
     }
     for (auto &promise : promises) {
-      co_await promise;
+      co_await std::move(promise);
     }
     polls_.clear();
   }

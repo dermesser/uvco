@@ -232,14 +232,17 @@ the event loop.
 ### Lifetimes/references
 
 Passing references and pointers into a coroutine (i.e. a function returning `[Multi]Promise<T>`) is fine as long as the
-underlying value outlives the coroutine returning. Typically, this is done like this:
+underlying value outlives the coroutine returning. This is enforced by only allowing you to `co_await` an `rvalue` promise:
 
 ```c++
 Promise<void> fun() {
+    // OK (but will not compile!)
     Temporary value;
     Promise<void> promise = asynchronousFunction(&value);
-
     co_await promise;
+
+    // OK and will compile
+    co_await asynchronousFunction(Temporary{});
 
     // At this point, the coroutine has returned.
 
@@ -247,11 +250,10 @@ Promise<void> fun() {
 }
 ```
 
-The temporary value is kept alive in the coroutine frame, which has been allocated dynamically.
+Awaiting a promise that has been used before is an error, and will result in an exception being thrown.
 
-It's a different story when moving around promises: if the calling coroutine returns before the awaited promise is
-finished, the result will be an illegal stack access. Don't do this :) Instead make sure to e.g. use a `shared_ptr`
-instead of a reference, or a `std::string` instead of a `std::string_view`.
+In theory (and in the past), this would work without the rvalue restriction, which would also look nicer. However, it's an
+easy win for safety, and the restriction is not too cumbersome.
 
 ### Loop Lifetime
 

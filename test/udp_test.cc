@@ -84,8 +84,8 @@ Promise<void> udpClient(const Loop &loop, uint64_t &sent) {
 }
 
 Promise<void> join(Promise<void> promise1, Promise<void> promise2) {
-  co_await promise1;
-  co_await promise2;
+  co_await std::move(promise1);
+  co_await std::move(promise2);
 }
 
 TEST(UdpTest, testPingPong) {
