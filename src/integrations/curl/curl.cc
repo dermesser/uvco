@@ -51,7 +51,6 @@ formattedFields(CURL *curl,
         return acc + pair.first.size() + pair.second.size() + 2;
       }));
 
-  // TODO: URL encoding
   for (const auto &[key, value] : fields) {
     result += urlEncode(curl, key);
     result += '=';
@@ -270,6 +269,10 @@ public:
   /// Awaiter protocol: ready if there are chunks to yield or the download is
   /// done.
   [[nodiscard]] bool await_ready() const noexcept {
+    BOOST_ASSERT_MSG(!context_.expired(),
+                     "Curl object must outlive any request");
+    // Before checking response code, ensure that it's up-to-date.
+    context_.lock()->checkCurlInfo();
     return !chunks_.empty() || responseCode_ > 0;
   }
 
@@ -505,8 +508,6 @@ int UvCurlContext_::curlSocketFunction(CURL *easy, curl_socket_t socket,
   default:
     BOOST_ASSERT(false);
   }
-
-  context->checkCurlInfo();
 
   return 0;
 }

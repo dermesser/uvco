@@ -33,14 +33,12 @@ TEST(CurlTest, simpleDownload) {
       while (true) {
         auto result1 = co_await gen1;
         if (!result1) {
-          fmt::print("Downloaded first file\n");
           break;
         }
       }
       while (true) {
         auto result2 = co_await gen2;
         if (!result2) {
-          fmt::print("Downloaded second file\n");
           break;
         }
       }
@@ -49,9 +47,7 @@ TEST(CurlTest, simpleDownload) {
       fmt::print("Caught exception: {}\n", e.what());
     }
 
-    fmt::print("Downloaded both files, closing timer\n");
     co_await curl.close();
-    fmt::print("Closed curl handle\n");
   };
 
   run_loop(setup);
@@ -66,7 +62,6 @@ Promise<void> provokeError(const Loop &loop, std::string url) {
     while (true) {
       auto result = co_await gen;
       if (!result) {
-        fmt::print("Downloaded file\n");
         break;
       }
     }
@@ -110,7 +105,6 @@ TEST(CurlTest, invalidPost) {
     while (true) {
       auto result = co_await gen;
       if (!result) {
-        fmt::print("Downloaded file\n");
         break;
       }
     }
