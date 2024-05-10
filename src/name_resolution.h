@@ -89,16 +89,10 @@ public:
   explicit Resolver(const Loop &loop) : loop_{&loop} {}
 
   /// Resolve a host and port string. Throws an `UvcoException` upon error.
-  ///
-  /// NOTE: `string_view` is safe here because libuv copies the address before
-  /// the first suspension point.
   Promise<AddressHandle> gai(std::string_view host, std::string_view port,
                              int af_hint = AF_UNSPEC);
   /// Resolve a host string and numeric port. Throws an `UvcoException` upon
   /// error.
-  ///
-  /// NOTE: `string_view` is safe here because libuv copies the address before
-  /// the first suspension point.
   Promise<AddressHandle> gai(std::string_view host, uint16_t port,
                              int af_hint = AF_UNSPEC);
 

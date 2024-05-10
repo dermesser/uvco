@@ -1,31 +1,21 @@
 
 #include <boost/program_options.hpp>
-#include <boost/program_options/detail/parsers.hpp>
-#include <boost/program_options/options_description.hpp>
-#include <boost/program_options/value_semantic.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <fmt/core.h>
 #include <fmt/format.h>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <unordered_map>
-#include <utility>
-#include <vector>
 
-#include "internal/internal_utils.h"
-#include "name_resolution.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
 #include "run.h"
 #include "stream.h"
 #include "tcp.h"
-#include "tcp_stream.h"
 
 struct Options {
   const uvco::Loop *loop;
@@ -70,8 +60,8 @@ public:
     for (const auto &clientPtr : clients_) {
       promises.push_back(clientPtr.second->write(message));
     }
-    for (Promise<uv_status> &promise : promises) {
-      co_await std::move(promise);
+    for (auto &promise : promises) {
+      co_await promise;
     }
   }
 };
@@ -147,7 +137,7 @@ Promise<void> client(Options opt) {
   fmt::print(stderr, "> loop left\n");
   co_await conn->close();
   fmt::print(stderr, "> conn closed\n");
-  co_await std::move(copier);
+  co_await copier;
   fmt::print(stderr, "> copier caught\n");
   co_await input.close();
   fmt::print(stderr, "> client done\n");

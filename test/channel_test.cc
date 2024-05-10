@@ -91,16 +91,19 @@ TEST(ChannelTest, blockingRead) {
 
     Promise<void> put1 = chan.put(1);
     Promise<void> put1b;
-    put1b = std::move(put1);
+    Promise<void> put1c;
+    // Test copy and move assignment.
+    put1b = put1;
+    put1c = std::move(put1b);
 
-    co_await std::move(put1b);
+    co_await put1c;
     co_await chan.put(2);
     co_await chan.put(3);
     co_await chan.put(4);
 
     EXPECT_EQ(co_await chan.get(), 3);
     EXPECT_EQ(co_await chan.get(), 4);
-    co_await std::move(drainer);
+    co_await drainer;
     reachedEnd = true;
   };
 
@@ -128,7 +131,7 @@ TEST(ChannelTest, blockingWriteBench) {
     for (int i = 1; i < N_iter; ++i) {
       EXPECT_EQ(co_await chan.get(), i);
     }
-    co_await std::move(sourcer);
+    co_await sourcer;
     reachedEnd = true;
   };
 
@@ -152,8 +155,8 @@ TEST(ChannelTest, multipleWaiters) {
     Promise<void> prom2 = reader(chan);
     co_await chan.put(1);
     co_await chan.put(2);
-    co_await std::move(prom1);
-    co_await std::move(prom2);
+    co_await prom1;
+    co_await prom2;
     reachedEnd = true;
   };
 
@@ -168,6 +171,7 @@ TEST(ChannelTest, tooManyWaiters) {
     try {
       co_await chan.get();
     } catch (const UvcoException &e) {
+      fmt::print(stderr, "Caught exception: {}\n", e.what());
       throw e;
     }
   };
@@ -179,8 +183,8 @@ TEST(ChannelTest, tooManyWaiters) {
     Promise<void> prom1 = reader(chan);
     Promise<void> prom2 = reader(chan);
     co_await chan.put(1);
-    co_await std::move(prom1);
-    EXPECT_THROW({ co_await std::move(prom2); }, UvcoException);
+    co_await prom1;
+    EXPECT_THROW({ co_await prom2; }, UvcoException);
     reachedEnd = true;
   };
 

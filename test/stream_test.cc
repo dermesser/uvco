@@ -77,8 +77,9 @@ TEST(TtyTest, invalidFd) {
 TEST(TtyTest, closeWhileReading) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
     TtyStream tty = TtyStream::stdin(loop);
+    auto reader = tty.read();
     co_await tty.close();
-    EXPECT_THROW({ co_await tty.read(); }, UvcoException);
+    EXPECT_FALSE((co_await reader).has_value());
   };
 
   run_loop(setup);

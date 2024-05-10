@@ -44,23 +44,13 @@ public:
   ~Udp();
 
   /// Bind UDP socket to address.
-  ///
-  /// NOTE: `string_view` is safe here because libuv copies the address before
-  /// the first suspension.
   Promise<void> bind(std::string_view address, uint16_t port,
                      unsigned int flag = 0);
-
-  /// Bind UDP socket to address.
   Promise<void> bind(const AddressHandle &address, unsigned int flag = 0);
 
   /// Connect UDP socket to address.
-  ///
-  /// NOTE: `string_view` is safe here because libuv copies the address before
-  /// the first suspension.
   Promise<void> connect(std::string_view address, uint16_t port,
                         bool ipv6only = false);
-
-  /// Connect UDP socket to address.
   Promise<void> connect(const AddressHandle &address);
 
   /// Send to address, or send to connected peer. Must be a mutable

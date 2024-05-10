@@ -8,7 +8,6 @@
 #include <uv.h>
 
 #include "close.h"
-#include "exception.h"
 #include "internal/internal_utils.h"
 #include "loop/loop.h"
 #include "promise/promise.h"
@@ -70,9 +69,6 @@ public:
 
 protected:
   uv_stream_t &stream() {
-    if (!stream_) {
-      throw UvcoException(UV_EINVAL, "stream is closed");
-    }
     BOOST_ASSERT(stream_);
     return *stream_;
   }

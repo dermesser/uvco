@@ -28,21 +28,18 @@ namespace uvco {
 /// `Promise<T>` and use `co_return` to return a value - that's it! Inside the
 /// coroutine, you can use `co_await` etc.
 ///
-/// When a Promise is awaited using `co_await`, which notably only allows
-/// `rvalue` promises, the awaiting coroutine is suspended until the promise is
-/// resolved. Once the promise is resolved, the awaiting coroutine is scheduled
-/// to be resumed by `Loop` at a later time.
+/// When a Promise is awaited using `co_await`, the awaiting coroutine is
+/// suspended until the promise is resolved. Once the promise is resolved, the
+/// suspended coroutine is scheduled to be resumed by `Loop` at a later time.
 ///
 /// The internal state is held in a `PromiseCore_` shared by all copies of the
-/// same `Promise`. It is possible to copy a `Promise` at low cost, but only one
-/// coroutine may await a promise at a time. Awaiting an already finished
-/// promise results in a run-time error. This means that in most cases, copying
-/// promises doesn't make a lot of sense (but enables a simpler implementation
-/// here).
+/// same `Promise`. However, only one coroutine can await a (shared) promise at
+/// a time.
 ///
 /// See `README.md` for some examples of how to use coroutines and promises.
 template <typename T> class Promise {
 protected:
+  struct PromiseAwaiter_;
   /// PromiseCore_ handles the inner mechanics of resumption and suspension.
   using PromiseCore_ = PromiseCore<T>;
   using SharedCore_ = PromiseCore_ *;
@@ -64,7 +61,14 @@ public:
   Promise(Promise<T> &&other) noexcept : core_{other.core_} {
     other.core_ = nullptr;
   }
-
+  /// A promise can be copied at low cost.
+  Promise &operator=(const Promise<T> &other) {
+    if (this == &other) {
+      return *this;
+    }
+    core_ = other.core_->addRef();
+    return *this;
+  }
   Promise &operator=(Promise<T> &&other) noexcept {
     if (this == &other) {
       return *this;
@@ -76,8 +80,8 @@ public:
     other.core_ = nullptr;
     return *this;
   }
-  Promise &operator=(const Promise<T> &other) = delete;
-
+  // A promise can be copied at low cost.
+  Promise(const Promise<T> &other) : core_{other.core_->addRef()} {}
   ~Promise() {
     if (core_ != nullptr) {
       core_->delRef();
@@ -117,6 +121,10 @@ public:
     core_->resume();
   }
 
+  /// Part of the coroutine protocol: called by `co_await p` where `p` is a
+  /// `Promise<T>`. The returned object is awaited on.
+  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
+
   /// Returns if promise has been fulfilled.
   bool ready() { return core_->slot_.has_value(); }
 
@@ -137,6 +145,7 @@ public:
     }
   }
 
+protected:
   /// Returned as awaiter object when `co_await`ing a promise.
   ///
   /// Handles suspension of current coroutine and resumption upon fulfillment of
@@ -187,44 +196,17 @@ public:
     SharedCore_ core_;
   };
 
-private:
-  /// Cheap copy - only for `get_return_object()`.
-  Promise(const Promise<T> &other) : core_{other.core_->addRef()} {}
-
-  /// Returns an awaiter object for the promise, handling actual suspension and
-  /// resumption.
-  ///
-  /// Only allows rvalue `Promise` objects in order to reduce the chance of
-  /// lifetime errors.
-  ///
-  /// Defined as inline-friend to avoid trouble.
-  template <typename U>
-  friend PromiseAwaiter_ operator co_await(Promise<U> &&promise) {
-    if (promise.core_ == nullptr) {
-      throw UvcoException(
-          "co_await called on hollow promise (was it moved out of?)");
-    }
-    // Enforce that promise is left invalid.
-    Promise<U> movedPromise{std::move(promise)};
-    return PromiseAwaiter_{movedPromise.core_};
-  }
   SharedCore_ core_;
 };
-
-template <typename T>
-Promise<T>::PromiseAwaiter_ operator co_await(Promise<T> &) {
-  static_assert(false,
-                "co_await called on non-rvalue Promise - use std::move!");
-}
 
 /// A void promise works slightly differently than a `Promise<T>` in that it
 /// doesn't return a value. However, aside from `return_void()` being
 /// implemented instead of `return_value()`, the mechanics are identical.
 template <> class Promise<void> {
+  struct PromiseAwaiter_;
   using SharedCore_ = PromiseCore<void> *;
 
 public:
-  struct PromiseAwaiter_;
   /// Part of the coroutine protocol: `Promise<void>` is both return type and
   /// promise type.
   using promise_type = Promise<void>;
@@ -232,8 +214,9 @@ public:
   /// Promise ready to be awaited or fulfilled.
   Promise() : core_{makeRefCounted<PromiseCore<void>>()} {}
   Promise(Promise<void> &&other) noexcept;
+  Promise &operator=(const Promise<void> &other);
   Promise &operator=(Promise<void> &&other) noexcept;
-  Promise &operator=(const Promise<void> &other) = delete;
+  Promise(const Promise<void> &other);
   ~Promise();
 
   /// Part of the coroutine protocol.
@@ -252,6 +235,10 @@ public:
   /// awaiting coroutine.
   void unhandled_exception();
 
+  /// Returns an awaiter object for the promise, handling actual suspension and
+  /// resumption.
+  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
+
   /// Returns whether the promise has already been fulfilled.
   bool ready() { return core_->ready; }
 
@@ -259,6 +246,7 @@ public:
   // is not ready, or if it encountered an exception itself.
   void unwrap();
 
+private:
   /// Handles the actual suspension and resumption.
   struct PromiseAwaiter_ {
     /// The `core` is shared among all copies of this Promise and holds the
@@ -268,7 +256,6 @@ public:
     PromiseAwaiter_(const PromiseAwaiter_ &) = delete;
     PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
     PromiseAwaiter_ &operator=(const PromiseAwaiter_ &) = delete;
-    ~PromiseAwaiter_() = default;
 
     /// Part of the coroutine protocol: returns if the promise is already
     /// fulfilled.
@@ -280,14 +267,6 @@ public:
 
     SharedCore_ core_;
   };
-
-private:
-  /// Cheap copy - only for `get_return_object()`.
-  Promise(const Promise<void> &other);
-
-  /// Returns an awaiter object for the promise, handling actual suspension and
-  /// resumption.
-  friend PromiseAwaiter_ operator co_await(Promise<void> &&promise);
   SharedCore_ core_;
 };
 
