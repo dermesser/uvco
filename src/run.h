@@ -13,6 +13,9 @@ namespace uvco {
 
 class Loop;
 
+/// Suspend current coroutine until next event loop iteration.
+Promise<void> yield(const Loop &loop);
+
 // Forward declaration only for friend declaration.
 template <typename F, typename R>
 concept MainFunction = std::is_invocable_r_v<Promise<R>, F, const Loop &>;

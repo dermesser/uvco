@@ -2,6 +2,7 @@
 #include "exception.h"
 #include "loop/loop.h"
 #include "promise/promise.h"
+#include "run.h"
 #include "test_util.h"
 #include "timer.h"
 
@@ -29,6 +30,15 @@ TEST(PromiseTest, awaitTwice) {
     EXPECT_EQ(co_await promise, 1);
 
     EXPECT_THROW({ co_await promise; }, UvcoException);
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, yield) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    co_await yield(loop);
+    co_return;
   };
 
   run_loop(setup);
