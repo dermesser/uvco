@@ -100,15 +100,15 @@ TEST(FsTest, simpleReadWriteUnlink) {
 TEST(FsTest, mkDirRmDir) {
   static constexpr std::string_view dirName = "/tmp/_uvco_test_dir";
   auto setup = [](const Loop &loop) -> Promise<void> {
-    co_await File::mkdir(loop, dirName);
+    co_await Directory::mkdir(loop, dirName);
 
     try {
-      co_await File::mkdir(loop, dirName);
+      co_await Directory::mkdir(loop, dirName);
     } catch (const UvcoException &e) {
       EXPECT_EQ(e.status, UV_EEXIST);
     }
 
-    co_await File::rmdir(loop, dirName);
+    co_await Directory::rmdir(loop, dirName);
   };
 
   run_loop(setup);

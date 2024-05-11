@@ -113,7 +113,7 @@ Promise<void> File::unlink(const Loop &loop, std::string_view path) {
   co_return;
 }
 
-Promise<void> File::mkdir(const Loop &loop, std::string_view path, int mode) {
+Promise<void> Directory::mkdir(const Loop &loop, std::string_view path, int mode) {
   FileOpAwaiter_ awaiter;
 
   uv_fs_mkdir(loop.uvloop(), &awaiter.req(), path.data(), mode,
@@ -123,7 +123,7 @@ Promise<void> File::mkdir(const Loop &loop, std::string_view path, int mode) {
   co_return;
 }
 
-Promise<void> File::rmdir(const Loop &loop, std::string_view path) {
+Promise<void> Directory::rmdir(const Loop &loop, std::string_view path) {
   FileOpAwaiter_ awaiter;
 
   uv_fs_rmdir(loop.uvloop(), &awaiter.req(), path.data(),

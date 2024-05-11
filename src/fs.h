@@ -19,6 +19,15 @@ namespace uvco {
 /// @addtogroup Filesystem
 /// @{
 
+class Directory {
+public:
+  static Promise<void> mkdir(const Loop &loop, std::string_view path,
+                             int mode = 0755);
+  static Promise<void> rmdir(const Loop &loop, std::string_view path);
+  static Promise<Directory> open(const Loop &loop, std::string_view path);
+
+};
+
 /// A file descriptor.
 class File {
 public:
@@ -27,9 +36,6 @@ public:
   static Promise<File> open(const Loop &loop, std::string_view path,
                             int flags = 0, int mode = 0644);
   static Promise<void> unlink(const Loop &loop, std::string_view path);
-  static Promise<void> mkdir(const Loop &loop, std::string_view path,
-                             int mode = 0755);
-  static Promise<void> rmdir(const Loop &loop, std::string_view path);
 
   /// Read up to `buffer.size()` bytes into that buffer, starting at `offset`
   /// (if `offset >= 0`) or at the current file position.
