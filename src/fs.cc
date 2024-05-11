@@ -5,9 +5,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <fcntl.h>
+#include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <sys/types.h>
+#include <utility>
 #include <uv.h>
 
 #include "exception.h"
@@ -19,6 +22,7 @@
 #include <coroutine>
 #include <optional>
 #include <uv/unix.h>
+#include <vector>
 
 namespace uvco {
 
@@ -57,7 +61,6 @@ public:
     uv_req_set_data((uv_req_t *)&req_, this);
     handle_ = handle;
     return true;
-    ;
   }
 
   /// The callback is guaranteed to have been called once the awaiting coroutine
@@ -89,6 +92,102 @@ private:
 
 } // namespace
 
+Directory::Directory(Directory &&other) noexcept
+    : loop_{other.loop_}, dir_{other.dir_} {
+  other.loop_ = nullptr;
+  other.dir_ = nullptr;
+}
+
+Directory &Directory::operator=(Directory &&other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
+  loop_ = other.loop_;
+  dir_ = other.dir_;
+  other.loop_ = nullptr;
+  other.dir_ = nullptr;
+  return *this;
+}
+
+Directory::~Directory() {
+  if (dir_ != nullptr) {
+    auto req = std::make_unique<uv_fs_t>();
+    uv_fs_closedir(loop_, req.release(), dir_, nullptr);
+    fmt::print(stderr, "Directory closed in dtor; this leaks memory. Please "
+                       "use co_await close() instead\n");
+  }
+}
+
+Promise<void> Directory::mkdir(const Loop &loop, std::string_view path,
+                               int mode) {
+  FileOpAwaiter_ awaiter;
+
+  uv_fs_mkdir(loop.uvloop(), &awaiter.req(), path.data(), mode,
+              FileOpAwaiter_::uvCallback());
+
+  co_await awaiter;
+
+  co_return;
+}
+
+Promise<void> Directory::rmdir(const Loop &loop, std::string_view path) {
+  FileOpAwaiter_ awaiter;
+
+  uv_fs_rmdir(loop.uvloop(), &awaiter.req(), path.data(),
+              FileOpAwaiter_::uvCallback());
+
+  co_await awaiter;
+
+  co_return;
+}
+
+Promise<Directory> Directory::open(const Loop &loop, std::string_view path) {
+  FileOpAwaiter_ awaiter;
+
+  uv_fs_opendir(loop.uvloop(), &awaiter.req(), path.data(),
+                FileOpAwaiter_::uvCallback());
+
+  co_await awaiter;
+
+  co_return Directory{loop.uvloop(), (uv_dir_t *)awaiter.req().ptr};
+}
+
+Promise<std::vector<Directory::DirEnt>> Directory::read(unsigned count) {
+  std::vector<DirEnt> result{count};
+  const unsigned int size = co_await read(result);
+  result.resize(size);
+  co_return result;
+}
+
+Promise<unsigned int> Directory::read(std::span<DirEnt> buffer) {
+  // dirents vector must be declared before awaiter, because awaiter will free
+  // contents of dirents.
+  std::vector<uv_dirent_t> dirents{buffer.size()};
+  dir_->dirents = dirents.data();
+  dir_->nentries = dirents.size();
+
+  FileOpAwaiter_ awaiter;
+
+  uv_fs_readdir(loop_, &awaiter.req(), dir_, FileOpAwaiter_::uvCallback());
+
+  co_await awaiter;
+
+  unsigned int nentries = awaiter.req().result;
+  for (unsigned i = 0; i < nentries; ++i) {
+    buffer[i].name = dirents[i].name;
+    buffer[i].type = dirents[i].type;
+  }
+  co_return nentries;
+}
+
+Promise<void> Directory::close() {
+  FileOpAwaiter_ awaiter;
+  uv_fs_closedir(loop_, &awaiter.req(), dir_, FileOpAwaiter_::uvCallback());
+  co_await awaiter;
+  dir_ = nullptr;
+  co_return;
+}
+
 Promise<File> File::open(const Loop &loop, std::string_view path, int flags,
                          int mode) {
   FileOpAwaiter_ awaiter;
@@ -108,26 +207,6 @@ Promise<void> File::unlink(const Loop &loop, std::string_view path) {
 
   uv_fs_unlink(loop.uvloop(), &awaiter.req(), path.data(),
                FileOpAwaiter_::uvCallback());
-
-  co_await awaiter;
-  co_return;
-}
-
-Promise<void> Directory::mkdir(const Loop &loop, std::string_view path, int mode) {
-  FileOpAwaiter_ awaiter;
-
-  uv_fs_mkdir(loop.uvloop(), &awaiter.req(), path.data(), mode,
-              FileOpAwaiter_::uvCallback());
-
-  co_await awaiter;
-  co_return;
-}
-
-Promise<void> Directory::rmdir(const Loop &loop, std::string_view path) {
-  FileOpAwaiter_ awaiter;
-
-  uv_fs_rmdir(loop.uvloop(), &awaiter.req(), path.data(),
-              FileOpAwaiter_::uvCallback());
 
   co_await awaiter;
   co_return;

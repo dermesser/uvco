@@ -1,4 +1,7 @@
 
+#include <utility>
+#include <uv.h>
+
 #include "exception.h"
 #include "fs.h"
 #include "loop/loop.h"
@@ -8,10 +11,11 @@
 #include <algorithm>
 #include <cstddef>
 #include <fcntl.h>
+#include <fmt/core.h>
+#include <fmt/ranges.h>
 #include <gtest/gtest.h>
 #include <string>
 #include <string_view>
-#include <uv.h>
 
 namespace {
 
@@ -109,6 +113,24 @@ TEST(FsTest, mkDirRmDir) {
     }
 
     co_await Directory::rmdir(loop, dirName);
+  };
+
+  run_loop(setup);
+}
+
+TEST(FsTest, openDir) {
+  static constexpr std::string_view dirName = "/tmp";
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto dir = co_await Directory::open(loop, dirName);
+    // Test move ctor.
+    auto dir1 = std::move(dir);
+    dir = std::move(dir1);
+
+    auto entries = co_await dir.read();
+
+    EXPECT_GT(entries.size(), 0);
+
+    co_await dir.close();
   };
 
   run_loop(setup);

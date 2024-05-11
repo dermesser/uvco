@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <fcntl.h>
+#include <memory>
+#include <span>
 #include <string>
 #include <uv.h>
 #include <uv/unix.h>
@@ -13,6 +15,7 @@
 #include "promise/promise.h"
 
 #include <string_view>
+#include <vector>
 
 namespace uvco {
 
@@ -21,11 +24,34 @@ namespace uvco {
 
 class Directory {
 public:
+  Directory(const Directory &) = default;
+  Directory(Directory &&other) noexcept;
+  Directory &operator=(const Directory &) = delete;
+  Directory &operator=(Directory &&other) noexcept;
+  ~Directory();
+
+  struct DirEnt {
+    std::string name;
+    uv_dirent_type_t type;
+  };
+
   static Promise<void> mkdir(const Loop &loop, std::string_view path,
                              int mode = 0755);
   static Promise<void> rmdir(const Loop &loop, std::string_view path);
   static Promise<Directory> open(const Loop &loop, std::string_view path);
 
+  /// Read the next entry in the directory.
+  Promise<std::vector<DirEnt>> read(unsigned count = 64);
+  Promise<unsigned int> read(std::span<DirEnt> buffer);
+
+  /// Close the directory.
+  Promise<void> close();
+
+private:
+  explicit Directory(uv_loop_t *loop, uv_dir_t *dir) : loop_{loop}, dir_{dir} {}
+
+  uv_loop_t *loop_;
+  uv_dir_t *dir_;
 };
 
 /// A file descriptor.

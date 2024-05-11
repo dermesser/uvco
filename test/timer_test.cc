@@ -17,7 +17,7 @@ using namespace uvco;
 TEST(TimerTest, simpleWait) {
   bool ran = false;
   auto setup = [&](const Loop &loop) -> Promise<void> {
-    co_await sleep(loop, 10);
+    co_await sleep(loop, 1);
     ran = true;
   };
 
