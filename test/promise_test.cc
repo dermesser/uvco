@@ -44,6 +44,40 @@ TEST(PromiseTest, yield) {
   run_loop(setup);
 }
 
+// Only run this test with --gtest_filter=PromiseTest.yieldBench in Release builds
+//
+// Tests how efficient the event loop is at suspending/resuming a coroutine.
+//
+// Intel Core i5-7300U @ 2.6 GHz: 4.4 million iterations per second / 230 ns per iteration
+TEST(PromiseTest, DISABLED_yieldBench) {
+  static constexpr unsigned iterations = 1000000;
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    for (unsigned i = 0; i < iterations; ++i) {
+      co_await yield(loop);
+    }
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+// Same as above, but with a separate coroutine, i.e. two levels of awaiting.
+// Intel Core i5-7300U @ 2.6 GHz: 2.6 million iterations per second / 380 ns per iteration
+TEST(PromiseTest, DISABLED_yieldCallBench) {
+  static constexpr unsigned iterations = 1000000;
+  auto coroutine = [](const Loop &loop) -> uvco::Promise<void> {
+      co_await yield(loop);
+  };
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    for (unsigned i = 0; i < iterations; ++i) {
+      co_await coroutine(loop);
+    }
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
 Promise<void> testTemporaryFunction(const Loop &loop,
                                     std::string_view message) {
   co_await sleep(loop, 1);
