@@ -5,7 +5,6 @@
 #include <coroutine>
 #include <cstdio>
 #include <exception>
-#include <fmt/core.h>
 #include <uv.h>
 
 namespace uvco {

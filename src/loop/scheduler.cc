@@ -1,7 +1,6 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
 #include <cstddef>
-#include <fmt/core.h>
 #include <uv.h>
 
 #include "loop/scheduler.h"

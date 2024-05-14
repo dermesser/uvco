@@ -1,4 +1,4 @@
-// uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
+// uvco (c) 2023-2024 Lewin Bormann. See LICENSE for specific terms.
 
 #pragma once
 

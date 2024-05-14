@@ -33,22 +33,24 @@ if(ENABLE_COVERAGE)
 endif()
 
 # Core utilities not relying on uv-co-promise or uv-co-lib.
-add_library(uv-co-internal STATIC
+add_library(uv-co-base STATIC
+    src/exception.cc
     src/internal/internal_utils.cc
     src/loop/loop.cc
     src/loop/scheduler.cc
 )
-target_sources(uv-co-internal INTERFACE
+target_sources(uv-co-base INTERFACE
     FILE_SET HEADERS
     TYPE HEADERS
     BASE_DIRS src/
     FILES
+    src/exception.h
     src/internal/internal_utils.h
     src/loop/loop.h
     src/loop/scheduler.h
 )
-target_include_directories(uv-co-internal PRIVATE ${FMT_INCLUDEDIR} src/)
-install(TARGETS uv-co-internal FILE_SET HEADERS DESTINATION include/uvco)
+target_include_directories(uv-co-base PRIVATE ${FMT_INCLUDEDIR} src/)
+install(TARGETS uv-co-base FILE_SET HEADERS DESTINATION include/uvco)
 
 add_library(uv-co-promise STATIC
     src/promise/multipromise.cc
@@ -64,14 +66,14 @@ target_sources(uv-co-promise INTERFACE
     src/promise/promise.h
     src/promise/promise_core.h
 )
-target_link_libraries(uv-co-promise PRIVATE uv-co-internal)
+target_link_libraries(uv-co-promise PRIVATE uv-co-base)
 target_include_directories(uv-co-promise PRIVATE src/)
 install(TARGETS uv-co-promise FILE_SET HEADERS DESTINATION include/uvco)
 
 add_library(uv-co-lib STATIC
+    src/async_work.cc
     src/channel.cc
     src/close.cc
-    src/exception.cc
     src/fs.cc
     src/name_resolution.cc
     src/pipe.cc
@@ -90,9 +92,9 @@ target_sources(uv-co-lib INTERFACE
     TYPE HEADERS
     BASE_DIRS src/
     FILES
+    src/async_work.h
     src/channel.h
     src/close.h
-    src/exception.h
     src/fs.h
     src/name_resolution.h
     src/pipe.h
@@ -107,8 +109,14 @@ target_sources(uv-co-lib INTERFACE
     src/uds_stream.h
 )
 
-target_link_libraries(uv-co-lib PRIVATE uv-co-internal ${UV_LIBRARIES} ${FMT_LIBRARIES})
-target_link_libraries(uv-co-lib PUBLIC uv-co-promise)
+target_link_libraries(uv-co-lib
+    PUBLIC
+    uv-co-base
+    uv-co-promise
+    PRIVATE
+    ${UV_LIBRARIES}
+    ${FMT_LIBRARIES}
+)
 target_include_directories(uv-co-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
 target_include_directories(uv-co-lib PUBLIC src/)
 install(TARGETS uv-co-lib)
@@ -138,7 +146,7 @@ add_library(test-util STATIC test/test_util.cc)
 target_include_directories(test-util PRIVATE src/)
 target_link_libraries(test-util PRIVATE uv-co-lib)
 
-foreach(TESTCASE IN ITEMS channel fs generator loop name_resolution promise stream timer udp uds tcp misc)
+foreach(TESTCASE IN ITEMS async_work channel fs generator loop name_resolution promise stream timer udp uds tcp misc)
     add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
     target_link_libraries(${TESTCASE}-test PRIVATE uv-co-lib test-util GTest::gtest_main)
     add_test(NAME ${TESTCASE}-test COMMAND ${TESTCASE}-test)
