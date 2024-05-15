@@ -12,6 +12,7 @@
 #include <uv/unix.h>
 
 #include "loop/loop.h"
+#include "promise/multipromise.h"
 #include "promise/promise.h"
 
 #include <string_view>
@@ -39,9 +40,13 @@ public:
                              int mode = 0755);
   static Promise<void> rmdir(const Loop &loop, std::string_view path);
   static Promise<Directory> open(const Loop &loop, std::string_view path);
+  /// Read all directory entries of the given directory.
+  static MultiPromise<DirEnt> readAll(const Loop& loop, std::string_view path);
 
-  /// Read the next entry in the directory.
+  /// Read up to `count` directory entries.
   Promise<std::vector<DirEnt>> read(unsigned count = 64);
+
+  /// Read up to `buffer.size()` directory entries into that buffer.
   Promise<unsigned int> read(std::span<DirEnt> buffer);
 
   /// Close the directory.

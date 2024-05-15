@@ -1,4 +1,5 @@
 
+#include <optional>
 #include <utility>
 #include <uv.h>
 
@@ -131,6 +132,23 @@ TEST(FsTest, openDir) {
     EXPECT_GT(entries.size(), 0);
 
     co_await dir.close();
+  };
+
+  run_loop(setup);
+}
+
+TEST(FsTest, scanDir) {
+  static constexpr std::string_view dirName = "/tmp";
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto entries = Directory::readAll(loop, dirName);
+    unsigned count = 0;
+    std::optional<Directory::DirEnt> entry;
+
+    while ((entry = co_await entries).has_value()) {
+      EXPECT_GT(entry->name.size(), 0);
+      ++count;
+    }
+    EXPECT_GT(count, 0);
   };
 
   run_loop(setup);

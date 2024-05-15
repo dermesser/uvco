@@ -1,6 +1,7 @@
 
 #include <uv.h>
 
+#include "loop/scheduler.h"
 #include "promise/promise.h"
 #include "run.h"
 
