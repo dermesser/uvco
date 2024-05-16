@@ -41,7 +41,7 @@ public:
   static Promise<void> rmdir(const Loop &loop, std::string_view path);
   static Promise<Directory> open(const Loop &loop, std::string_view path);
   /// Read all directory entries of the given directory.
-  static MultiPromise<DirEnt> readAll(const Loop& loop, std::string_view path);
+  static MultiPromise<DirEnt> readAll(const Loop &loop, std::string_view path);
 
   /// Read up to `count` directory entries.
   Promise<std::vector<DirEnt>> read(unsigned count = 64);

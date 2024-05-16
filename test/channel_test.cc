@@ -75,6 +75,32 @@ TEST(ChannelTest, basicWriteRead) {
   run_loop(setup);
 }
 
+TEST(ChannelTest, DISABLED_basicWriteReadBench) {
+  static constexpr int N_iter = 1000000;
+  auto reader = [](Channel<int> &chan) -> Promise<void> {
+    for (int i = 1; i < N_iter; ++i) {
+      EXPECT_EQ(co_await chan.get(), i);
+    }
+  };
+  auto writer = [](Channel<int> &chan) -> Promise<void> {
+    for (int i = 1; i < N_iter; ++i) {
+      co_await chan.put(i);
+    }
+  };
+
+  auto setup = [&](const Loop &) -> Promise<void> {
+    Channel<int> chan{2};
+
+    Promise<void> readerCoroutine = reader(chan);
+    Promise<void> writerCoroutine = writer(chan);
+
+    co_await readerCoroutine;
+    co_await writerCoroutine;
+  };
+
+  run_loop(setup);
+}
+
 TEST(ChannelTest, blockingRead) {
 
   auto drain = [](Channel<int> &chan) -> Promise<void> {
@@ -171,7 +197,6 @@ TEST(ChannelTest, tooManyWaiters) {
     try {
       co_await chan.get();
     } catch (const UvcoException &e) {
-      fmt::print(stderr, "Caught exception: {}\n", e.what());
       throw e;
     }
   };

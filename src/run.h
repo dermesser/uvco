@@ -4,6 +4,7 @@
 
 #include "loop/loop.h"
 #include "loop/scheduler.h"
+#include "promise/multipromise.h"
 #include "promise/promise.h"
 
 namespace uvco {
@@ -14,7 +15,10 @@ namespace uvco {
 class Loop;
 
 /// Suspend current coroutine until next event loop iteration.
-Promise<void> yield(const Loop &loop);
+Promise<void> yield();
+
+/// Generate `count` values from 0 to `count - 1`.
+MultiPromise<unsigned> yield(unsigned count);
 
 // Forward declaration only for friend declaration.
 template <typename F, typename R>

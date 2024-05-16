@@ -1,6 +1,7 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #include "loop/loop.h"
+#include "promise/multipromise.h"
 #include "promise/promise.h"
 #include <coroutine>
 
@@ -19,7 +20,13 @@ struct YieldAwaiter_ {
 
 } // namespace
 
-Promise<void> yield(const Loop &loop) { co_await YieldAwaiter_{}; }
+Promise<void> yield() { co_await YieldAwaiter_{}; }
+
+MultiPromise<unsigned> yield(unsigned count) {
+  for (unsigned i = 0; i < count; ++i) {
+    co_yield i;
+  }
+}
 
 void runLoop(Loop &loop) { loop.run(); }
 

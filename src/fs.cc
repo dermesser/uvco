@@ -181,19 +181,20 @@ Promise<unsigned int> Directory::read(std::span<DirEnt> buffer) {
   co_return nentries;
 }
 
-MultiPromise<Directory::DirEnt> Directory::readAll(const Loop& loop, std::string_view path) {
+MultiPromise<Directory::DirEnt> Directory::readAll(const Loop &loop,
+                                                   std::string_view path) {
   FileOpAwaiter_ awaiter;
   uv_dirent_t dirent;
   const std::string pathCopy{path};
 
-  uv_fs_scandir(loop.uvloop(), &awaiter.req(), pathCopy.c_str(), 0, FileOpAwaiter_::uvCallback());
+  uv_fs_scandir(loop.uvloop(), &awaiter.req(), pathCopy.c_str(), 0,
+                FileOpAwaiter_::uvCallback());
 
   co_await awaiter;
   while (UV_EOF != uv_fs_scandir_next(&awaiter.req(), &dirent)) {
     co_yield DirEnt{dirent.name, dirent.type};
   }
 }
-
 
 Promise<void> Directory::close() {
   FileOpAwaiter_ awaiter;

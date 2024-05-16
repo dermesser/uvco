@@ -30,6 +30,10 @@ Loop::Loop(Scheduler::RunMode mode)
 }
 
 Loop::~Loop() {
+  // Schedule closing of scheduler, which deletes the prepare handle.
+  // We can't await the promise in the destructor. However, it will
+  // schedule a single callback on the loop, which will enqueue the
+  // scheduler_->close() coroutine. One runAll() call will then run it.
   scheduler_->close();
 
   // Run loop again so that all handles have been closed.

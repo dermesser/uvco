@@ -1,6 +1,7 @@
 
 #include "exception.h"
 #include "loop/loop.h"
+#include "promise/multipromise.h"
 #include "promise/promise.h"
 #include "run.h"
 #include "test_util.h"
@@ -37,7 +38,7 @@ TEST(PromiseTest, awaitTwice) {
 
 TEST(PromiseTest, yield) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    co_await yield(loop);
+    co_await yield();
     co_return;
   };
 
@@ -55,7 +56,7 @@ TEST(PromiseTest, DISABLED_yieldBench) {
   static constexpr unsigned iterations = 1000000;
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
     for (unsigned i = 0; i < iterations; ++i) {
-      co_await yield(loop);
+      co_await yield();
     }
     co_return;
   };
@@ -69,11 +70,24 @@ TEST(PromiseTest, DISABLED_yieldBench) {
 TEST(PromiseTest, DISABLED_yieldCallBench) {
   static constexpr unsigned iterations = 1000000;
   auto coroutine = [](const Loop &loop) -> uvco::Promise<void> {
-    co_await yield(loop);
+    co_await yield();
   };
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     for (unsigned i = 0; i < iterations; ++i) {
       co_await coroutine(loop);
+    }
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, DISABLED_multiYieldBench) {
+  static constexpr unsigned iterations = 1000000;
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    MultiPromise<unsigned> multi = yield(iterations);
+    for (unsigned i = 0; i < iterations; ++i) {
+      co_await multi;
     }
     co_return;
   };
