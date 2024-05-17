@@ -2,10 +2,9 @@
 
 C++20 standard library coroutines running on `libuv`.
 
-Currently, more of an experiment - but it works for real! I am aiming for an
-ergonomic, intuitive, asynchronous experience. In some parts, `uvco` implements
-the bare minimum to still be joyful to use. Eventually, all of `libuv`'s
-functionality should be available with low overhead.
+Currently, a bit of an experiment - but it works for real! I am aiming for an ergonomic, intuitive,
+asynchronous experience. In some parts, `uvco` implements the bare minimum to still be joyful to
+use. Eventually, all of `libuv`'s functionality should be available with low overhead.
 
 Supported functionality:
 
@@ -25,25 +24,21 @@ Supported functionality:
 Promises (backed by coroutines) are run eagerly; you don't have to schedule or await them for the
 underlying coroutine to run.
 
-Where I/O causes a coroutine to be resumed, the coroutine will typically be run
-by the scheduler ([`src/scheduler.h`](src/scheduler.h)), which you don't need
-to care about. Other types of events, such as a generator yielding or a
-coroutine returning, will cause awaiting code to be resumed directly on the
-call stack.
+Where I/O or other activity causes a coroutine to be resumed, the coroutine will typically be run by
+the scheduler ([`src/scheduler.h`](src/scheduler.h)), which you don't need to care about. Depending
+on the `RunMode`, pending coroutines are either run once per event loop turn, or immediately from
+the libuv callback.
 
-However, as a user you shouldn't have to care about this. While you can set the
-scheduling mode for I/O events in `uvco::runMain()` (`Deferred` vs.
-`Immediate`), the externally visible behavior should be the same, and code will
-work in both modes. If it doesn't: that's a bug in uvco.
+However, as a user you shouldn't have to care about this. While you can set the run mode for
+I/O events in `uvco::runMain()` (`Deferred` vs. `Immediate`), the externally visible behavior should
+be the same, and code will work in both modes. If it doesn't: that's a bug in uvco.
 
-Some types - like buffers received by sockets - use simple types like strings,
-which are easy to handle but not super efficient. This may need to be
-generalized.
+Some types - like buffers received by sockets - use simple types like strings, which are easy to
+handle but not super efficient. This may need to be generalized.
 
 ## Goal
 
-Provide ergonomic asynchronous abstractions of all libuv functionality, at
-satisfactory performance.
+Provide ergonomic asynchronous abstractions of all libuv functionality, at satisfactory performance.
 
 ## Examples
 
@@ -85,13 +80,14 @@ void run_loop() {
 
 ### HTTP(S) download via libcurl
 
-Here we download a single file. The `Curl` class is a wrapper around libcurl, and provides a `download` method, which is
-a generator method returning a `MultiPromise`. The `MultiPromise` yields `std::optional<std::string>`, which is a
-`std::nullopt` once the download has finished. An exception is thrown if the download fails. To build the `curl-test`,
-which demonstrates this using a real server, make sure to have `libcurl` and its headers installed. CMake should find it
-automatically.
+Here we download a single file. The `Curl` class is a wrapper around libcurl, and provides a
+`download` method, which is a generator method returning a `MultiPromise`. The `MultiPromise` yields
+`std::optional<std::string>`, which is a `std::nullopt` once the download has finished. An exception
+is thrown if the download fails. To build the `curl-test`, which demonstrates this using a real
+server, make sure to have `libcurl` and its headers installed. CMake should find it automatically.
 
-Of course, more than one download can be triggered at once: `download()` MultiPromises are independent.
+Of course, more than one download can be triggered at once: `download()` MultiPromises are
+independent.
 
 ```cpp
 #include "integrations/curl/curl.h"
@@ -232,8 +228,9 @@ the event loop.
 
 ### Lifetimes/references
 
-Passing references and pointers into a coroutine (i.e. a function returning `[Multi]Promise<T>`) is fine as long as the
-underlying value outlives the coroutine returning. Typically, this is done like this:
+Passing references and pointers into a coroutine (i.e. a function returning `[Multi]Promise<T>`) is
+fine as long as the underlying value outlives the coroutine returning. Typically, this is done like
+this:
 
 ```cpp
 Promise<void> fun() {
@@ -250,9 +247,10 @@ Promise<void> fun() {
 
 The temporary value is kept alive in the coroutine frame, which has been allocated dynamically.
 
-It's a different story when moving around promises: if the calling coroutine returns before the awaited promise is
-finished, the result will be an illegal stack access. Don't do this :) Instead make sure to e.g. use a `shared_ptr`
-instead of a reference, or a `std::string` instead of a `std::string_view`.
+It's a different story when moving around promises: if the calling coroutine returns before the
+awaited promise is finished, the result will be an illegal stack access. Don't do this :) Instead
+make sure to e.g. use a `shared_ptr` instead of a reference, or a `std::string` instead of a
+`std::string_view`.
 
 Be extra careful of the following dangerous pattern:
 
@@ -274,11 +272,13 @@ void run() {
 }
 ```
 
+I may try to change the uvco types to prevent this pattern, but it's not easy to do so without
+impairing the ease of use in other places.
 
 ### Loop Lifetime
 
-The `Loop` is singular, and outlives all coroutines running on it; therefore it's passed as `const Loop&` to any
-coroutine needing to initiate I/O.
+The `Loop` is singular, and outlives all coroutines running on it; therefore it's passed as `const
+Loop&` to any coroutine needing to initiate I/O.
 
 ### Unfulfilled promises
 

@@ -67,13 +67,6 @@ public:
   Scheduler &operator=(Scheduler &&) = default;
   ~Scheduler();
 
-  /// Obtain a reference to `Scheduler` from any libuv handle.
-  template <typename UvHandle>
-  static Scheduler &ofHandle(const UvHandle *uvhandle) {
-    BOOST_ASSERT(uvhandle != nullptr);
-    return *(Scheduler *)uv_loop_get_data(uvhandle->loop);
-  }
-
   /// Set up scheduler with event loop. This is required for all uvco
   /// code to find the scheduler.
   void setUpLoop(uv_loop_t *loop);
