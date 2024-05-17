@@ -241,12 +241,9 @@ protected:
   /// generator) and resumes it when the value is read by the awaiting
   /// coroutine.
   struct YieldAwaiter_ {
-    explicit YieldAwaiter_(PromiseCore_& core)
-        : core_{core} {}
+    explicit YieldAwaiter_(PromiseCore_ &core) : core_{core} {}
 
-    [[nodiscard]] bool await_ready() const {
-      return !core_.slot.has_value();
-    }
+    [[nodiscard]] bool await_ready() const { return !core_.slot.has_value(); }
 
     bool await_suspend(std::coroutine_handle<> handle) {
       core_.suspendGenerator(handle);
@@ -257,15 +254,14 @@ protected:
       // Returning into the generator coroutine
     }
 
-    PromiseCore_& core_;
+    PromiseCore_ &core_;
   };
 
   /// A `MultiPromiseAwaiter_` handles suspension and resumption of coroutines
   /// receiving values from a generating (yielding) coroutine. This awaiter is
   /// used when applying the `co_await` operator on a `MultiPromise`.
   struct MultiPromiseAwaiter_ {
-    constexpr explicit MultiPromiseAwaiter_(PromiseCore_& core)
-        : core_{core} {}
+    constexpr explicit MultiPromiseAwaiter_(PromiseCore_ &core) : core_{core} {}
     MultiPromiseAwaiter_(MultiPromiseAwaiter_ &&) = delete;
     MultiPromiseAwaiter_(const MultiPromiseAwaiter_ &) = delete;
     MultiPromiseAwaiter_ &operator=(MultiPromiseAwaiter_ &&) = delete;
@@ -311,7 +307,7 @@ protected:
       }
     }
 
-    PromiseCore_& core_;
+    PromiseCore_ &core_;
   };
 
   SharedCore_ core_;
