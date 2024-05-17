@@ -197,14 +197,14 @@ public:
     BOOST_ASSERT(!core_->slot);
     core_->slot = std::move(value);
     core_->resume();
-    return YieldAwaiter_{core_};
+    return YieldAwaiter_{*core_};
   }
 
   YieldAwaiter_ yield_value(const T &value) {
     BOOST_ASSERT(!core_->slot);
     core_->slot = value;
     core_->resume();
-    return YieldAwaiter_{core_};
+    return YieldAwaiter_{*core_};
   }
 
   /// Return an awaiter for this MultiPromise, which resumes the waiting
@@ -214,7 +214,7 @@ public:
   /// The awaiter handles the actual suspension and resumption.
   MultiPromiseAwaiter_ operator co_await() {
     BOOST_ASSERT(core_);
-    return MultiPromiseAwaiter_{core_};
+    return MultiPromiseAwaiter_{*core_};
   }
 
   /// Returns true if a value is available.
@@ -241,21 +241,21 @@ protected:
   /// generator) and resumes it when the value is read by the awaiting
   /// coroutine.
   struct YieldAwaiter_ {
-    explicit YieldAwaiter_(std::weak_ptr<PromiseCore_> core)
-        : core_{std::move(core)} {}
+    explicit YieldAwaiter_(PromiseCore_& core)
+        : core_{core} {}
 
     [[nodiscard]] bool await_ready() const {
       BOOST_ASSERT_MSG(!core_.expired(),
                        "MultiPromiseCore has been destroyed; why am I still "
                        "yielding? (await_ready)");
-      return !core_.lock()->slot.has_value();
+      return !core_.slot.has_value();
     }
 
     bool await_suspend(std::coroutine_handle<> handle) {
       BOOST_ASSERT_MSG(!core_.expired(),
                        "MultiPromiseCore has been destroyed; why am I still "
                        "yielding? (await_suspend)");
-      core_.lock()->suspendGenerator(handle);
+      core_.suspendGenerator(handle);
       return true;
     }
 
@@ -263,15 +263,15 @@ protected:
       // Returning into the generator coroutine
     }
 
-    std::weak_ptr<PromiseCore_> core_;
+    PromiseCore_& core_;
   };
 
   /// A `MultiPromiseAwaiter_` handles suspension and resumption of coroutines
   /// receiving values from a generating (yielding) coroutine. This awaiter is
   /// used when applying the `co_await` operator on a `MultiPromise`.
   struct MultiPromiseAwaiter_ {
-    constexpr explicit MultiPromiseAwaiter_(SharedCore_ core)
-        : core_{std::move(core)} {}
+    constexpr explicit MultiPromiseAwaiter_(PromiseCore_& core)
+        : core_{core} {}
     MultiPromiseAwaiter_(MultiPromiseAwaiter_ &&) = delete;
     MultiPromiseAwaiter_(const MultiPromiseAwaiter_ &) = delete;
     MultiPromiseAwaiter_ &operator=(MultiPromiseAwaiter_ &&) = delete;
@@ -281,35 +281,35 @@ protected:
     /// Part of the coroutine protocol. Returns `true` if the MultiPromise
     /// already has a value.
     [[nodiscard]] bool await_ready() const {
-      return core_->isTerminated() || core_->slot.has_value();
+      return core_.isTerminated() || core_.slot.has_value();
     }
     /// Part of the coroutine protocol. Always returns `true`; stores the
     /// suspension handle in the MultiPromiseCore for later resumption.
     virtual bool await_suspend(std::coroutine_handle<> handle) {
-      BOOST_ASSERT_MSG(!core_->willResume(),
+      BOOST_ASSERT_MSG(!core_.willResume(),
                        "promise is already being waited on!\n");
-      core_->setHandle(handle);
-      core_->resumeGenerator();
+      core_.setHandle(handle);
+      core_.resumeGenerator();
       return true;
     }
     /// Part of the coroutine protocol. Returns a value if `co_yield` was called
     /// in the generating coroutine. Otherwise, returns an empty `optional` if
     /// the generating coroutine has `co_return`ed.
     std::optional<T> await_resume() {
-      if (!core_->slot) {
+      if (!core_.slot) {
         // Terminated by co_return
         return std::nullopt;
       } else {
-        switch (core_->slot->index()) {
+        switch (core_.slot->index()) {
         case 0: {
-          std::optional<T> result = std::move(std::get<0>(core_->slot.value()));
-          core_->slot.reset();
+          std::optional<T> result = std::move(std::get<0>(core_.slot.value()));
+          core_.slot.reset();
           return std::move(result);
         }
         case 1:
           // Terminated by exception
-          BOOST_ASSERT(core_->isTerminated());
-          std::rethrow_exception(std::get<1>(core_->slot.value()));
+          BOOST_ASSERT(core_.isTerminated());
+          std::rethrow_exception(std::get<1>(core_.slot.value()));
         default:
           throw UvcoException(
               "MultiPromiseAwaiter_::await_resume: invalid slot");
@@ -317,7 +317,7 @@ protected:
       }
     }
 
-    SharedCore_ core_;
+    PromiseCore_& core_;
   };
 
   SharedCore_ core_;
