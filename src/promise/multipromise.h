@@ -245,16 +245,10 @@ protected:
         : core_{core} {}
 
     [[nodiscard]] bool await_ready() const {
-      BOOST_ASSERT_MSG(!core_.expired(),
-                       "MultiPromiseCore has been destroyed; why am I still "
-                       "yielding? (await_ready)");
       return !core_.slot.has_value();
     }
 
     bool await_suspend(std::coroutine_handle<> handle) {
-      BOOST_ASSERT_MSG(!core_.expired(),
-                       "MultiPromiseCore has been destroyed; why am I still "
-                       "yielding? (await_suspend)");
       core_.suspendGenerator(handle);
       return true;
     }

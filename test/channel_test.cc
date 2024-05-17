@@ -5,7 +5,6 @@
 #include "promise/promise.h"
 #include "run.h"
 #include "test_util.h"
-#include "timer.h"
 
 #include <gtest/gtest.h>
 #include <utility>
@@ -75,6 +74,8 @@ TEST(ChannelTest, basicWriteRead) {
   run_loop(setup);
 }
 
+// On my out-dated Core i5-7300U @ 2.60GHz, this results in about 130 ns per
+// item.
 TEST(ChannelTest, DISABLED_basicWriteReadBench) {
   static constexpr int N_iter = 1000000;
   auto reader = [](Channel<int> &chan) -> Promise<void> {
@@ -141,8 +142,8 @@ TEST(ChannelTest, blockingRead) {
 
 TEST(ChannelTest, blockingWriteBench) {
 
-  auto source = [](Channel<int> &chan, int n_iter) -> Promise<void> {
-    for (int i = 1; i < n_iter + 1; ++i) {
+  auto source = [](Channel<int> &chan, int numIters) -> Promise<void> {
+    for (int i = 1; i < numIters + 1; ++i) {
       co_await chan.put(i);
     }
   };
@@ -219,6 +220,7 @@ TEST(ChannelTest, tooManyWaiters) {
   EXPECT_TRUE(reachedEnd);
 }
 
+// On my test system: about 120 ns per item.
 TEST(ChannelTest, channelGenerator) {
   auto writer = [](Channel<int> &chan, int numIters) -> Promise<void> {
     for (int i = 0; i < numIters; ++i) {

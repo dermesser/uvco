@@ -50,7 +50,7 @@ TEST(PromiseTest, yield) {
 //
 // Tests how efficient the event loop is at suspending/resuming a coroutine.
 //
-// Intel Core i5-7300U @ 2.6 GHz: 4.4 million iterations per second / 230 ns per
+// Intel Core i5-7300U @ 2.6 GHz: 15 million iterations per second / 70 ns per
 // iteration
 TEST(PromiseTest, DISABLED_yieldBench) {
   static constexpr unsigned iterations = 1000000;
@@ -65,7 +65,7 @@ TEST(PromiseTest, DISABLED_yieldBench) {
 }
 
 // Same as above, but with a separate coroutine, i.e. two levels of awaiting.
-// Intel Core i5-7300U @ 2.6 GHz: 2.6 million iterations per second / 380 ns per
+// Intel Core i5-7300U @ 2.6 GHz: 8.3 million iterations per second / 120 ns per
 // iteration
 TEST(PromiseTest, DISABLED_yieldCallBench) {
   static constexpr unsigned iterations = 1000000;
@@ -82,6 +82,8 @@ TEST(PromiseTest, DISABLED_yieldCallBench) {
   run_loop(setup);
 }
 
+// This appears especially efficient; back-and-forth yielding occurs
+// at only 32 ns overhead (that's 31 million iterations per second).
 TEST(PromiseTest, DISABLED_multiYieldBench) {
   static constexpr unsigned iterations = 1000000;
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
