@@ -14,7 +14,7 @@ find_package(CURL)
 find_package(GTest)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
-add_compile_options(-std=c++2b -Wall -fno-inline -pipe)
+add_compile_options(-std=c++2b -Wall -pipe)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(-fcolor-diagnostics)
