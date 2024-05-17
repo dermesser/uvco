@@ -123,7 +123,7 @@ public:
 
   /// Part of the coroutine protocol: called by `co_await p` where `p` is a
   /// `Promise<T>`. The returned object is awaited on.
-  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
+  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{*core_}; }
 
   /// Returns if promise has been fulfilled.
   bool ready() { return core_->slot_.has_value(); }
@@ -152,38 +152,39 @@ protected:
   /// the awaited promise.
   struct PromiseAwaiter_ {
     /// The `core` is shared with the promise and contains the resumption
-    /// handle, and ultimately the returned value.
-    explicit PromiseAwaiter_(SharedCore_ core)
-        : core_{std::move(core->addRef())} {}
+    /// handle, and ultimately the returned value. Because the awaiter object
+    /// is only used while a coroutine is waiting on a co_await suspension
+    /// point, we can use a reference to the `PromiseCore_` object.
+    explicit PromiseAwaiter_(PromiseCore_ &core) : core_{core} {}
     PromiseAwaiter_(PromiseAwaiter_ &&) = delete;
     PromiseAwaiter_(const PromiseAwaiter_ &) = delete;
     PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
     PromiseAwaiter_ &operator=(const PromiseAwaiter_ &) = delete;
-    ~PromiseAwaiter_() { core_->delRef(); }
+    ~PromiseAwaiter_() = default;
 
     /// Part of the coroutine protocol: returns `true` if the promise is already
     /// fulfilled.
-    [[nodiscard]] bool await_ready() const { return core_->slot.has_value(); }
+    [[nodiscard]] bool await_ready() const { return core_.slot.has_value(); }
     /// Part of the coroutine protocol: returns if suspension is desired (always
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
     bool await_suspend(std::coroutine_handle<> handle) {
-      BOOST_ASSERT_MSG(!core_->willResume(),
+      BOOST_ASSERT_MSG(!core_.willResume(),
                        "promise is already being waited on!");
-      core_->setHandle(handle);
+      core_.setHandle(handle);
       return true;
     }
     /// Part of the coroutine protocol: extracts the resulting value from the
     /// promise core and returns it.
     T await_resume() {
-      if (core_->slot.has_value()) {
-        switch (core_->slot->index()) {
+      if (core_.slot.has_value()) {
+        switch (core_.slot->index()) {
         case 0: {
-          T result = std::move(std::get<0>(core_->slot.value()));
-          core_->slot.reset();
+          T result = std::move(std::get<0>(core_.slot.value()));
+          core_.slot.reset();
           return std::move(result);
         }
         case 1:
-          std::rethrow_exception(std::get<1>(core_->slot.value()));
+          std::rethrow_exception(std::get<1>(core_.slot.value()));
         default:
           throw UvcoException("PromiseAwaiter_::await_resume: invalid slot");
         }
@@ -193,7 +194,7 @@ protected:
       }
     }
 
-    SharedCore_ core_;
+    PromiseCore_ &core_;
   };
 
   SharedCore_ core_;
@@ -237,7 +238,7 @@ public:
 
   /// Returns an awaiter object for the promise, handling actual suspension and
   /// resumption.
-  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{core_}; }
+  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{*core_}; }
 
   /// Returns whether the promise has already been fulfilled.
   bool ready() { return core_->ready; }
@@ -251,7 +252,7 @@ private:
   struct PromiseAwaiter_ {
     /// The `core` is shared among all copies of this Promise and holds the
     /// resumption handle to a waiting coroutine, as well as the ready state.
-    explicit PromiseAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
+    explicit PromiseAwaiter_(PromiseCore<void> &core) : core_{core} {}
     PromiseAwaiter_(PromiseAwaiter_ &&) = delete;
     PromiseAwaiter_(const PromiseAwaiter_ &) = delete;
     PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
@@ -265,7 +266,7 @@ private:
     bool await_suspend(std::coroutine_handle<> handle);
     void await_resume();
 
-    SharedCore_ core_;
+    PromiseCore<void> &core_;
   };
   SharedCore_ core_;
 };
