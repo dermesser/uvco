@@ -94,7 +94,7 @@ Promise<void> Udp::send(std::span<char> buffer,
                         std::optional<AddressHandle> address) {
   SendAwaiter_ sendAwaiter{};
   uv_udp_send_t req;
-  req.data = &sendAwaiter;
+  uv_req_set_data((uv_req_t *)&req, &sendAwaiter);
 
   std::array<uv_buf_t, 1> bufs{};
   // The buffer is never written to, so this is necessary to interface
@@ -244,6 +244,11 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
   }
   awaiter->addr_ = AddressHandle{addr};
   if (nread >= 0) {
+    if (awaiter->buffer_.has_value()) {
+      // TODO: convert RecvAwaiter_ to contain a boundedqueue
+      fmt::print(stderr,
+                 "Udp::onReceiveOne: buffer already set, dropping packet\n");
+    }
     awaiter->buffer_ = std::string{buf->base, static_cast<size_t>(nread)};
   }
 

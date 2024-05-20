@@ -220,7 +220,6 @@ TEST(ChannelTest, tooManyWaiters) {
   EXPECT_TRUE(reachedEnd);
 }
 
-// On my test system: about 120 ns per item.
 TEST(ChannelTest, channelGenerator) {
   auto writer = [](Channel<int> &chan, int numIters) -> Promise<void> {
     for (int i = 0; i < numIters; ++i) {

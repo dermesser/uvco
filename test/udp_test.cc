@@ -1,4 +1,5 @@
 
+#include <chrono>
 #include <uv.h>
 
 #include "exception.h"
@@ -22,16 +23,14 @@
 namespace {
 using namespace uvco;
 
-constexpr uint32_t pingPongCount = 100;
-
-Promise<void> udpServer(const Loop &loop, uint64_t &received) {
+Promise<void> udpServer(const Loop &loop, unsigned expect, unsigned &received) {
   Udp server{loop};
   co_await server.bind("::1", 9999, 0);
 
   MultiPromise<std::pair<std::string, AddressHandle>> packets =
       server.receiveMany();
 
-  for (uint32_t counter = 0; counter < pingPongCount; ++counter) {
+  for (uint32_t counter = 0; counter < expect; ++counter) {
     auto recvd = co_await packets;
     if (!recvd) {
       break;
@@ -49,7 +48,7 @@ Promise<void> udpServer(const Loop &loop, uint64_t &received) {
   co_return;
 }
 
-Promise<void> udpClient(const Loop &loop, uint64_t &sent) {
+Promise<void> udpClient(const Loop &loop, unsigned send, unsigned &sent) {
   // Ensure server has started.
   co_await sleep(loop, 10);
   std::string msg = "Hello there!";
@@ -73,7 +72,7 @@ Promise<void> udpClient(const Loop &loop, uint64_t &sent) {
   EXPECT_TRUE(client.getPeername());
   EXPECT_EQ(client.getPeername()->toString(), "[::1]:9999");
 
-  for (uint32_t i = 0; i < pingPongCount; ++i) {
+  for (uint32_t i = 0; i < send; ++i) {
     co_await client.send(msg, {});
     ++sent;
     auto response = co_await client.receiveOne();
@@ -89,15 +88,96 @@ Promise<void> join(Promise<void> promise1, Promise<void> promise2) {
 }
 
 TEST(UdpTest, testPingPong) {
-  uint64_t sent = 0;
-  uint64_t received = 0;
+  constexpr unsigned pingPongCount = 100;
+  unsigned sent = 0;
+  unsigned received = 0;
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
-    return join(udpServer(loop, received), udpClient(loop, sent));
+    return join(udpServer(loop, pingPongCount, received),
+                udpClient(loop, pingPongCount, sent));
   };
 
   run_loop(setup);
   EXPECT_EQ(sent, received);
   EXPECT_EQ(sent, pingPongCount);
+}
+
+TEST(UdpTest, DISABLED_benchmarkPingPong) {
+  constexpr unsigned pingPongCount = 100000;
+  unsigned sent = 0;
+  unsigned received = 0;
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    return join(udpServer(loop, pingPongCount, received),
+                udpClient(loop, pingPongCount, sent));
+  };
+
+  run_loop(setup);
+  EXPECT_EQ(sent, received);
+  EXPECT_EQ(sent, pingPongCount);
+}
+
+// As opposed to the ping pong test, measure raw throughput without latency
+// considerations.
+
+uint64_t epochMicros() {
+  return std::chrono::duration_cast<std::chrono::microseconds>(
+             std::chrono::system_clock::now().time_since_epoch())
+      .count();
+}
+
+Promise<void> udpSource(const Loop &loop, unsigned send, unsigned &sent) {
+  // Ensure server has started.
+  co_await sleep(loop, 10);
+  std::string msg = "Hello there!";
+  const AddressHandle dst{"::1", 9999};
+
+  Udp client{loop};
+
+  co_await client.bind("::1", 7777);
+
+  for (uint32_t i = 0; i < send; ++i) {
+    co_await client.send(msg, dst);
+    ++sent;
+  }
+
+  co_await client.close();
+  co_return;
+}
+
+Promise<void> udpSink(const Loop &loop, unsigned expect, unsigned &received) {
+  Udp server{loop};
+  co_await server.bind("::1", 9999, 0);
+
+  MultiPromise<std::pair<std::string, AddressHandle>> packets =
+      server.receiveMany();
+
+  for (uint32_t counter = 0; counter < expect; ++counter) {
+    // TODO: currently we can only receive one packet at a time, the UDP socket
+    // needs an additional internal queue if there is more than one packet at a
+    // time.
+    auto recvd = co_await packets;
+    if (!recvd) {
+      break;
+    }
+    ++received;
+  }
+  server.stopReceiveMany(packets);
+  EXPECT_FALSE((co_await packets).has_value());
+  co_await server.close();
+  co_return;
+}
+
+TEST(UdpTest, DISABLED_benchmarkThroughput) {
+  constexpr unsigned throughputCount = 10;
+  unsigned sent = 0;
+  unsigned received = 0;
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    return join(udpSink(loop, throughputCount, received),
+                udpSource(loop, throughputCount, sent));
+  };
+
+  run_loop(setup);
+  EXPECT_EQ(sent, received);
+  EXPECT_EQ(sent, throughputCount);
 }
 
 TEST(UdpTest, testDropReceiver) {
