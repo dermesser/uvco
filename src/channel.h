@@ -1,9 +1,10 @@
-// uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
+// uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #pragma once
 
 #include <uv.h>
 
+#include "bounded_queue.h"
 #include "exception.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
@@ -11,68 +12,11 @@
 
 #include <boost/assert.hpp>
 #include <coroutine>
-#include <cstdlib>
-#include <utility>
-#include <vector>
 
 namespace uvco {
 
 /// @addtogroup Channels
 /// @{
-
-/// A bounded FIFO queue based on a contiguous array.
-///
-/// Warning: only for internal use. The `push()/pop()` interface is not safe in
-/// `Release` mode binaries; `BoundedQueue` is only intended to be used as part
-/// of `Channel<T>`.
-template <typename T> class BoundedQueue {
-public:
-  explicit BoundedQueue(size_t capacity) { queue_.reserve(capacity); }
-
-  /// Push an item to the queue.
-  template <typename U>
-  void put(U &&elem)
-    requires std::convertible_to<U, T>
-  {
-    if (!hasSpace()) {
-      throw UvcoException(UV_EBUSY, "queue is full");
-    }
-    if (queue_.size() < capacity()) {
-      BOOST_ASSERT(tail_ <= head_);
-      queue_.push_back(std::forward<U>(elem));
-    } else {
-      queue_.at(head_) = std::forward<U>(elem);
-    }
-    head_ = (head_ + 1) % capacity();
-    ++size_;
-  }
-  /// Pop an item from the queue.
-  T get() {
-    if (empty()) {
-      throw UvcoException(UV_EAGAIN, "queue is empty");
-    }
-    T element = std::move(queue_.at(tail_++));
-    tail_ = tail_ % capacity();
-    --size_;
-    return element;
-  }
-  /// Current number of contained items.
-  [[nodiscard]] size_t size() const { return size_; }
-  /// Maximum number of contained items.
-  [[nodiscard]] size_t capacity() const { return queue_.capacity(); }
-  /// `size() == 0`
-  [[nodiscard]] bool empty() const { return size() == 0; }
-  /// `size() < capacity()`
-  [[nodiscard]] bool hasSpace() const { return size() < capacity(); }
-
-private:
-  std::vector<T> queue_{};
-  // Point to next-filled element.
-  size_t head_ = 0;
-  // Points to next-popped element.
-  size_t tail_ = 0;
-  size_t size_ = 0;
-};
 
 /// A `Channel` is similar to a Go channel: buffered, and blocking for reading
 /// and writing if empty/full respectively.
@@ -99,7 +43,7 @@ private:
 template <typename T> class Channel {
 public:
   /// Create a channel for up to `capacity` items.
-  explicit Channel(size_t capacity, size_t max_waiters = 16)
+  explicit Channel(unsigned capacity, unsigned max_waiters = 16)
       : queue_{capacity}, read_waiting_{max_waiters},
         write_waiting_{max_waiters} {}
 
@@ -114,7 +58,6 @@ public:
   /// NOTE: template argument restriction may not be entirely correct?
   template <typename U>
   Promise<void> put(U &&value)
-    requires std::convertible_to<U, T>
   {
     if (!queue_.hasSpace()) {
       // Block until a reader has popped an item.

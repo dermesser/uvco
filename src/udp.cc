@@ -27,6 +27,7 @@
 
 #include <array>
 #include <uv/unix.h>
+#include <variant>
 
 namespace uvco {
 
@@ -134,16 +135,13 @@ Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
     throw UvcoException(status, "uv_udp_recv_start()");
   }
 
-  std::optional<std::string> buffer = co_await awaiter;
-  if (!buffer) {
-    throw UvcoException(UV_EINTR, "receive process interrupted");
-  }
+  // Exception thrown here if occurred.
+  std::optional<std::pair<std::string, AddressHandle>> packet =
+      co_await awaiter;
 
   // Any exceptions are thrown in RecvAwaiter_::await_resume
-
   udp_->data = nullptr;
-  BOOST_ASSERT(awaiter.addr_);
-  co_return std::make_pair(*buffer, *awaiter.addr_);
+  co_return std::move(packet.value());
 }
 
 MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
@@ -160,18 +158,19 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
 
   while (uv_is_active((uv_handle_t *)udp_.get()) != 0) {
     // Awaiter returns empty optional on requested stop (stopReceiveMany()).
-    std::optional<std::string> buffer = co_await awaiter;
+    std::optional<std::pair<std::string, AddressHandle>> buffer =
+        co_await awaiter;
     if (!buffer) {
       break;
     }
-    BOOST_ASSERT(awaiter.addr_);
     // It's possible that co_yield doesn't resume anymore, therefore clear
     // reference to local awaiter.
     udp_->data = nullptr;
-    co_yield std::make_pair(std::move(*buffer), *awaiter.addr_);
+    co_yield std::move(buffer.value());
     udp_->data = &awaiter;
   }
   udp_->data = nullptr;
+  udpStopReceive();
   co_return;
 }
 
@@ -202,8 +201,6 @@ void Udp::stopReceiveMany(
   if (currentAwaiter == nullptr) {
     return;
   }
-  currentAwaiter->nread_.reset();
-  currentAwaiter->buffer_.reset();
   // If generator is suspended on co_await, resume it synchronously so it can
   // exit before the Udp instance is possibly destroyed.
   if (currentAwaiter->handle_) {
@@ -229,7 +226,6 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
                        const struct sockaddr *addr, unsigned int flags) {
 
   auto *awaiter = (RecvAwaiter_ *)handle->data;
-  awaiter->nread_ = nread;
 
   if (addr == nullptr) {
     // Error or asking to free buffers.
@@ -242,20 +238,25 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
   if (awaiter->stop_receiving_) {
     uv_udp_recv_stop(handle);
   }
-  awaiter->addr_ = AddressHandle{addr};
-  if (nread >= 0) {
-    if (awaiter->buffer_.has_value()) {
-      // TODO: convert RecvAwaiter_ to contain a boundedqueue
-      fmt::print(stderr,
-                 "Udp::onReceiveOne: buffer already set, dropping packet\n");
+  if (awaiter->buffer_.hasSpace()) {
+    if (nread >= 0) {
+      awaiter->buffer_.put(RecvAwaiter_::QueueItem_{
+          std::make_pair(std::string{buf->base, static_cast<size_t>(nread)},
+                         AddressHandle{addr})});
+    } else {
+      awaiter->buffer_.put(
+          RecvAwaiter_::QueueItem_{static_cast<uv_status>(nread)});
     }
-    awaiter->buffer_ = std::string{buf->base, static_cast<size_t>(nread)};
+  } else {
+    fmt::print(stderr, "Udp::onReceiveOne: dropping packet, buffer full\n");
   }
 
   if (0 == (flags & UV_UDP_MMSG_CHUNK)) {
     freeUvBuf(buf);
   }
 
+  // Only enqueues once; if this callback is called again, the receiver will
+  // already have been resumed.
   if (awaiter->handle_) {
     auto resumeHandle = *awaiter->handle_;
     awaiter->handle_.reset();
@@ -341,28 +342,36 @@ std::optional<AddressHandle> Udp::getPeername() const {
 
 uv_udp_t *Udp::underlying() const { return udp_.get(); }
 
+Udp::RecvAwaiter_::RecvAwaiter_() : buffer_{packetQueueSize} {}
+
 bool Udp::RecvAwaiter_::await_suspend(std::coroutine_handle<> h) {
   BOOST_ASSERT(!handle_);
   handle_ = h;
   return true;
 }
 
-bool Udp::RecvAwaiter_::await_ready() const { return buffer_.has_value(); }
+bool Udp::RecvAwaiter_::await_ready() const { return !buffer_.empty(); }
 
-std::optional<std::string> Udp::RecvAwaiter_::await_resume() {
+std::optional<std::pair<std::string, AddressHandle>>
+Udp::RecvAwaiter_::await_resume() {
   // Woken up without read packet: stop receiving.
-  if (!nread_ && !buffer_) {
+  if (buffer_.empty()) {
     return {};
   }
-  BOOST_ASSERT(nread_);
-  if (*nread_ < 0) {
-    throw UvcoException(*nread_,
+  QueueItem_ item = buffer_.get();
+  if (std::holds_alternative<uv_status>(item)) {
+    throw UvcoException(std::get<uv_status>(item),
                         "Udp::RecvAwaiter_::await_resume: error during recv");
   }
-  BOOST_ASSERT(buffer_);
-  auto b = std::move(*buffer_);
-  buffer_.reset();
-  return b;
+  return std::get<std::pair<std::string, AddressHandle>>(item);
+}
+
+void Udp::RecvAwaiter_::resume() {
+  if (handle_) {
+    const auto handle = *handle_;
+    handle_.reset();
+    Loop::enqueue(handle);
+  }
 }
 
 void Udp::onSendDone(uv_udp_send_t *req, uv_status status) {
@@ -387,5 +396,4 @@ int Udp::SendAwaiter_::await_resume() {
   BOOST_ASSERT(status_);
   return *status_;
 }
-
 } // namespace uvco

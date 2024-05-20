@@ -118,15 +118,9 @@ TEST(UdpTest, DISABLED_benchmarkPingPong) {
 // As opposed to the ping pong test, measure raw throughput without latency
 // considerations.
 
-uint64_t epochMicros() {
-  return std::chrono::duration_cast<std::chrono::microseconds>(
-             std::chrono::system_clock::now().time_since_epoch())
-      .count();
-}
-
 Promise<void> udpSource(const Loop &loop, unsigned send, unsigned &sent) {
   // Ensure server has started.
-  co_await sleep(loop, 10);
+  co_await sleep(loop, 1);
   std::string msg = "Hello there!";
   const AddressHandle dst{"::1", 9999};
 
@@ -134,7 +128,10 @@ Promise<void> udpSource(const Loop &loop, unsigned send, unsigned &sent) {
 
   co_await client.bind("::1", 7777);
 
-  for (uint32_t i = 0; i < send; ++i) {
+  for (uint32_t i = 0; i < send / 2; ++i) {
+    // This exercises the packet queue.
+    client.send(msg, dst);
+    ++sent;
     co_await client.send(msg, dst);
     ++sent;
   }
@@ -167,7 +164,7 @@ Promise<void> udpSink(const Loop &loop, unsigned expect, unsigned &received) {
 }
 
 TEST(UdpTest, DISABLED_benchmarkThroughput) {
-  constexpr unsigned throughputCount = 10;
+  constexpr unsigned throughputCount = 100000;
   unsigned sent = 0;
   unsigned received = 0;
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {

@@ -3,10 +3,12 @@
 #pragma once
 
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <uv.h>
 
 #include <boost/assert.hpp>
 
+#include "bounded_queue.h"
 #include "internal/internal_utils.h"
 #include "name_resolution.h"
 #include "promise/multipromise.h"
@@ -22,6 +24,7 @@
 #include <string_view>
 #include <utility>
 #include <uv/unix.h>
+#include <variant>
 
 namespace uvco {
 
@@ -114,21 +117,19 @@ private:
                            const struct sockaddr *addr, unsigned int flags);
 
   struct RecvAwaiter_ {
+    static constexpr unsigned packetQueueSize = 128;
+    using QueueItem_ =
+        std::variant<std::pair<std::string, AddressHandle>, uv_status>;
+
+    RecvAwaiter_();
     [[nodiscard]] bool await_ready() const;
-    bool await_suspend(std::coroutine_handle<> h);
-    std::optional<std::string> await_resume();
+    bool await_suspend(std::coroutine_handle<> handle);
+    std::optional<std::pair<std::string, AddressHandle>> await_resume();
 
-    void resume() {
-      if (handle_) {
-        Loop::enqueue(*handle_);
-        handle_.reset();
-      }
-    }
+    void resume();
 
-    std::optional<std::string> buffer_;
+    BoundedQueue<QueueItem_> buffer_;
     std::optional<std::coroutine_handle<>> handle_;
-    std::optional<AddressHandle> addr_;
-    std::optional<int> nread_;
     bool stop_receiving_ = true;
   };
 
