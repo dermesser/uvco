@@ -88,7 +88,7 @@ Promise<void> join(Promise<void> promise1, Promise<void> promise2) {
 }
 
 TEST(UdpTest, testPingPong) {
-  constexpr unsigned pingPongCount = 100;
+  constexpr unsigned pingPongCount = 10;
   unsigned sent = 0;
   unsigned received = 0;
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {

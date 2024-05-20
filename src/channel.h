@@ -56,9 +56,7 @@ public:
   /// insertion.
   ///
   /// NOTE: template argument restriction may not be entirely correct?
-  template <typename U>
-  Promise<void> put(U &&value)
-  {
+  template <typename U> Promise<void> put(U &&value) {
     if (!queue_.hasSpace()) {
       // Block until a reader has popped an item.
       ChannelAwaiter_ awaiter{queue_, write_waiting_};

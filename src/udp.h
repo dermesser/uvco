@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <uv.h>
+#include <uv/unix.h>
 
 #include <boost/assert.hpp>
 
@@ -23,7 +24,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <uv/unix.h>
 #include <variant>
 
 namespace uvco {
@@ -36,10 +36,7 @@ namespace uvco {
 class Udp {
 public:
   /// Set up a UDP object.
-  explicit Udp(const Loop &loop)
-      : loop_{&loop}, udp_{std::make_unique<uv_udp_t>()} {
-    uv_udp_init(loop.uvloop(), udp_.get());
-  }
+  explicit Udp(const Loop &loop);
   Udp(Udp &&other) = default;
   Udp &operator=(Udp &&other) = default;
   Udp(const Udp &) = delete;
@@ -125,8 +122,6 @@ private:
     [[nodiscard]] bool await_ready() const;
     bool await_suspend(std::coroutine_handle<> handle);
     std::optional<std::pair<std::string, AddressHandle>> await_resume();
-
-    void resume();
 
     BoundedQueue<QueueItem_> buffer_;
     std::optional<std::coroutine_handle<>> handle_;
