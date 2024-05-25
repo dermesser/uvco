@@ -82,7 +82,7 @@ TEST(UdsTest, UnixStreamPingPong) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     try {
       Promise<void> server = pingPongServer(loop);
-      co_await sleep(loop, 1);
+      co_await yield();
       Promise<void> client = pingPongClient(loop);
       co_await server;
       co_await client;
@@ -113,7 +113,7 @@ TEST(UdsTest, UnixStreamListenerStop) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     UnixStreamServer server{loop, testSocketPath};
     auto listener = server.listen();
-    co_await sleep(loop, 1);
+    co_await yield();
     co_await server.close();
     // The following line would result in a crash (intentional) because the
     // listener generator has returned.

@@ -35,7 +35,7 @@ TEST(LoopTest, noLoop) {
 
 TEST(LoopTest, exceptionLeavesLoop) {
   auto inner = [](const Loop &loop) -> uvco::Promise<void> {
-    co_await sleep(loop, 1);
+    co_await yield();
     TtyStream tty = TtyStream::tty(loop, -1);
     co_await tty.write("Hello");
   };

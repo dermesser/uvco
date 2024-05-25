@@ -66,7 +66,7 @@ TEST(MultiPromiseTest, generatorThrows) {
 MultiPromise<int> miniTicker(const Loop &loop) {
   for (int i = 0; i < 3; ++i) {
     co_yield i;
-    co_await sleep(loop, 1);
+    co_await yield();
   }
   throw UvcoException("ticker");
 }

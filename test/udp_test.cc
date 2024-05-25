@@ -50,7 +50,7 @@ Promise<void> udpServer(const Loop &loop, unsigned expect, unsigned &received) {
 
 Promise<void> udpClient(const Loop &loop, unsigned send, unsigned &sent) {
   // Ensure server has started.
-  co_await sleep(loop, 10);
+  co_await yield();
   std::string msg = "Hello there!";
 
   Udp client{loop};
@@ -120,7 +120,7 @@ TEST(UdpTest, DISABLED_benchmarkPingPong) {
 
 Promise<void> udpSource(const Loop &loop, unsigned send, unsigned &sent) {
   // Ensure server has started.
-  co_await sleep(loop, 1);
+  co_await yield();
   std::string msg = "Hello there!";
   const AddressHandle dst{"::1", 9999};
 
@@ -217,7 +217,7 @@ TEST(UdpTest, cancelWhileReceiving) {
     MultiPromise<std::pair<std::string, AddressHandle>> packets =
         server.receiveMany();
 
-    co_await sleep(loop, 1);
+    co_await yield();
     server.stopReceiveMany(packets);
     co_await server.close();
   };

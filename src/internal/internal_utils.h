@@ -2,12 +2,12 @@
 
 #pragma once
 
+#include <concepts>
 #include <fmt/core.h>
 #include <uv.h>
 
 #include <cstddef>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <uv/unix.h>
 
@@ -18,8 +18,6 @@ namespace uvco {
 
 /// Result of a libuv operation, an errno error code.
 using uv_status = int;
-
-void log(uv_loop_t *loop, std::string_view message);
 
 void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf);
 
@@ -87,14 +85,11 @@ template <typename T, typename... Args>
 T *makeRefCounted(Args... args)
   requires std::derived_from<T, RefCounted<T>>
 {
-  return new T{std::forward<Args...>(args...)};
-}
-
-template <typename T>
-T *makeRefCounted()
-  requires std::derived_from<T, RefCounted<T>>
-{
-  return new T{};
+  if constexpr (sizeof...(args) == 0) {
+    return new T{};
+  } else {
+    return new T{std::forward<Args...>(args...)};
+  }
 }
 
 extern const bool TRACK_LIFETIMES;

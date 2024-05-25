@@ -99,7 +99,7 @@ TEST(PromiseTest, DISABLED_multiYieldBench) {
 
 Promise<void> testTemporaryFunction(const Loop &loop,
                                     std::string_view message) {
-  co_await sleep(loop, 1);
+  co_await yield();
   fmt::print("Message is {}\n", message);
   co_return;
 }
@@ -136,7 +136,7 @@ TEST(PromiseTest, movePromiseBetweenFunctions) {
 
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     Promise<int> promise1 = [&loop]() -> uvco::Promise<int> {
-      co_await sleep(loop, 5);
+      co_await yield();
       co_return 42;
     }();
 
@@ -149,7 +149,7 @@ TEST(PromiseTest, movePromiseBetweenFunctions) {
 TEST(PromiseTest, destroyWithoutResume) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
     Promise<int> promise = [&loop]() -> uvco::Promise<int> {
-      co_await sleep(loop, 5);
+      co_await yield();
       // Will put promise core in state finished, all good.
       co_return 1;
     }();
