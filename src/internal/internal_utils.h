@@ -9,6 +9,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <uv/unix.h>
 
 namespace uvco {
 
@@ -24,8 +25,10 @@ void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf);
 
 void freeUvBuf(const uv_buf_t *buf);
 
-// A polymorphic functor for deleting a `uv_handle_t`. It dispatches
-// to the correct `uv_...` function based on the handle's type.
+/// A polymorphic functor for deleting a `uv_handle_t`. It dispatches
+/// to the correct `uv_...` function based on the handle's type. This
+/// is necessary for classes like StreamBase which contain a pointer
+/// to a uv_handle_t, but don't know the exact type of the handle.
 struct UvHandleDeleter {
   static void del(uv_handle_t *handle);
   template <typename Handle> void operator()(Handle *handle) {

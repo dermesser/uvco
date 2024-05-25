@@ -25,9 +25,9 @@ Promises (backed by coroutines) are run eagerly; you don't have to schedule or a
 underlying coroutine to run.
 
 Where I/O or other activity causes a coroutine to be resumed, the coroutine will typically be run by
-the scheduler ([`src/scheduler.h`](src/scheduler.h)), which you don't need to care about. Depending
-on the `RunMode`, pending coroutines are either run once per event loop turn, or immediately from
-the libuv callback.
+the scheduler, which you don't need to care about. Depending on the `RunMode`, pending coroutines
+are either run once per event loop turn, or immediately from the libuv callback (`Immediate`). By
+default, they are run all at once in every event loop turn (`Deferred`).
 
 However, as a user you shouldn't have to care about this. While you can set the run mode for
 I/O events in `uvco::runMain()` (`Deferred` vs. `Immediate`), the externally visible behavior should
@@ -65,6 +65,12 @@ trigger coroutine resumption from the event loop, which is defined in `src/run.c
 #include "loop/loop.h"
 #include "run.h"
 #include "promise/promise.h"
+
+Promise<void> someAsynchronousFunction(const Loop& loop) {
+  fmt::print("Hello from someAsynchronousFunction\n");
+  co_await loop.sleep(1000);
+  fmt::print("Goodbye from someAsynchronousFunction\n");
+}
 
 void run_loop() {
   // A coroutine promise is run without having to wait on it: every co_await
