@@ -4,10 +4,12 @@
 #include "exception.h"
 #include "loop/loop.h"
 
+#include <fmt/core.h>
+#include <uv.h>
+
 #include <coroutine>
 #include <cstdio>
 #include <exception>
-#include <fmt/core.h>
 #include <utility>
 
 namespace uvco {
@@ -50,8 +52,21 @@ PromiseCore<void>::~PromiseCore() {
 void PromiseCore<void>::except(std::exception_ptr exc) {
   BOOST_ASSERT(state_ == PromiseState::init ||
                state_ == PromiseState::waitedOn);
-  exception_ = std::move(exc);
+  exception = std::move(exc);
   ready = true;
 }
 
+void PromiseCore<void>::cancel() {
+  if (state_ == PromiseState::waitedOn) {
+    BOOST_ASSERT(!exception);
+    if (!exception) {
+      try {
+        throw UvcoException(UV_ECANCELED, "Promise cancelled");
+      } catch (...) {
+        exception = std::current_exception();
+      }
+    }
+    resume();
+  }
+}
 } // namespace uvco

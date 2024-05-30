@@ -5,17 +5,17 @@
 #include "exception.h"
 #include "internal/internal_utils.h"
 #include "loop/loop.h"
-#include <exception>
-#include <fmt/core.h>
 
 #include <boost/assert.hpp>
 #include <fmt/format.h>
 
 #include <coroutine>
 #include <cstdio>
+#include <exception>
 #include <optional>
 #include <typeinfo>
 #include <utility>
+#include <uv.h>
 #include <variant>
 
 namespace uvco {
@@ -71,6 +71,22 @@ public:
     state_ = PromiseState::waitedOn;
   }
 
+  /// Reset coroutine state to before the select() operation happened.
+  void cancel() {
+    if (state_ == PromiseState::waitedOn) {
+      BOOST_ASSERT(!slot);
+      // Fill the slot with an exception, so that the coroutine can be resumed.
+      if (!slot) {
+        try {
+          throw UvcoException(UV_ECANCELED, "Promise cancelled");
+        } catch (...) {
+          slot = std::current_exception();
+        }
+      }
+      resume();
+    }
+  }
+
   /// Checks if a coroutine is waiting on this core.
   bool willResume() { return handle_.has_value(); }
 
@@ -85,17 +101,17 @@ public:
       handle_.reset();
       Loop::enqueue(resume);
     } else {
-      // This occurs if no co_await has occured until resume. Either the promise
-      // was not co_awaited, or the producing coroutine immediately returned a
-      // value. (await_ready() == true)
+      // This occurs if no co_await has occured until resume. Either the
+      // promise was not co_awaited, or the producing coroutine immediately
+      // returned a value. (await_ready() == true)
     }
 
-    // Note: with asynchronous resumption (Loop::enqueue), this state machine is
-    // a bit faulty. The promise awaiter is resumed in state `finished`.
-    // However, this works out fine for the purpose of enforcing the "protocol"
-    // of interactions with the promise core: a promise can be destroyed without
-    // the resumption having run, but that is an issue in the loop or the result
-    // of a premature termination.
+    // Note: with asynchronous resumption (Loop::enqueue), this state machine
+    // is a bit faulty. The promise awaiter is resumed in state `finished`.
+    // However, this works out fine for the purpose of enforcing the
+    // "protocol" of interactions with the promise core: a promise can be
+    // destroyed without the resumption having run, but that is an issue in
+    // the loop or the result of a premature termination.
     switch (state_) {
     case PromiseState::init:
     case PromiseState::running:
@@ -124,14 +140,15 @@ public:
                  typeid(T).name());
     }
     // This only happens if the awaiting coroutine has never been resumed, but
-    // the last promise provided by it is gone (in turn calling ~PromiseCore()).
-    // Important: we may only destroy a suspended coroutine, not a finished one.
+    // the last promise provided by it is gone (in turn calling
+    // ~PromiseCore()). Important: we may only destroy a suspended coroutine,
+    // not a finished one.
     if (handle_) {
       handle_->destroy();
     }
   }
 
-  virtual void except(const std::exception_ptr &exc) { slot = exc; }
+  void except(const std::exception_ptr &exc) { slot = exc; }
 
   /// The slot contains the result once obtained.
   std::optional<std::variant<T, std::exception_ptr>> slot;
@@ -153,6 +170,8 @@ public:
   PromiseCore<void> &operator=(PromiseCore &&) = delete;
   ~PromiseCore() override;
 
+  void cancel();
+
   /// See `PromiseCore::set_resume`.
   void setHandle(std::coroutine_handle<> handle);
   /// See `PromiseCore::will_resume`.
@@ -164,7 +183,7 @@ public:
 
   bool ready = false;
 
-  std::optional<std::exception_ptr> exception_;
+  std::optional<std::exception_ptr> exception;
 
 private:
   std::optional<std::coroutine_handle<>> resume_;

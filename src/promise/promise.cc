@@ -30,8 +30,8 @@ bool Promise<void>::PromiseAwaiter_::await_suspend(
 bool Promise<void>::PromiseAwaiter_::await_ready() const { return core_.ready; }
 
 void Promise<void>::PromiseAwaiter_::await_resume() {
-  if (core_.exception_) {
-    std::rethrow_exception(core_.exception_.value());
+  if (core_.exception) {
+    std::rethrow_exception(core_.exception.value());
   }
   BOOST_ASSERT(core_.ready);
 }
@@ -74,8 +74,8 @@ Promise<void>::~Promise() {
 
 void Promise<void>::unwrap() {
   if (ready()) {
-    if (core_->exception_) {
-      std::rethrow_exception(core_->exception_.value());
+    if (core_->exception) {
+      std::rethrow_exception(core_->exception.value());
     }
   } else {
     throw UvcoException(UV_EAGAIN, "unwrap called on unfulfilled promise");

@@ -18,6 +18,35 @@ namespace uvco {
 /// @addtogroup Promise
 /// @{
 
+template <typename T> class Promise;
+
+template <typename T> class PromiseHandle {
+public:
+  PromiseHandle(const PromiseHandle &) = delete;
+  PromiseHandle(PromiseHandle &&) = delete;
+  PromiseHandle &operator=(const PromiseHandle &) = delete;
+  PromiseHandle &operator=(PromiseHandle &&) = delete;
+  ~PromiseHandle() {
+    if (core_ != nullptr) {
+      core_->delRef();
+    }
+  }
+
+  /// Cancel the referred promise. The awaiting coroutine will receive an
+  /// exception.
+  void cancel() {
+    if (core_ != nullptr) {
+      core_->cancel();
+    }
+  }
+
+private:
+  explicit PromiseHandle(PromiseCore<T> *core) : core_{core->addRef()} {}
+
+  friend class Promise<T>;
+  PromiseCore<T> *core_;
+};
+
 /// A `Promise` is the core type of `uvco`, and returned from coroutines. A
 /// coroutine is a function containing either of `co_await`, `co_yield`, or
 /// `co_return`. The `Promise` type is therefore the *promise object* of a
@@ -88,6 +117,8 @@ public:
     }
   }
 
+  PromiseHandle<T> handle() { return PromiseHandle<T>{core_}; }
+
   /// Part of the coroutine protocol: Called on first suspension point
   /// (`co_await`) or `co_return`.
   Promise<T> get_return_object() { return *this; }
@@ -95,6 +126,10 @@ public:
   /// Part of the coroutine protocol: Called by `co_return`. Schedules the
   /// awaiting coroutine for resumption.
   void return_value(T &&value) {
+    // Probably cancelled.
+    if (core_->slot.has_value() && core_->slot->index() == 1) {
+      return;
+    }
     BOOST_ASSERT(!core_->slot);
     core_->slot = std::move(value);
     core_->resume();
@@ -126,7 +161,7 @@ public:
   PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{*core_}; }
 
   /// Returns if promise has been fulfilled.
-  bool ready() { return core_->slot_.has_value(); }
+  bool ready() const { return core_->slot.has_value(); }
 
   T unwrap() {
     if (ready()) {
@@ -197,6 +232,9 @@ protected:
     PromiseCore_ &core_;
   };
 
+  template <typename T1, typename T2> friend class SelectSet;
+  SharedCore_ &core() { return core_; }
+
   SharedCore_ core_;
 };
 
@@ -219,6 +257,8 @@ public:
   Promise &operator=(Promise<void> &&other) noexcept;
   Promise(const Promise<void> &other);
   ~Promise();
+
+  PromiseHandle<void> handle() { return PromiseHandle<void>{core_}; }
 
   /// Part of the coroutine protocol.
   Promise<void> get_return_object() { return *this; }

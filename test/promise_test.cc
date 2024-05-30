@@ -3,6 +3,7 @@
 #include "loop/loop.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
+#include "promise/select.h"
 #include "run.h"
 #include "test_util.h"
 #include "timer.h"
@@ -135,7 +136,7 @@ TEST(PromiseTest, movePromiseBetweenFunctions) {
   };
 
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
-    Promise<int> promise1 = [&loop]() -> uvco::Promise<int> {
+    Promise<int> promise1 = []() -> uvco::Promise<int> {
       co_await yield();
       co_return 42;
     }();
@@ -153,6 +154,51 @@ TEST(PromiseTest, destroyWithoutResume) {
       // Will put promise core in state finished, all good.
       co_return 1;
     }();
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, cancellation) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    auto awaited = [&loop]() -> uvco::Promise<int> {
+      co_await sleep(loop, 1);
+      co_return 3;
+    };
+
+    Promise<int> promise = awaited();
+    PromiseHandle<int> handle = promise.handle();
+
+    auto awaiter = [](Promise<int> p) -> uvco::Promise<void> {
+      EXPECT_THROW({ co_await p; }, UvcoException);
+    };
+
+    Promise<void> awaiterPromise = awaiter(std::move(promise));
+    handle.cancel();
+    co_await awaiterPromise;
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, voidCancellation) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    auto awaited = [&loop]() -> uvco::Promise<void> {
+      co_await sleep(loop, 1);
+    };
+
+    Promise<void> promise = awaited();
+    PromiseHandle<void> handle = promise.handle();
+
+    auto awaiter = [](Promise<void> p) -> uvco::Promise<void> {
+      EXPECT_THROW({ co_await p; }, UvcoException);
+    };
+
+    Promise<void> awaiterPromise = awaiter(std::move(promise));
+    handle.cancel();
+    co_await awaiterPromise;
     co_return;
   };
 
