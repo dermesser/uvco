@@ -265,7 +265,6 @@ protected:
   };
 
   template <typename U> friend class Coroutine;
-  template <typename T1, typename T2> friend class SelectSet;
 
   explicit Promise(SharedCore_ core) : core_{core->addRef()} {}
   SharedCore_ &core() { return core_; }
