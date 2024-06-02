@@ -20,6 +20,11 @@ namespace uvco {
 
 template <typename T> class Promise;
 
+/// A PromiseHandle allows you to cancel a coroutine. This will wake up the
+/// current awaiter with an exception (UV_ECANCELED). However, the coroutine
+/// itself will keep running in the background until it finishes normally.
+///
+/// This is not optimal, but a stop-gap until a better solution is implemented.
 template <typename T> class PromiseHandle {
 public:
   PromiseHandle(const PromiseHandle &) = delete;
@@ -33,7 +38,7 @@ public:
   }
 
   /// Cancel the referred promise. The awaiting coroutine will receive an
-  /// exception.
+  /// UvcoException with the error code UV_ECANCELED.
   void cancel() {
     if (core_ != nullptr) {
       core_->cancel();
