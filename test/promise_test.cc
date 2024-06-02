@@ -3,7 +3,6 @@
 #include "loop/loop.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
-#include "promise/select.h"
 #include "run.h"
 #include "test_util.h"
 #include "timer.h"
@@ -192,11 +191,14 @@ TEST(PromiseTest, voidCancellation) {
     Promise<void> promise = awaited();
     PromiseHandle<void> handle = promise.handle();
 
-    auto awaiter = [](Promise<void> p) -> uvco::Promise<void> {
-      EXPECT_THROW({ co_await p; }, UvcoException);
+    // Problem: if we have a single promise argument, the compiler will just
+    // construct the coroutine's promise object from it.
+    auto awaiter = [](Promise<void> cancelVictim,
+                      int /*bogus*/) -> uvco::Promise<void> {
+      EXPECT_THROW({ co_await cancelVictim; }, UvcoException);
     };
 
-    Promise<void> awaiterPromise = awaiter(std::move(promise));
+    Promise<void> awaiterPromise = awaiter(std::move(promise), 1);
     handle.cancel();
     co_await awaiterPromise;
     co_return;

@@ -21,13 +21,14 @@ void Promise<void>::unhandled_exception() {
 
 bool Promise<void>::PromiseAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
+  BOOST_ASSERT(!core_.ready && !core_.exception);
   BOOST_ASSERT_MSG(!core_.willResume(),
                    "promise is already being waited on!\n");
   core_.setHandle(handle);
   return true;
 }
 
-bool Promise<void>::PromiseAwaiter_::await_ready() const { return core_.ready; }
+bool Promise<void>::PromiseAwaiter_::await_ready() const { return core_.ready || core_.exception; }
 
 void Promise<void>::PromiseAwaiter_::await_resume() {
   if (core_.exception) {
