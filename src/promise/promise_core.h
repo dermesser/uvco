@@ -77,11 +77,8 @@ public:
       BOOST_ASSERT(!slot);
       // Fill the slot with an exception, so that the coroutine can be resumed.
       if (!slot) {
-        try {
-          throw UvcoException(UV_ECANCELED, "Promise cancelled");
-        } catch (...) {
-          slot = std::current_exception();
-        }
+        slot = std::make_exception_ptr(
+            UvcoException(UV_ECANCELED, "Promise cancelled"));
       }
       resume();
     }

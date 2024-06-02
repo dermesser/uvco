@@ -60,11 +60,8 @@ void PromiseCore<void>::cancel() {
   if (state_ == PromiseState::waitedOn) {
     BOOST_ASSERT(!exception);
     if (!exception) {
-      try {
-        throw UvcoException(UV_ECANCELED, "Promise cancelled");
-      } catch (...) {
-        exception = std::current_exception();
-      }
+      exception = std::make_exception_ptr(
+          UvcoException(UV_ECANCELED, "Promise cancelled"));
     }
     resume();
   }
