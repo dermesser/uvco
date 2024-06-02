@@ -16,6 +16,12 @@ find_package(GTest)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 add_compile_options(-std=c++23 -Wall -pipe)
 
+find_program(MOLD mold)
+message(STATUS "Using mold linker? ${MOLD}")
+if(MOLD)
+    add_compile_options(-fuse-ld=mold)
+endif()
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(-fcolor-diagnostics)
 else()
