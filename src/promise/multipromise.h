@@ -116,6 +116,8 @@ private:
   bool terminated_ = false;
 };
 
+template <typename T> class Generator;
+
 /// A `MultiPromise` is like a `Promise`, except that it can resolve more than
 /// just once. A coroutine returning a `MultiPromise` (called a "generator
 /// coroutine") uses `co_yield` to return values to the awaiting
@@ -127,7 +129,6 @@ private:
 /// frequently, therefore the lack of optimization is not as grave.
 template <typename T> class MultiPromise {
 protected:
-  struct YieldAwaiter_;
   struct MultiPromiseAwaiter_;
 
   using PromiseCore_ = MultiPromiseCore<T>;
@@ -136,13 +137,12 @@ protected:
 public:
   /// Part of the coroutine protocol: the `MultiPromise` is both return type and
   /// promise type.
-  using promise_type = MultiPromise<T>;
+  using promise_type = Generator<T>;
   /// It doesn't make sense to yield void. For that, just ues a normal coroutine
   /// (`Promise<void>`) and repeatedly call it.
   static_assert(!std::is_void_v<T>);
 
   /// An unfulfilled `MultiPromise`.
-  MultiPromise() : core_{std::make_shared<PromiseCore_>()} {}
   MultiPromise(MultiPromise<T> &&) noexcept = default;
   MultiPromise &operator=(const MultiPromise<T> &) = delete;
   MultiPromise &operator=(MultiPromise<T> &&) noexcept = delete;
@@ -157,54 +157,6 @@ public:
       // The core's dtor is called while cancelGenerator runs.
       weakCore->cancelGenerator();
     }
-  }
-
-  /// A generator (yielding) coroutine returns a MultiPromise.
-  MultiPromise<T> get_return_object() { return *this; }
-
-  /// A MultiPromise coroutine ultimately returns void. This is signaled to the
-  /// caller by returning an empty `std::optional`.
-  void return_void() {
-    core_->terminated();
-    core_->resume();
-  }
-
-  /// Part of the coroutine protocol (see `Promise`).
-  // Note: if suspend_always is chosen, we can better control when the
-  // MultiPromise will be scheduled.
-  std::suspend_never initial_suspend() noexcept { return {}; }
-  /// Part of the coroutine protocol (see `Promise`).
-  std::suspend_never final_suspend() noexcept { return {}; }
-
-  /// Part of the coroutine protocol (see `Promise`).
-  void unhandled_exception() {
-    core_->slot = std::current_exception();
-    core_->terminated();
-    core_->resume();
-  }
-
-  /// Yield a value to the calling (awaiting) coroutine.
-  ///
-  /// Equivalent to `co_yield = co_await promise.yield_value()` (defined in C++
-  /// standard); suspends the generator coroutine and resumes the awaiting
-  /// coroutine if there is one.
-  ///
-  /// If nobody is awaiting a value from this generator, the yielded value is
-  /// still moved into the generator's slot, but the generator is not resumed.
-  /// Upon the next `co_await`, the returned `MultiPromiseAwaiter_` will
-  /// immediately return the value without resuming the generator.
-  YieldAwaiter_ yield_value(T &&value) {
-    BOOST_ASSERT(!core_->slot);
-    core_->slot = std::move(value);
-    core_->resume();
-    return YieldAwaiter_{*core_};
-  }
-
-  YieldAwaiter_ yield_value(const T &value) {
-    BOOST_ASSERT(!core_->slot);
-    core_->slot = value;
-    core_->resume();
-    return YieldAwaiter_{*core_};
   }
 
   /// Return an awaiter for this MultiPromise, which resumes the waiting
@@ -237,26 +189,6 @@ public:
   void cancel() { core_->cancelGenerator(); }
 
 protected:
-  /// A `YieldAwaiter_` suspends a coroutine returning a MultiPromise (i.e. a
-  /// generator) and resumes it when the value is read by the awaiting
-  /// coroutine.
-  struct YieldAwaiter_ {
-    explicit YieldAwaiter_(PromiseCore_ &core) : core_{core} {}
-
-    [[nodiscard]] bool await_ready() const { return !core_.slot.has_value(); }
-
-    bool await_suspend(std::coroutine_handle<> handle) {
-      core_.suspendGenerator(handle);
-      return true;
-    }
-
-    void await_resume() {
-      // Returning into the generator coroutine
-    }
-
-    PromiseCore_ &core_;
-  };
-
   /// A `MultiPromiseAwaiter_` handles suspension and resumption of coroutines
   /// receiving values from a generating (yielding) coroutine. This awaiter is
   /// used when applying the `co_await` operator on a `MultiPromise`.
@@ -305,6 +237,98 @@ protected:
               "MultiPromiseAwaiter_::await_resume: invalid slot");
         }
       }
+    }
+
+    PromiseCore_ &core_;
+  };
+
+  template <typename U> friend class Generator;
+
+  explicit MultiPromise(SharedCore_ core) : core_{std::move(core)} {}
+
+  SharedCore_ core_;
+};
+
+/// Generator is the promise object type for generator-type coroutines (those
+/// returning a `MultiPromise`).
+template <typename T> class Generator {
+  struct YieldAwaiter_;
+  using PromiseCore_ = MultiPromiseCore<T>;
+  using SharedCore_ = std::shared_ptr<PromiseCore_>;
+
+public:
+  // A generator promise object is pinned in memory (copy/move forbidden).
+  Generator() : core_{std::make_shared<PromiseCore_>()} {}
+  Generator(Generator<T> &&) noexcept = delete;
+  Generator &operator=(const Generator<T> &) = delete;
+  Generator &operator=(Generator<T> &&) noexcept = delete;
+  Generator(const Generator<T> &other) = delete;
+  ~Generator() = default;
+
+  /// A generator (yielding) coroutine returns a MultiPromise.
+  MultiPromise<T> get_return_object() { return MultiPromise<T>{core_}; }
+
+  /// A MultiPromise coroutine ultimately returns void. This is signaled to the
+  /// caller by returning an empty `std::optional`.
+  void return_void() {
+    core_->terminated();
+    core_->resume();
+  }
+
+  /// Part of the coroutine protocol (see `Promise`).
+  // Note: if suspend_always is chosen, we can better control when the
+  // MultiPromise will be scheduled.
+  std::suspend_never initial_suspend() noexcept { return {}; }
+  /// Part of the coroutine protocol (see `Promise`).
+  std::suspend_never final_suspend() noexcept { return {}; }
+
+  /// Part of the coroutine protocol (see `Promise`).
+  void unhandled_exception() {
+    core_->slot = std::current_exception();
+    core_->terminated();
+    core_->resume();
+  }
+
+  /// Yield a value to the calling (awaiting) coroutine.
+  ///
+  /// Equivalent to `co_yield = co_await promise.yield_value()` (defined in C++
+  /// standard); suspends the generator coroutine and resumes the awaiting
+  /// coroutine if there is one.
+  ///
+  /// If nobody is awaiting a value from this generator, the yielded value is
+  /// still moved into the generator's slot, but the generator is not resumed.
+  /// Upon the next `co_await`, the returned `MultiPromiseAwaiter_` will
+  /// immediately return the value without resuming the generator.
+  YieldAwaiter_ yield_value(T &&value) {
+    BOOST_ASSERT(!core_->slot);
+    core_->slot = std::move(value);
+    core_->resume();
+    return YieldAwaiter_{*core_};
+  }
+
+  YieldAwaiter_ yield_value(const T &value) {
+    BOOST_ASSERT(!core_->slot);
+    core_->slot = value;
+    core_->resume();
+    return YieldAwaiter_{*core_};
+  }
+
+private:
+  /// A `YieldAwaiter_` suspends a coroutine returning a MultiPromise (i.e. a
+  /// generator) and resumes it when the value is read by the awaiting
+  /// coroutine.
+  struct YieldAwaiter_ {
+    explicit YieldAwaiter_(PromiseCore_ &core) : core_{core} {}
+
+    [[nodiscard]] bool await_ready() const { return !core_.slot.has_value(); }
+
+    bool await_suspend(std::coroutine_handle<> handle) {
+      core_.suspendGenerator(handle);
+      return true;
+    }
+
+    void await_resume() {
+      // Returning into the generator coroutine
     }
 
     PromiseCore_ &core_;

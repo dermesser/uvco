@@ -71,7 +71,6 @@ public:
     state_ = PromiseState::waitedOn;
   }
 
-  /// Reset coroutine state to before the select() operation happened.
   void cancel() {
     if (state_ == PromiseState::waitedOn) {
       BOOST_ASSERT(!slot);
@@ -87,7 +86,8 @@ public:
   /// Checks if a coroutine is waiting on this core.
   bool willResume() { return handle_.has_value(); }
 
-  /// Resume a suspended coroutine by enqueuing it in the global event loop.
+  /// Resume a suspended coroutine waiting on the associated coroutine by
+  /// enqueuing it in the global event loop.
   ///
   /// A promise core can only be resumed once.
   virtual void resume() {
