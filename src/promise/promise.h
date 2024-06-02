@@ -52,6 +52,68 @@ private:
   PromiseCore<T> *core_;
 };
 
+/// A coroutine object used internally by C++20 coroutines.
+template <typename T> class Coroutine {
+  /// PromiseCore_ handles the inner mechanics of resumption and suspension.
+  using PromiseCore_ = PromiseCore<T>;
+  using SharedCore_ = PromiseCore_ *;
+
+public:
+  // Coroutine object is pinned within the coroutine frame; copy/move is
+  // disallowed.
+  Coroutine() : core_{makeRefCounted<PromiseCore_>()} {}
+  Coroutine(const Coroutine &other) = delete;
+  Coroutine &operator=(const Coroutine &other) = delete;
+  Coroutine(Coroutine &&other) = delete;
+  Coroutine &operator=(Coroutine &&other) = delete;
+
+  ~Coroutine() {
+    if (core_ != nullptr) {
+      core_->delRef();
+    }
+  }
+
+  /// Part of the coroutine protocol: Called on first suspension point
+  /// (`co_await`) or `co_return`.
+  Promise<T> get_return_object() { return Promise<T>{core_}; }
+
+  /// Part of the coroutine protocol: Called by `co_return`. Schedules the
+  /// awaiting coroutine for resumption.
+  void return_value(T &&value) {
+    // Probably cancelled.
+    if (core_->slot.has_value() && core_->slot->index() == 1) {
+      return;
+    }
+    BOOST_ASSERT(!core_->slot);
+    core_->slot = std::move(value);
+    core_->resume();
+  }
+
+  /// Part of the coroutine protocol: called after construction of Promise
+  /// object, i.e. before starting the coroutine.
+  ///
+  /// In `uvco`, the coroutine always runs at least up to its first suspension
+  /// point, at which point it may be suspended (if the awaited object is not
+  /// ready).
+  ///
+  // Note: if suspend_always is chosen, we can better control when the promise
+  // will be scheduled.
+  std::suspend_never initial_suspend() noexcept { return {}; }
+  /// Part of the coroutine protocol: called upon `co_return` or unhandled
+  /// exception.
+  std::suspend_never final_suspend() noexcept { return {}; }
+
+  // Part of the coroutine protocol: called upon unhandled exception leaving the
+  // coroutine.
+  void unhandled_exception() {
+    core_->except(std::current_exception());
+    core_->resume();
+  }
+
+protected:
+  SharedCore_ core_;
+};
+
 /// A `Promise` is the core type of `uvco`, and returned from coroutines. A
 /// coroutine is a function containing either of `co_await`, `co_yield`, or
 /// `co_return`. The `Promise` type is therefore the *promise object* of a
@@ -80,11 +142,13 @@ protected:
 
 public:
   /// Part of the coroutine protocol: specifies which class will define the
-  /// coroutine behavior. In this case, the `Promise<T>` class is both the
-  /// return type and the promise type.
+  /// coroutine behavior. In this case, the Coroutine class implements the
+  /// promise protocol (don't get confused!). This split is useful so that
+  /// coroutines can use Promise objects as function arguments without implicit
+  /// construction of their promise objects, which can easily cuase bugs.
   ///
   /// Note that the awaiter type is separate (`PromiseAwaiter_`).
-  using promise_type = Promise<T>;
+  using promise_type = Coroutine<T>;
 
   /// Unfulfilled, empty promise.
   Promise() : core_{makeRefCounted<PromiseCore_>()} {}
@@ -124,49 +188,12 @@ public:
 
   PromiseHandle<T> handle() { return PromiseHandle<T>{core_}; }
 
-  /// Part of the coroutine protocol: Called on first suspension point
-  /// (`co_await`) or `co_return`.
-  Promise<T> get_return_object() { return *this; }
-
-  /// Part of the coroutine protocol: Called by `co_return`. Schedules the
-  /// awaiting coroutine for resumption.
-  void return_value(T &&value) {
-    // Probably cancelled.
-    if (core_->slot.has_value() && core_->slot->index() == 1) {
-      return;
-    }
-    BOOST_ASSERT(!core_->slot);
-    core_->slot = std::move(value);
-    core_->resume();
-  }
-
-  /// Part of the coroutine protocol: called after construction of Promise
-  /// object, i.e. before starting the coroutine.
-  ///
-  /// In `uvco`, the coroutine always runs at least up to its first suspension
-  /// point, at which point it may be suspended (if the awaited object is not
-  /// ready).
-  ///
-  // Note: if suspend_always is chosen, we can better control when the promise
-  // will be scheduled.
-  std::suspend_never initial_suspend() noexcept { return {}; }
-  /// Part of the coroutine protocol: called upon `co_return` or unhandled
-  /// exception.
-  std::suspend_never final_suspend() noexcept { return {}; }
-
-  // Part of the coroutine protocol: called upon unhandled exception leaving the
-  // coroutine.
-  void unhandled_exception() {
-    core_->except(std::current_exception());
-    core_->resume();
-  }
-
   /// Part of the coroutine protocol: called by `co_await p` where `p` is a
   /// `Promise<T>`. The returned object is awaited on.
   PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{*core_}; }
 
   /// Returns if promise has been fulfilled.
-  bool ready() const { return core_->slot.has_value(); }
+  [[nodiscard]] bool ready() const { return core_->slot.has_value(); }
 
   T unwrap() {
     if (ready()) {
@@ -237,7 +264,10 @@ protected:
     PromiseCore_ &core_;
   };
 
+  template <typename U> friend class Coroutine;
   template <typename T1, typename T2> friend class SelectSet;
+
+  explicit Promise(SharedCore_ core) : core_{core->addRef()} {}
   SharedCore_ &core() { return core_; }
 
   SharedCore_ core_;
@@ -253,7 +283,7 @@ template <> class Promise<void> {
 public:
   /// Part of the coroutine protocol: `Promise<void>` is both return type and
   /// promise type.
-  using promise_type = Promise<void>;
+  using promise_type = Coroutine<void>;
 
   /// Promise ready to be awaited or fulfilled.
   Promise() : core_{makeRefCounted<PromiseCore<void>>()} {}
@@ -264,22 +294,6 @@ public:
   ~Promise();
 
   PromiseHandle<void> handle() { return PromiseHandle<void>{core_}; }
-
-  /// Part of the coroutine protocol.
-  Promise<void> get_return_object() { return *this; }
-  /// Part of the coroutine protocol: `uvco` coroutines always run until the
-  /// first suspension point.
-  std::suspend_never initial_suspend() noexcept { return {}; }
-  /// Part of the coroutine protocol: nothing happens upon the final suspension
-  /// point (after `co_return`).
-  std::suspend_never final_suspend() noexcept { return {}; }
-
-  /// Part of the coroutine protocol: resumes an awaiting coroutine, if there is
-  /// one.
-  void return_void();
-  /// Part of the coroutine protocol: store exception in core and resume
-  /// awaiting coroutine.
-  void unhandled_exception();
 
   /// Returns an awaiter object for the promise, handling actual suspension and
   /// resumption.
@@ -313,6 +327,48 @@ private:
 
     PromiseCore<void> &core_;
   };
+
+  friend class Coroutine<void>;
+
+  explicit Promise(SharedCore_ core) : core_{core->addRef()} {}
+
+  SharedCore_ core_;
+};
+
+template <> class Coroutine<void> {
+  using PromiseCore_ = PromiseCore<void>;
+  using SharedCore_ = PromiseCore_ *;
+
+public:
+  Coroutine() : core_{makeRefCounted<PromiseCore_>()} {}
+  // Coroutine is pinned in memory and not allowed to copy/move.
+  Coroutine(Coroutine<void> &&other) noexcept = delete;
+  Coroutine &operator=(const Coroutine<void> &other) = delete;
+  Coroutine &operator=(Coroutine<void> &&other) = delete;
+  Coroutine(const Coroutine<void> &other) = delete;
+  ~Coroutine() {
+    if (core_ != nullptr) {
+      core_->delRef();
+    }
+  }
+
+  /// Part of the coroutine protocol.
+  Promise<void> get_return_object() { return Promise<void>{core_}; }
+  /// Part of the coroutine protocol: `uvco` coroutines always run until the
+  /// first suspension point.
+  std::suspend_never initial_suspend() noexcept { return {}; }
+  /// Part of the coroutine protocol: nothing happens upon the final suspension
+  /// point (after `co_return`).
+  std::suspend_never final_suspend() noexcept { return {}; }
+
+  /// Part of the coroutine protocol: resumes an awaiting coroutine, if there is
+  /// one.
+  void return_void();
+  /// Part of the coroutine protocol: store exception in core and resume
+  /// awaiting coroutine.
+  void unhandled_exception();
+
+private:
   SharedCore_ core_;
 };
 

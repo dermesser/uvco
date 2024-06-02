@@ -9,12 +9,12 @@
 
 namespace uvco {
 
-void Promise<void>::return_void() {
+void Coroutine<void>::return_void() {
   core_->ready = true;
   core_->resume();
 }
 
-void Promise<void>::unhandled_exception() {
+void Coroutine<void>::unhandled_exception() {
   core_->except(std::current_exception());
   core_->resume();
 }

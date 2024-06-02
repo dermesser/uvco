@@ -207,4 +207,30 @@ TEST(PromiseTest, voidCancellation) {
   run_loop(setup);
 }
 
+TEST(PromiseTest, noImplicitPromiseObjectInitialization) {
+  // This is a test derived from the voidCancellation case. It fails spectacularly if a promise
+  // object is instantiated from function arguments.
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    auto awaited = [&loop]() -> uvco::Promise<void> {
+      co_await sleep(loop, 1);
+    };
+
+    Promise<void> promise = awaited();
+    PromiseHandle<void> handle = promise.handle();
+
+    // Problem: if we have a single promise argument, the compiler will just
+    // construct the coroutine's promise object from it.
+    auto awaiter = [](Promise<void> cancelVictim) -> uvco::Promise<void> {
+      EXPECT_THROW({ co_await cancelVictim; }, UvcoException);
+    };
+
+    Promise<void> awaiterPromise = awaiter(std::move(promise));
+    handle.cancel();
+    co_await awaiterPromise;
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
 } // namespace
