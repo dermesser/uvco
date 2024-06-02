@@ -1,23 +1,15 @@
-// uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
+// uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
-#include "promise.h"
+#include "promise/promise.h"
+
 #include "exception.h"
+
 #include <coroutine>
 #include <cstdio>
 #include <exception>
 #include <uv.h>
 
 namespace uvco {
-
-void Coroutine<void>::return_void() {
-  core_->ready = true;
-  core_->resume();
-}
-
-void Coroutine<void>::unhandled_exception() {
-  core_->except(std::current_exception());
-  core_->resume();
-}
 
 bool Promise<void>::PromiseAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
@@ -28,7 +20,9 @@ bool Promise<void>::PromiseAwaiter_::await_suspend(
   return true;
 }
 
-bool Promise<void>::PromiseAwaiter_::await_ready() const { return core_.ready || core_.exception; }
+bool Promise<void>::PromiseAwaiter_::await_ready() const {
+  return core_.ready || core_.exception;
+}
 
 void Promise<void>::PromiseAwaiter_::await_resume() {
   if (core_.exception) {
@@ -81,6 +75,16 @@ void Promise<void>::unwrap() {
   } else {
     throw UvcoException(UV_EAGAIN, "unwrap called on unfulfilled promise");
   }
+}
+
+void Coroutine<void>::return_void() {
+  core_->ready = true;
+  core_->resume();
+}
+
+void Coroutine<void>::unhandled_exception() {
+  core_->except(std::current_exception());
+  core_->resume();
 }
 
 } // namespace uvco

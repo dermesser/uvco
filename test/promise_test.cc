@@ -184,9 +184,7 @@ TEST(PromiseTest, cancellation) {
 
 TEST(PromiseTest, voidCancellation) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    auto awaited = []() -> uvco::Promise<void> {
-      co_await yield();
-    };
+    auto awaited = []() -> uvco::Promise<void> { co_await yield(); };
 
     Promise<void> promise = awaited();
     PromiseHandle<void> handle = promise.handle();
@@ -208,12 +206,10 @@ TEST(PromiseTest, voidCancellation) {
 }
 
 TEST(PromiseTest, noImplicitPromiseObjectInitialization) {
-  // This is a test derived from the voidCancellation case. It fails spectacularly if a promise
-  // object is instantiated from function arguments.
+  // This is a test derived from the voidCancellation case. It fails
+  // spectacularly if a promise object is instantiated from function arguments.
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    auto awaited = []() -> uvco::Promise<void> {
-      co_await yield();
-    };
+    auto awaited = []() -> uvco::Promise<void> { co_await yield(); };
 
     Promise<void> promise = awaited();
     PromiseHandle<void> handle = promise.handle();

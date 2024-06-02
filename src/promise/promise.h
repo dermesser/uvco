@@ -4,7 +4,7 @@
 
 #include "exception.h"
 #include "internal/internal_utils.h"
-#include "promise_core.h"
+#include "promise/promise_core.h"
 
 #include <boost/assert.hpp>
 #include <fmt/format.h>
@@ -18,6 +18,7 @@ namespace uvco {
 /// @addtogroup Promise
 /// @{
 
+template <typename T> class Coroutine;
 template <typename T> class Promise;
 
 /// A PromiseHandle allows you to cancel a coroutine. This will wake up the
@@ -52,72 +53,11 @@ private:
   PromiseCore<T> *core_;
 };
 
-/// A coroutine object used internally by C++20 coroutines.
-template <typename T> class Coroutine {
-  /// PromiseCore_ handles the inner mechanics of resumption and suspension.
-  using PromiseCore_ = PromiseCore<T>;
-  using SharedCore_ = PromiseCore_ *;
-
-public:
-  // Coroutine object is pinned within the coroutine frame; copy/move is
-  // disallowed.
-  Coroutine() : core_{makeRefCounted<PromiseCore_>()} {}
-  Coroutine(const Coroutine &other) = delete;
-  Coroutine &operator=(const Coroutine &other) = delete;
-  Coroutine(Coroutine &&other) = delete;
-  Coroutine &operator=(Coroutine &&other) = delete;
-
-  ~Coroutine() {
-    if (core_ != nullptr) {
-      core_->delRef();
-    }
-  }
-
-  /// Part of the coroutine protocol: Called on first suspension point
-  /// (`co_await`) or `co_return`.
-  Promise<T> get_return_object() { return Promise<T>{core_}; }
-
-  /// Part of the coroutine protocol: Called by `co_return`. Schedules the
-  /// awaiting coroutine for resumption.
-  void return_value(T &&value) {
-    // Probably cancelled.
-    if (core_->slot.has_value() && core_->slot->index() == 1) {
-      return;
-    }
-    BOOST_ASSERT(!core_->slot);
-    core_->slot = std::move(value);
-    core_->resume();
-  }
-
-  /// Part of the coroutine protocol: called after construction of Promise
-  /// object, i.e. before starting the coroutine.
-  ///
-  /// In `uvco`, the coroutine always runs at least up to its first suspension
-  /// point, at which point it may be suspended (if the awaited object is not
-  /// ready).
-  ///
-  // Note: if suspend_always is chosen, we can better control when the promise
-  // will be scheduled.
-  std::suspend_never initial_suspend() noexcept { return {}; }
-  /// Part of the coroutine protocol: called upon `co_return` or unhandled
-  /// exception.
-  std::suspend_never final_suspend() noexcept { return {}; }
-
-  // Part of the coroutine protocol: called upon unhandled exception leaving the
-  // coroutine.
-  void unhandled_exception() {
-    core_->except(std::current_exception());
-    core_->resume();
-  }
-
-protected:
-  SharedCore_ core_;
-};
-
 /// A `Promise` is the core type of `uvco`, and returned from coroutines. A
 /// coroutine is a function containing either of `co_await`, `co_yield`, or
-/// `co_return`. The `Promise` type is therefore the *promise object* of a
-/// coroutine, in terms of the C++ standard.
+/// `co_return`. The `Promise` type defines `Coroutine` to be the promise type
+/// used within a coroutine. The Promise object itself acts as awaitable for
+/// awaiting coroutines.
 ///
 /// A Promise doesn't need to be constructed directly; it is always returned
 /// from a coroutine function. Declare a function with a return type of
@@ -331,6 +271,68 @@ private:
 
   explicit Promise(SharedCore_ core) : core_{core->addRef()} {}
 
+  SharedCore_ core_;
+};
+
+/// A coroutine object used internally by C++20 coroutines ("promise object").
+template <typename T> class Coroutine {
+  /// PromiseCore_ handles the inner mechanics of resumption and suspension.
+  using PromiseCore_ = PromiseCore<T>;
+  using SharedCore_ = PromiseCore_ *;
+
+public:
+  // Coroutine object is pinned within the coroutine frame; copy/move is
+  // disallowed.
+  Coroutine() : core_{makeRefCounted<PromiseCore_>()} {}
+  Coroutine(const Coroutine &other) = delete;
+  Coroutine &operator=(const Coroutine &other) = delete;
+  Coroutine(Coroutine &&other) = delete;
+  Coroutine &operator=(Coroutine &&other) = delete;
+
+  ~Coroutine() {
+    if (core_ != nullptr) {
+      core_->delRef();
+    }
+  }
+
+  /// Part of the coroutine protocol: Called on first suspension point
+  /// (`co_await`) or `co_return`.
+  Promise<T> get_return_object() { return Promise<T>{core_}; }
+
+  /// Part of the coroutine protocol: Called by `co_return`. Schedules the
+  /// awaiting coroutine for resumption.
+  void return_value(T &&value) {
+    // Probably cancelled.
+    if (core_->slot.has_value() && core_->slot->index() == 1) {
+      return;
+    }
+    BOOST_ASSERT(!core_->slot);
+    core_->slot = std::move(value);
+    core_->resume();
+  }
+
+  /// Part of the coroutine protocol: called after construction of Promise
+  /// object, i.e. before starting the coroutine.
+  ///
+  /// In `uvco`, the coroutine always runs at least up to its first suspension
+  /// point, at which point it may be suspended (if the awaited object is not
+  /// ready).
+  ///
+  // Note: if suspend_always is chosen, we can better control when the promise
+  // will be scheduled.
+  std::suspend_never initial_suspend() noexcept { return {}; }
+  /// Part of the coroutine protocol: called upon `co_return` or unhandled
+  /// exception.
+  std::suspend_never final_suspend() noexcept { return {}; }
+
+  // Part of the coroutine protocol: called upon unhandled exception leaving the
+  // coroutine.
+  void unhandled_exception() {
+    core_->except(std::current_exception());
+    core_->resume();
+  }
+
+protected:
   SharedCore_ core_;
 };
 
