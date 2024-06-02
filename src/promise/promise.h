@@ -133,19 +133,22 @@ public:
   PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{*core_}; }
 
   /// Returns if promise has been fulfilled.
-  [[nodiscard]] bool ready() const { return core_->slot.has_value(); }
+  [[nodiscard]] bool ready() const { return core_->ready(); }
 
   T unwrap() {
     if (ready()) {
       auto &slot = core_->slot.value();
       switch (slot.index()) {
       case 0: {
-        return std::move(std::get<0>(slot));
-      case 1:
+        T value = std::move(std::get<0>(slot));
+        core_->slot.reset();
+        return std::move(value);
+      }
+      case 1: {
         std::rethrow_exception(std::get<1>(slot));
+      }
       default:
         throw UvcoException("PromiseAwaiter_::await_resume: invalid slot");
-      }
       }
     } else {
       throw UvcoException("unwrap called on unfulfilled promise");
@@ -205,6 +208,7 @@ protected:
   };
 
   template <typename U> friend class Coroutine;
+  template <typename ... Ts> friend class SelectSet;
 
   explicit Promise(SharedCore_ core) : core_{core->addRef()} {}
   SharedCore_ &core() { return core_; }

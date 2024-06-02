@@ -3,6 +3,7 @@
 #include "loop/loop.h"
 #include "promise/multipromise.h"
 #include "promise/promise.h"
+#include "promise/select.h"
 #include "run.h"
 #include "test_util.h"
 #include "timer.h"
@@ -224,6 +225,32 @@ TEST(PromiseTest, noImplicitPromiseObjectInitialization) {
     handle.cancel();
     co_await awaiterPromise;
     co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, selectBasic) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    Promise<int> promise1 = []() -> uvco::Promise<int> {
+      co_await yield();
+      co_return 1;
+    }();
+    Promise<int> promise2 = []() -> uvco::Promise<int> {
+      co_await yield();
+      co_await yield();
+      co_return 2;
+    }();
+
+    auto selectSet = SelectSet{promise1, promise2};
+    auto selected = co_await selectSet;
+    EXPECT_EQ(selected.size(), 1);
+    EXPECT_EQ(co_await std::get<0>(selected[0]), 1);
+
+    auto selectSet2 = SelectSet{promise1, promise2};
+    auto selected2 = co_await selectSet2;
+    EXPECT_EQ(selected2.size(), 1);
+    EXPECT_EQ(co_await std::get<1>(selected2[0]), 2);
   };
 
   run_loop(setup);
