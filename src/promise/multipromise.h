@@ -164,7 +164,7 @@ public:
   ///
   /// Used when `co_await`ing a MultiPromise created by a generator coroutine.
   /// The awaiter handles the actual suspension and resumption.
-  MultiPromiseAwaiter_ operator co_await() {
+  MultiPromiseAwaiter_ operator co_await() const {
     BOOST_ASSERT(core_);
     return MultiPromiseAwaiter_{*core_};
   }
@@ -207,7 +207,7 @@ protected:
     }
     /// Part of the coroutine protocol. Always returns `true`; stores the
     /// suspension handle in the MultiPromiseCore for later resumption.
-    virtual bool await_suspend(std::coroutine_handle<> handle) {
+    [[nodiscard]] bool await_suspend(std::coroutine_handle<> handle) const {
       BOOST_ASSERT_MSG(!core_.willResume(),
                        "promise is already being waited on!\n");
       core_.setHandle(handle);
@@ -217,7 +217,7 @@ protected:
     /// Part of the coroutine protocol. Returns a value if `co_yield` was called
     /// in the generating coroutine. Otherwise, returns an empty `optional` if
     /// the generating coroutine has `co_return`ed.
-    std::optional<T> await_resume() {
+    std::optional<T> await_resume() const {
       if (!core_.slot) {
         // Terminated by co_return
         return std::nullopt;

@@ -12,7 +12,7 @@
 namespace uvco {
 
 bool Promise<void>::PromiseAwaiter_::await_suspend(
-    std::coroutine_handle<> handle) {
+    std::coroutine_handle<> handle) const {
   BOOST_ASSERT(!core_.ready && !core_.exception);
   BOOST_ASSERT_MSG(!core_.willResume(),
                    "promise is already being waited on!\n");
@@ -24,7 +24,7 @@ bool Promise<void>::PromiseAwaiter_::await_ready() const {
   return core_.ready || core_.exception;
 }
 
-void Promise<void>::PromiseAwaiter_::await_resume() {
+void Promise<void>::PromiseAwaiter_::await_resume() const {
   if (core_.exception) {
     std::rethrow_exception(core_.exception.value());
   }

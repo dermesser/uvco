@@ -130,7 +130,7 @@ public:
 
   /// Part of the coroutine protocol: called by `co_await p` where `p` is a
   /// `Promise<T>`. The returned object is awaited on.
-  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{*core_}; }
+  PromiseAwaiter_ operator co_await() const { return PromiseAwaiter_{*core_}; }
 
   /// Returns if promise has been fulfilled.
   [[nodiscard]] bool ready() const { return core_->ready(); }
@@ -177,7 +177,7 @@ protected:
     [[nodiscard]] bool await_ready() const { return core_.slot.has_value(); }
     /// Part of the coroutine protocol: returns if suspension is desired (always
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
-    bool await_suspend(std::coroutine_handle<> handle) {
+    [[nodiscard]] bool await_suspend(std::coroutine_handle<> handle) const {
       BOOST_ASSERT_MSG(!core_.willResume(),
                        "promise is already being waited on!");
       core_.setHandle(handle);
@@ -185,7 +185,7 @@ protected:
     }
     /// Part of the coroutine protocol: extracts the resulting value from the
     /// promise core and returns it.
-    T await_resume() {
+    T await_resume() const {
       if (core_.slot.has_value()) {
         switch (core_.slot->index()) {
         case 0: {
@@ -240,7 +240,7 @@ public:
 
   /// Returns an awaiter object for the promise, handling actual suspension and
   /// resumption.
-  PromiseAwaiter_ operator co_await() { return PromiseAwaiter_{*core_}; }
+  PromiseAwaiter_ operator co_await() const { return PromiseAwaiter_{*core_}; }
 
   /// Returns whether the promise has already been fulfilled.
   bool ready() { return core_->ready; }
@@ -265,8 +265,8 @@ private:
     [[nodiscard]] bool await_ready() const;
     /// Part of the coroutine protocol: returns if suspension is desired (always
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
-    bool await_suspend(std::coroutine_handle<> handle);
-    void await_resume();
+    [[nodiscard]] bool await_suspend(std::coroutine_handle<> handle) const;
+    void await_resume() const;
 
     PromiseCore<void> &core_;
   };
