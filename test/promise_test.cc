@@ -234,26 +234,50 @@ TEST(PromiseTest, selectBasic) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
     Promise<int> promise1 = []() -> uvco::Promise<int> {
       co_await yield();
-      co_return 1;
+      co_return 123;
     }();
     Promise<int> promise2 = []() -> uvco::Promise<int> {
       co_await yield();
       co_await yield();
-      co_return 2;
+      co_return 234;
     }();
 
     auto selectSet = SelectSet{promise1, promise2};
     auto selected = co_await selectSet;
     EXPECT_EQ(selected.size(), 1);
-    EXPECT_EQ(co_await std::get<0>(selected[0]), 1);
+    EXPECT_EQ(co_await std::get<0>(selected[0]), 123);
 
+    // Selecting an already finished promise is okay.
     auto selectSet2 = SelectSet{promise1, promise2};
     auto selected2 = co_await selectSet2;
     EXPECT_EQ(selected2.size(), 1);
-    EXPECT_EQ(co_await std::get<1>(selected2[0]), 2);
+    EXPECT_EQ(co_await std::get<1>(selected2[0]), 234);
   };
 
   run_loop(setup);
 }
+
+Promise<void> simultaneousSelect(const Loop &loop) {
+  auto promise1 = []() -> uvco::Promise<int> {
+    co_await yield();
+    co_return 1;
+  };
+  auto promise2 = []() -> uvco::Promise<int> {
+    co_await yield();
+    co_return 2;
+  };
+
+  auto promiseObject1 = promise1();
+  auto promiseObject2 = promise2();
+
+  auto selectSet = SelectSet{promiseObject1, promiseObject2};
+  auto selected = co_await selectSet;
+  EXPECT_EQ(selected.size(), 2);
+  EXPECT_EQ(co_await std::get<0>(selected[0]), 1);
+  EXPECT_EQ(co_await std::get<1>(selected[1]), 2);
+  co_return;
+};
+
+TEST(PromiseTest, selectReturnsSimultaneously) { run_loop(simultaneousSelect); }
 
 } // namespace

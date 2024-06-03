@@ -75,7 +75,9 @@ public:
     BOOST_ASSERT((state_ == PromiseState::waitedOn && handle_) ||
                  (state_ == PromiseState::finished && !handle_));
     handle_.reset();
-    state_ = PromiseState::init;
+    if (state_ == PromiseState::waitedOn) {
+      state_ = PromiseState::init;
+    }
   }
 
   /// Cancel a promise. The awaiter, if present, will immediately receive an
@@ -96,9 +98,7 @@ public:
 
   /// Checks if a coroutine is waiting on this core.
   bool willResume() { return handle_.has_value(); }
-  [[nodiscard]] bool ready() const {
-    return slot.has_value();
-  }
+  [[nodiscard]] bool ready() const { return slot.has_value(); }
   [[nodiscard]] bool finished() const {
     return state_ == PromiseState::finished;
   }
@@ -149,9 +149,10 @@ public:
   /// emitted ("PromiseCore destroyed without ever being resumed").
   virtual ~PromiseCore() {
     if (state_ != PromiseState::finished) {
-      fmt::print(stderr,
-                 "PromiseCore destroyed without ever being resumed ({})\n",
-                 typeid(T).name());
+      fmt::print(
+          stderr,
+          "PromiseCore destroyed without ever being resumed ({}, state = {})\n",
+          typeid(T).name(), static_cast<int>(state_));
     }
     // This only happens if the awaiting coroutine has never been resumed, but
     // the last promise provided by it is gone (in turn calling

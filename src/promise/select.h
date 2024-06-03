@@ -25,8 +25,11 @@ namespace uvco {
 /// ```cpp
 /// Promise<int> promise1 = []() -> Promise<int> { co_return 1; }();
 /// Promise<int> promise2 = []() -> Promise<int> { co_return 2; }();
-/// std::vector<std::variant<Promise<int>, Promise<int>>> results = co_await SelectSet{promise1, promise2};
+/// std::vector<std::variant<Promise<int>, Promise<int>>> results = co_await
+/// SelectSet{promise1, promise2};
 /// ```
+///
+/// It is okay to add an already finished promise to a SelectSet.
 template <typename... Ts> class SelectSet {
 public:
   using Variant = std::variant<Promise<Ts>...>;
@@ -43,6 +46,7 @@ public:
   }
 
   void await_suspend(std::coroutine_handle<> handle) {
+    BOOST_ASSERT_MSG(!resumed_, "A select set can only be used once");
     std::apply(
         [handle](auto &&...promise) {
           ((!promise.core()->finished() ? promise.core()->setHandle(handle)
@@ -53,7 +57,6 @@ public:
   }
 
   std::vector<Variant> await_resume() {
-    BOOST_ASSERT_MSG(!resumed_, "A select set can only be used once");
     resumed_ = true;
     std::vector<Variant> readyPromises;
     checkPromises(readyPromises);
