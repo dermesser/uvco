@@ -190,10 +190,52 @@ TEST(PromiseTest, voidCancellation) {
     Promise<void> promise = awaited();
     PromiseHandle<void> handle = promise.handle();
 
-    // Problem: if we have a single promise argument, the compiler will just
-    // construct the coroutine's promise object from it.
     auto awaiter = [](Promise<void> cancelVictim,
                       int /*bogus*/) -> uvco::Promise<void> {
+      EXPECT_THROW({ co_await cancelVictim; }, UvcoException);
+    };
+
+    Promise<void> awaiterPromise = awaiter(std::move(promise), 1);
+    handle.cancel();
+    co_await awaiterPromise;
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, voidEarlyCancellation) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    auto awaited = []() -> uvco::Promise<void> { co_await yield(); };
+
+    Promise<void> promise = awaited();
+    PromiseHandle<void> handle = promise.handle();
+    handle.cancel();
+
+    auto awaiter = [](Promise<void> cancelVictim,
+                      int /*bogus*/) -> uvco::Promise<void> {
+      EXPECT_THROW({ co_await cancelVictim; }, UvcoException);
+    };
+
+    Promise<void> awaiterPromise = awaiter(std::move(promise), 1);
+    handle.cancel();
+    co_await awaiterPromise;
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, voidFromCoroutineCancellation) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    auto awaited = []() -> uvco::Promise<void> { co_await yield(); };
+
+    Promise<void> promise = awaited();
+    PromiseHandle<void> handle = promise.handle();
+
+    auto awaiter = [&handle](Promise<void> cancelVictim,
+                             int /*bogus*/) -> uvco::Promise<void> {
+      handle.cancel();
       EXPECT_THROW({ co_await cancelVictim; }, UvcoException);
     };
 
