@@ -1,5 +1,6 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include <fmt/core.h>
 #include <functional>
 #include <uv.h>
 
@@ -17,11 +18,25 @@ namespace {
 using BloomFilter = std::size_t;
 
 bool haveSeenOrAdd(BloomFilter &filter, std::coroutine_handle<> handle) {
-  const size_t handleValue = std::hash<std::coroutine_handle<>>{}(handle);
-  if ((filter & handleValue) != 0) {
+  static_assert(sizeof(BloomFilter) == 8, "BloomFilter is not 64 bits");
+
+  const size_t hash = std::hash<std::coroutine_handle<>>{}(handle);
+  const unsigned index1 = hash % 64;
+  const unsigned index2 = (hash >> 6U) % 64;
+  const unsigned index3 = (hash >> 12U) % 64;
+  const unsigned index4 = (hash >> 18U) % 64;
+  const unsigned index5 = (hash >> 24U) % 64;
+
+  // More than the first 32 bits appear to not gain much.
+  const size_t bloomIndex = (1U << index1) | (1U << index2) | (1U << index3) |
+                            (1U << index4) | (1U << index5);
+
+  if ((filter & bloomIndex) == bloomIndex) {
+    // Potentially a false positive.
     return true;
   }
-  filter |= handleValue;
+  // Definitely not seen before.
+  filter |= bloomIndex;
   return false;
 }
 
@@ -40,6 +55,11 @@ void Scheduler::runAll() {
     resumableRunning_.swap(resumableActive_);
     for (unsigned i = 0; i < resumableRunning_.size(); ++i) {
       auto &coro = resumableRunning_[i];
+
+      // Defend against resuming the same coroutine twice in the same loop pass.
+      // This happens when SelectSet selects two coroutines which return at the
+      // same time. Resuming the same handle twice is not good, very bad, and
+      // will usually at least cause a heap use-after-free.
 
       // Explicitly written in an explicit way :)
       if (!haveSeenOrAdd(seenHandles, coro)) [[likely]] {
