@@ -3,12 +3,11 @@
 #pragma once
 
 #include <fmt/core.h>
-#include <string>
 #include <uv.h>
 
-#include <uv/version.h>
+#include "uvco/stream.h"
 
-#include "stream.h"
+#include <string>
 
 namespace uvco {
 

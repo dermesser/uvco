@@ -2,10 +2,10 @@
 
 #include <uv.h>
 
-#include "close.h"
-#include "name_resolution.h"
-#include "promise/promise.h"
-#include "tcp_stream.h"
+#include "uvco/close.h"
+#include "uvco/name_resolution.h"
+#include "uvco/promise/promise.h"
+#include "uvco/tcp_stream.h"
 
 #include <boost/assert.hpp>
 #include <fmt/core.h>

@@ -5,7 +5,7 @@
 #include <concepts>
 #include <uv.h>
 
-#include "exception.h"
+#include "uvco/exception.h"
 
 #include <boost/assert.hpp>
 #include <utility>

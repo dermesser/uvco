@@ -1,15 +1,17 @@
 
-#include <array>
-#include <cstdint>
 #include <gtest/gtest.h>
 #include <sys/socket.h>
 #include <uv.h>
 
-#include "exception.h"
-#include "loop/loop.h"
-#include "name_resolution.h"
-#include "promise/promise.h"
 #include "test_util.h"
+
+#include "uvco/exception.h"
+#include "uvco/loop/loop.h"
+#include "uvco/name_resolution.h"
+#include "uvco/promise/promise.h"
+
+#include <array>
+#include <cstdint>
 
 namespace {
 

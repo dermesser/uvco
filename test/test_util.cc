@@ -1,9 +1,9 @@
 
 #include <uv.h>
 
-#include "loop/scheduler.h"
-#include "promise/promise.h"
-#include "run.h"
+#include "uvco/loop/scheduler.h"
+#include "uvco/promise/promise.h"
+#include "uvco/run.h"
 
 #include <functional>
 

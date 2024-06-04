@@ -17,7 +17,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 add_compile_options(-std=c++23 -Wall -pipe)
 
 find_program(MOLD mold)
-message(STATUS "Using mold linker? ${MOLD}")
 if(MOLD)
     add_link_options(-fuse-ld=mold)
 endif()
@@ -37,6 +36,11 @@ if(ENABLE_COVERAGE)
     add_compile_options(--coverage)
     add_link_options(--coverage -lgcov)
 endif()
+
+# src/ is to contain a symbolic link to itself. This is done so that the headers can be installed
+# as-is in the system include directory under the `uvco/` subdirectory. As the include path for all
+# uvco files is src/, including "uvco/..." will work both in the source tree and after installation.
+file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/uvco SYMBOLIC)
 
 # Core utilities not relying on uv-co-promise or uv-co-lib.
 add_library(uv-co-base STATIC
@@ -106,6 +110,7 @@ target_sources(uv-co-lib INTERFACE
     src/pipe.h
     src/run.h
     src/stream.h
+    src/stream_server_base.h
     src/stream_server_base_impl.h
     src/tcp.h
     src/tcp_stream.h
@@ -142,6 +147,7 @@ if(CURL_FOUND)
         src/integrations/curl/curl.h
     )
     target_link_libraries(uv-co-curl PUBLIC uv-co-lib CURL::libcurl)
+    target_include_directories(uv-co-curl PUBLIC src/)
     install(TARGETS uv-co-curl)
     install(TARGETS uv-co-curl FILE_SET HEADERS DESTINATION include/uvco)
 endif()

@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "exception.h"
-#include "internal/internal_utils.h"
-#include "loop/loop.h"
+#include "uvco/exception.h"
+#include "uvco/internal/internal_utils.h"
+#include "uvco/loop/loop.h"
 
 #include <boost/assert.hpp>
 #include <fmt/format.h>

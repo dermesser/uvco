@@ -2,19 +2,18 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-#include <fcntl.h>
-#include <memory>
-#include <span>
-#include <string>
 #include <uv.h>
 #include <uv/unix.h>
 
-#include "loop/loop.h"
-#include "promise/multipromise.h"
-#include "promise/promise.h"
+#include "uvco/loop/loop.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <fcntl.h>
+#include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 

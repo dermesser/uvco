@@ -1,10 +1,10 @@
 
 #pragma once
 
-#include "exception.h"
-#include "loop/loop.h"
-#include "promise.h"
-#include "promise/promise_core.h"
+#include "uvco/exception.h"
+#include "uvco/loop/loop.h"
+#include "uvco/promise/promise.h"
+#include "uvco/promise/promise_core.h"
 
 #include <coroutine>
 #include <exception>

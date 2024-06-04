@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "exception.h"
-#include "internal/internal_utils.h"
-#include "promise/promise_core.h"
+#include "uvco/exception.h"
+#include "uvco/internal/internal_utils.h"
+#include "uvco/promise/promise_core.h"
 
 #include <boost/assert.hpp>
 #include <fmt/format.h>

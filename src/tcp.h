@@ -7,12 +7,12 @@
 #include <boost/assert.hpp>
 #include <fmt/format.h>
 
-#include "internal/internal_utils.h"
-#include "name_resolution.h"
-#include "promise/promise.h"
-#include "run.h"
-#include "stream_server_base.h"
-#include "tcp_stream.h"
+#include "uvco/internal/internal_utils.h"
+#include "uvco/name_resolution.h"
+#include "uvco/promise/promise.h"
+#include "uvco/run.h"
+#include "uvco/stream_server_base.h"
+#include "uvco/tcp_stream.h"
 
 #include <coroutine>
 #include <cstdint>

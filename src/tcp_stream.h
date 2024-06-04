@@ -7,9 +7,9 @@
 #include <boost/assert.hpp>
 #include <fmt/format.h>
 
-#include "name_resolution.h"
-#include "promise/promise.h"
-#include "stream.h"
+#include "uvco/name_resolution.h"
+#include "uvco/promise/promise.h"
+#include "uvco/stream.h"
 
 #include <memory>
 #include <sys/socket.h>

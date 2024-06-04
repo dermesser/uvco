@@ -4,9 +4,9 @@
 
 #include <uv.h>
 
-#include "promise/multipromise.h"
-#include "promise/promise.h"
-#include "run.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
+#include "uvco/run.h"
 
 #include <cstdint>
 #include <memory>

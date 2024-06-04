@@ -5,11 +5,11 @@
 #include <utility>
 #include <uv.h>
 
-#include "async_work.h"
-#include "exception.h"
-#include "internal/internal_utils.h"
-#include "loop/loop.h"
-#include "promise/promise.h"
+#include "uvco/async_work.h"
+#include "uvco/exception.h"
+#include "uvco/internal/internal_utils.h"
+#include "uvco/loop/loop.h"
+#include "uvco/promise/promise.h"
 
 #include <functional>
 

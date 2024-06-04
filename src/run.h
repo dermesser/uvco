@@ -2,10 +2,10 @@
 
 #pragma once
 
-#include "loop/loop.h"
-#include "loop/scheduler.h"
-#include "promise/multipromise.h"
-#include "promise/promise.h"
+#include "uvco/loop/loop.h"
+#include "uvco/loop/scheduler.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
 
 namespace uvco {
 

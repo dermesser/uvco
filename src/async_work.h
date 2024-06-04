@@ -3,8 +3,8 @@
 #include <functional>
 #include <uv.h>
 
-#include "loop/loop.h"
-#include "promise/promise.h"
+#include "uvco/loop/loop.h"
+#include "uvco/promise/promise.h"
 
 #include <optional>
 

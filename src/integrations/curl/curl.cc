@@ -6,18 +6,19 @@
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <curl/multi.h>
+#include <fmt/core.h>
+#include <uv.h>
 
-#include "close.h"
-#include "exception.h"
-#include "integrations/curl/curl.h"
-#include "internal/internal_utils.h"
-#include "loop/loop.h"
-#include "promise/multipromise.h"
-#include "promise/promise.h"
+#include "uvco/close.h"
+#include "uvco/exception.h"
+#include "uvco/integrations/curl/curl.h"
+#include "uvco/internal/internal_utils.h"
+#include "uvco/loop/loop.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
 
 #include <coroutine>
 #include <cstddef>
-#include <fmt/core.h>
 #include <map>
 #include <memory>
 #include <numeric>
@@ -26,7 +27,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <uv.h>
 #include <vector>
 
 namespace uvco {

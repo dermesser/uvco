@@ -1,8 +1,8 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include "promise/promise_core.h"
-#include "exception.h"
-#include "loop/loop.h"
+#include "uvco/promise/promise_core.h"
+#include "uvco/exception.h"
+#include "uvco/loop/loop.h"
 
 #include <fmt/core.h>
 #include <uv.h>

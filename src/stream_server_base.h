@@ -2,14 +2,14 @@
 
 #pragma once
 
+#include <fmt/core.h>
 #include <uv.h>
 
-#include "internal/internal_utils.h"
-#include "promise/multipromise.h"
-#include "promise/promise.h"
+#include "uvco/internal/internal_utils.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
 
 #include <coroutine>
-#include <fmt/core.h>
 #include <memory>
 #include <optional>
 #include <variant>

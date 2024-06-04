@@ -1,6 +1,6 @@
 #pragma once
 
-#include "internal/internal_utils.h"
+#include "uvco/internal/internal_utils.h"
 
 #include <exception>
 #include <optional>

@@ -1,11 +1,11 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include "internal_utils.h"
-
 #include <boost/assert.hpp>
 #include <fmt/core.h>
 #include <uv.h>
 #include <uv/unix.h>
+
+#include "uvco/internal/internal_utils.h"
 
 #include <algorithm>
 #include <cstddef>

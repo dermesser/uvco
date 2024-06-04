@@ -1,14 +1,14 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
 #include <fmt/core.h>
-#include <functional>
 #include <uv.h>
 
-#include "loop/scheduler.h"
+#include "uvco/loop/scheduler.h"
 
 #include <algorithm>
 #include <coroutine>
 #include <cstddef>
+#include <functional>
 #include <span>
 
 namespace uvco {

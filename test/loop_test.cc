@@ -2,12 +2,12 @@
 #include <sys/socket.h>
 #include <uv.h>
 
-#include "exception.h"
-#include "loop/loop.h"
-#include "promise/promise.h"
-#include "stream.h"
 #include "test_util.h"
-#include "timer.h"
+
+#include "uvco/exception.h"
+#include "uvco/loop/loop.h"
+#include "uvco/promise/promise.h"
+#include "uvco/stream.h"
 
 #include <coroutine>
 #include <string>

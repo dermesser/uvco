@@ -2,11 +2,11 @@
 
 #pragma once
 
-#include "promise/multipromise.h"
-#include "promise/promise.h"
-
 #include <curl/curl.h>
 #include <curl/multi.h>
+
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
 
 #include <exception>
 #include <memory>

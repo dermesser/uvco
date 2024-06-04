@@ -4,11 +4,11 @@
 
 #include <uv.h>
 
-#include "bounded_queue.h"
-#include "exception.h"
-#include "promise/multipromise.h"
-#include "promise/promise.h"
-#include "run.h"
+#include "uvco/bounded_queue.h"
+#include "uvco/exception.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
+#include "uvco/run.h"
 
 #include <boost/assert.hpp>
 #include <coroutine>

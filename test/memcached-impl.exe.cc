@@ -7,17 +7,16 @@
  * The `memcached_client.py` script can be used for issuing simple get/set
  * commands.
  */
-
-#include "name_resolution.h"
-#include "promise/promise.h"
-#include "run.h"
-#include "tcp.h"
-#include "tcp_stream.h"
-
 #include <boost/log/core.hpp>
 #include <boost/log/core/core.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/trivial.hpp>
+
+#include "uvco/name_resolution.h"
+#include "uvco/promise/promise.h"
+#include "uvco/run.h"
+#include "uvco/tcp.h"
+#include "uvco/tcp_stream.h"
 
 #include <cstdint>
 #include <iterator>

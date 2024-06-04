@@ -1,8 +1,9 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
-#include "loop/loop.h"
-#include "promise/multipromise.h"
-#include "promise/promise.h"
+#include "uvco/loop/loop.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
+
 #include <coroutine>
 
 namespace uvco {

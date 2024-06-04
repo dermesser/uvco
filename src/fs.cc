@@ -1,28 +1,27 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
-#include <array>
 #include <boost/assert.hpp>
+#include <uv.h>
+#include <uv/unix.h>
+
+#include "uvco/exception.h"
+#include "uvco/fs.h"
+#include "uvco/internal/internal_utils.h"
+#include "uvco/loop/loop.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
+
+#include <array>
+#include <coroutine>
 #include <cstddef>
 #include <cstdint>
 #include <fcntl.h>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <sys/types.h>
-#include <utility>
-#include <uv.h>
-
-#include "exception.h"
-#include "fs.h"
-#include "internal/internal_utils.h"
-#include "loop/loop.h"
-#include "promise/multipromise.h"
-#include "promise/promise.h"
-
-#include <coroutine>
-#include <optional>
-#include <uv/unix.h>
 #include <vector>
 
 namespace uvco {

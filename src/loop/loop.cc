@@ -3,10 +3,10 @@
 #include <coroutine>
 #include <uv.h>
 
-#include "exception.h"
-#include "internal/internal_utils.h"
-#include "loop/loop.h"
-#include "loop/scheduler.h"
+#include "uvco/exception.h"
+#include "uvco/internal/internal_utils.h"
+#include "uvco/loop/loop.h"
+#include "uvco/loop/scheduler.h"
 
 #include <cstdio>
 #include <fmt/core.h>

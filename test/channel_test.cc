@@ -1,9 +1,10 @@
 
-#include "channel.h"
-#include "exception.h"
-#include "promise/multipromise.h"
-#include "promise/promise.h"
-#include "run.h"
+#include "uvco/channel.h"
+#include "uvco/exception.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
+#include "uvco/run.h"
+
 #include "test_util.h"
 
 #include <gtest/gtest.h>

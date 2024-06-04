@@ -1,5 +1,20 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include <boost/assert.hpp>
+#include <fmt/format.h>
+#include <uv.h>
+#include <uv/unix.h>
+
+#include "uvco/close.h"
+#include "uvco/exception.h"
+#include "uvco/internal/internal_utils.h"
+#include "uvco/name_resolution.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
+#include "uvco/run.h"
+#include "uvco/udp.h"
+
+#include <array>
 #include <coroutine>
 #include <cstddef>
 #include <cstdint>
@@ -12,22 +27,6 @@
 #include <string_view>
 #include <sys/socket.h>
 #include <utility>
-#include <uv.h>
-
-#include <boost/assert.hpp>
-#include <fmt/format.h>
-
-#include "close.h"
-#include "exception.h"
-#include "internal/internal_utils.h"
-#include "name_resolution.h"
-#include "promise/multipromise.h"
-#include "promise/promise.h"
-#include "run.h"
-#include "udp.h"
-
-#include <array>
-#include <uv/unix.h>
 #include <variant>
 
 namespace uvco {

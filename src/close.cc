@@ -2,9 +2,9 @@
 
 #include <uv.h>
 
-#include "close.h"
-#include "loop/loop.h"
-#include "run.h"
+#include "uvco/close.h"
+#include "uvco/loop/loop.h"
+#include "uvco/run.h"
 
 #include <coroutine>
 

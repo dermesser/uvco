@@ -1,15 +1,15 @@
-
-#include "exception.h"
-#include "loop/loop.h"
-#include "promise/multipromise.h"
-#include "promise/promise.h"
-#include "promise/select.h"
-#include "run.h"
-#include "test_util.h"
-#include "timer.h"
-
 #include <fmt/core.h>
 #include <gtest/gtest.h>
+
+#include "test_util.h"
+#include "uvco/exception.h"
+#include "uvco/loop/loop.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
+#include "uvco/promise/select.h"
+#include "uvco/run.h"
+#include "uvco/timer.h"
+
 #include <string_view>
 #include <utility>
 

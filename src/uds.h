@@ -5,17 +5,16 @@
 #include <fmt/core.h>
 #include <uv.h>
 
-#include "internal/internal_utils.h"
-#include "promise/promise.h"
-#include "run.h"
-#include "stream_server_base.h"
-#include "uds_stream.h"
+#include "uvco/internal/internal_utils.h"
+#include "uvco/promise/promise.h"
+#include "uvco/run.h"
+#include "uvco/stream_server_base.h"
+#include "uvco/uds_stream.h"
 
 #include <coroutine>
 #include <memory>
 #include <optional>
 #include <string_view>
-#include <uv/version.h>
 
 namespace uvco {
 

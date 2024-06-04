@@ -1,13 +1,13 @@
+#include <gtest/gtest.h>
 
-#include "loop/loop.h"
-#include "promise/multipromise.h"
-#include "promise/promise.h"
-#include "timer.h"
+#include "uvco/loop/loop.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
+#include "uvco/timer.h"
 
 #include "test_util.h"
 
 #include <cstdint>
-#include <gtest/gtest.h>
 #include <optional>
 
 namespace {

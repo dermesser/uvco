@@ -3,10 +3,11 @@
 #include <functional>
 #include <uv.h>
 
-#include "async_work.h"
-#include "loop/loop.h"
-#include "promise/promise.h"
 #include "test_util.h"
+
+#include "uvco/async_work.h"
+#include "uvco/loop/loop.h"
+#include "uvco/promise/promise.h"
 
 #include <fcntl.h>
 #include <fmt/core.h>

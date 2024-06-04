@@ -1,18 +1,16 @@
+#include <gtest/gtest.h>
+#include <sys/socket.h>
+#include <uv.h>
 
-#include "exception.h"
-#include "loop/loop.h"
-#include "promise/multipromise.h"
-#include "promise/promise.h"
 #include "test_util.h"
-#include "timer.h"
+#include "uvco/exception.h"
+#include "uvco/loop/loop.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
 
 #include <coroutine>
 #include <optional>
 #include <string>
-
-#include <gtest/gtest.h>
-#include <sys/socket.h>
-#include <uv.h>
 
 namespace {
 using namespace uvco;

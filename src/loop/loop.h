@@ -2,11 +2,12 @@
 
 #pragma once
 
-#include "scheduler.h"
+#include <uv.h>
+
+#include "uvco/loop/scheduler.h"
 
 #include <coroutine>
 #include <memory>
-#include <uv.h>
 
 namespace uvco {
 

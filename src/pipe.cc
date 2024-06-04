@@ -3,9 +3,9 @@
 #include <uv.h>
 #include <uv/unix.h>
 
-#include "pipe.h"
-#include "run.h"
-#include "stream.h"
+#include "uvco/pipe.h"
+#include "uvco/run.h"
+#include "uvco/stream.h"
 
 #include <array>
 #include <memory>

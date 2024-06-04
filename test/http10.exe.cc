@@ -1,7 +1,12 @@
-#include "promise/promise.h"
-#include "run.h"
-#include "tcp.h"
+#include "uvco/promise/promise.h"
+#include "uvco/run.h"
+#include "uvco/tcp.h"
+#include "uvco/tcp_stream.h"
+
+#include <fmt/core.h>
 #include <optional>
+#include <string>
+#include <sys/socket.h>
 
 using namespace uvco;
 

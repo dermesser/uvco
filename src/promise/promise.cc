@@ -1,13 +1,13 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
-#include "promise/promise.h"
+#include <uv.h>
 
-#include "exception.h"
+#include "uvco/exception.h"
+#include "uvco/promise/promise.h"
 
 #include <coroutine>
 #include <cstdio>
 #include <exception>
-#include <uv.h>
 
 namespace uvco {
 

@@ -2,19 +2,18 @@
 
 #pragma once
 
+#include <boost/assert.hpp>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <uv.h>
 #include <uv/unix.h>
 
-#include <boost/assert.hpp>
-
-#include "bounded_queue.h"
-#include "internal/internal_utils.h"
-#include "name_resolution.h"
-#include "promise/multipromise.h"
-#include "promise/promise.h"
-#include "run.h"
+#include "uvco/bounded_queue.h"
+#include "uvco/internal/internal_utils.h"
+#include "uvco/name_resolution.h"
+#include "uvco/promise/multipromise.h"
+#include "uvco/promise/promise.h"
+#include "uvco/run.h"
 
 #include <coroutine>
 #include <cstdint>

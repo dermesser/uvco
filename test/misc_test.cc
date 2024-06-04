@@ -1,9 +1,10 @@
 #include <gtest/gtest.h>
-#include <string>
 #include <uv.h>
 
-#include "exception.h"
 #include "test_util.h"
+#include "uvco/exception.h"
+
+#include <string>
 
 namespace {
 
