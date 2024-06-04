@@ -19,11 +19,11 @@
 #include <fmt/format.h>
 
 #include "uvco/exception.h"
+#include "uvco/name_resolution.h"
+#include "uvco/promise/promise.h"
 #include "uvco/run.h"
 #include "uvco/timer.h"
 #include "uvco/udp.h"
-#include "uvco/uvco/name_resolution.h"
-#include "uvco/uvco/promise/promise.h"
 
 #include <cstdint>
 #include <cstdio>

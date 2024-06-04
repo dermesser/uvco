@@ -37,87 +37,82 @@ if(ENABLE_COVERAGE)
     add_link_options(--coverage -lgcov)
 endif()
 
-# src/ is to contain a symbolic link to itself. This is done so that the headers can be installed
-# as-is in the system include directory under the `uvco/` subdirectory. As the include path for all
-# uvco files is src/, including "uvco/..." will work both in the source tree and after installation.
-file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/uvco SYMBOLIC)
-
 # Core utilities not relying on uv-co-promise or uv-co-lib.
 add_library(uv-co-base STATIC
-    src/exception.cc
-    src/internal/internal_utils.cc
-    src/loop/loop.cc
-    src/loop/scheduler.cc
+    uvco/exception.cc
+    uvco/internal/internal_utils.cc
+    uvco/loop/loop.cc
+    uvco/loop/scheduler.cc
 )
 target_sources(uv-co-base INTERFACE
     FILE_SET HEADERS
     TYPE HEADERS
-    BASE_DIRS src/
+    BASE_DIRS uvco/
     FILES
-    src/exception.h
-    src/internal/internal_utils.h
-    src/loop/loop.h
-    src/loop/scheduler.h
+    uvco/exception.h
+    uvco/internal/internal_utils.h
+    uvco/loop/loop.h
+    uvco/loop/scheduler.h
 )
-target_include_directories(uv-co-base PRIVATE ${FMT_INCLUDEDIR} src/)
+target_include_directories(uv-co-base PRIVATE ${FMT_INCLUDEDIR} ${CMAKE_CURRENT_SOURCE_DIR})
 install(TARGETS uv-co-base FILE_SET HEADERS DESTINATION include/uvco)
 
 add_library(uv-co-promise STATIC
-    src/promise/multipromise.cc
-    src/promise/promise.cc
-    src/promise/promise_core.cc
+    uvco/promise/multipromise.cc
+    uvco/promise/promise.cc
+    uvco/promise/promise_core.cc
 )
 target_sources(uv-co-promise INTERFACE
     FILE_SET HEADERS
     TYPE HEADERS
-    BASE_DIRS src/
+    BASE_DIRS uvco/
     FILES
-    src/promise/multipromise.h
-    src/promise/promise.h
-    src/promise/promise_core.h
+    uvco/promise/multipromise.h
+    uvco/promise/promise.h
+    uvco/promise/promise_core.h
 )
 target_link_libraries(uv-co-promise PRIVATE uv-co-base)
-target_include_directories(uv-co-promise PRIVATE src/)
+target_include_directories(uv-co-promise PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 install(TARGETS uv-co-promise FILE_SET HEADERS DESTINATION include/uvco)
 
 add_library(uv-co-lib STATIC
-    src/async_work.cc
-    src/channel.cc
-    src/close.cc
-    src/fs.cc
-    src/name_resolution.cc
-    src/pipe.cc
-    src/run.cc
-    src/stream.cc
-    src/stream_server_base_impl.cc
-    src/tcp.cc
-    src/tcp_stream.cc
-    src/timer.cc
-    src/udp.cc
-    src/uds.cc
-    src/uds_stream.cc
+    uvco/async_work.cc
+    uvco/channel.cc
+    uvco/close.cc
+    uvco/fs.cc
+    uvco/name_resolution.cc
+    uvco/pipe.cc
+    uvco/run.cc
+    uvco/stream.cc
+    uvco/stream_server_base_impl.cc
+    uvco/tcp.cc
+    uvco/tcp_stream.cc
+    uvco/timer.cc
+    uvco/udp.cc
+    uvco/uds.cc
+    uvco/uds_stream.cc
 )
 target_sources(uv-co-lib INTERFACE
     FILE_SET HEADERS
     TYPE HEADERS
-    BASE_DIRS src/
+    BASE_DIRS uvco/
     FILES
-    src/async_work.h
-    src/channel.h
-    src/close.h
-    src/fs.h
-    src/name_resolution.h
-    src/pipe.h
-    src/run.h
-    src/stream.h
-    src/stream_server_base.h
-    src/stream_server_base_impl.h
-    src/tcp.h
-    src/tcp_stream.h
-    src/timer.h
-    src/udp.h
-    src/uds.h
-    src/uds_stream.h
+    uvco/async_work.h
+    uvco/channel.h
+    uvco/close.h
+    uvco/fs.h
+    uvco/name_resolution.h
+    uvco/pipe.h
+    uvco/run.h
+    uvco/stream.h
+    uvco/stream_server_base.h
+    uvco/stream_server_base_impl.h
+    uvco/tcp.h
+    uvco/tcp_stream.h
+    uvco/timer.h
+    uvco/udp.h
+    uvco/uds.h
+    uvco/uds_stream.h
 )
 
 target_link_libraries(uv-co-lib
@@ -129,7 +124,7 @@ target_link_libraries(uv-co-lib
     ${FMT_LIBRARIES}
 )
 target_include_directories(uv-co-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
-target_include_directories(uv-co-lib PUBLIC src/)
+target_include_directories(uv-co-lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 install(TARGETS uv-co-lib)
 install(TARGETS uv-co-lib FILE_SET HEADERS DESTINATION include/uvco)
 
@@ -137,17 +132,17 @@ install(TARGETS uv-co-lib FILE_SET HEADERS DESTINATION include/uvco)
 
 if(CURL_FOUND)
     add_library(uv-co-curl STATIC
-        src/integrations/curl/curl.cc
+        uvco/integrations/curl/curl.cc
     )
     target_sources(uv-co-curl INTERFACE
         FILE_SET HEADERS
         TYPE HEADERS
-        BASE_DIRS src/
+        BASE_DIRS uvco/
         FILES
-        src/integrations/curl/curl.h
+        uvco/integrations/curl/curl.h
     )
     target_link_libraries(uv-co-curl PUBLIC uv-co-lib CURL::libcurl)
-    target_include_directories(uv-co-curl PUBLIC src/)
+    target_include_directories(uv-co-curl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     install(TARGETS uv-co-curl)
     install(TARGETS uv-co-curl FILE_SET HEADERS DESTINATION include/uvco)
 endif()
@@ -155,7 +150,7 @@ endif()
 # Unit tests
 
 add_library(test-util STATIC test/test_util.cc)
-target_include_directories(test-util PRIVATE src/)
+target_include_directories(test-util PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(test-util PRIVATE uv-co-lib)
 
 foreach(TESTCASE IN ITEMS async_work channel fs generator loop name_resolution promise stream timer udp uds tcp misc)
