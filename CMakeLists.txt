@@ -2,11 +2,13 @@ cmake_minimum_required(VERSION 3.27)
 project(uv-co)
 
 include(CTest)
+include(CMakePackageConfigHelpers)
 
 find_package(PkgConfig)
 pkg_check_modules(FMT REQUIRED fmt)
 pkg_check_modules(UV REQUIRED libuv)
 
+# Allow using a custom libuv installation.
 link_directories(BEFORE /usr/local/lib64)
 
 find_package(Boost 1.80 COMPONENTS log log_setup program_options REQUIRED)
@@ -14,7 +16,8 @@ find_package(CURL)
 find_package(GTest)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
-add_compile_options(-std=c++23 -Wall -pipe)
+set(CMAKE_CXX_STANDARD 23)
+add_compile_options(-Wall -pipe)
 
 find_program(MOLD mold)
 if(MOLD)
@@ -47,15 +50,14 @@ add_library(uv-co-base STATIC
 target_sources(uv-co-base INTERFACE
     FILE_SET HEADERS
     TYPE HEADERS
-    BASE_DIRS uvco/
     FILES
     uvco/exception.h
     uvco/internal/internal_utils.h
     uvco/loop/loop.h
     uvco/loop/scheduler.h
 )
-target_include_directories(uv-co-base PRIVATE ${FMT_INCLUDEDIR} ${CMAKE_CURRENT_SOURCE_DIR})
-install(TARGETS uv-co-base FILE_SET HEADERS DESTINATION include/uvco)
+target_include_directories(uv-co-base PRIVATE ${FMT_INCLUDEDIR} .)
+install(TARGETS uv-co-base EXPORT uvco FILE_SET HEADERS DESTINATION include)
 
 add_library(uv-co-promise STATIC
     uvco/promise/multipromise.cc
@@ -65,15 +67,14 @@ add_library(uv-co-promise STATIC
 target_sources(uv-co-promise INTERFACE
     FILE_SET HEADERS
     TYPE HEADERS
-    BASE_DIRS uvco/
     FILES
     uvco/promise/multipromise.h
     uvco/promise/promise.h
     uvco/promise/promise_core.h
 )
 target_link_libraries(uv-co-promise PRIVATE uv-co-base)
-target_include_directories(uv-co-promise PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-install(TARGETS uv-co-promise FILE_SET HEADERS DESTINATION include/uvco)
+target_include_directories(uv-co-promise PRIVATE .)
+install(TARGETS uv-co-promise EXPORT uvco FILE_SET HEADERS DESTINATION include)
 
 add_library(uv-co-lib STATIC
     uvco/async_work.cc
@@ -95,7 +96,6 @@ add_library(uv-co-lib STATIC
 target_sources(uv-co-lib INTERFACE
     FILE_SET HEADERS
     TYPE HEADERS
-    BASE_DIRS uvco/
     FILES
     uvco/async_work.h
     uvco/channel.h
@@ -123,10 +123,18 @@ target_link_libraries(uv-co-lib
     ${UV_LIBRARIES}
     ${FMT_LIBRARIES}
 )
-target_include_directories(uv-co-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR})
-target_include_directories(uv-co-lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-install(TARGETS uv-co-lib)
-install(TARGETS uv-co-lib FILE_SET HEADERS DESTINATION include/uvco)
+target_include_directories(uv-co-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR} .)
+install(TARGETS uv-co-lib EXPORT uvco FILE_SET HEADERS DESTINATION include)
+
+# Package configuration
+
+install(EXPORT uvco FILE UvcoTargets.cmake DESTINATION lib/cmake/uvco NAMESPACE Uvco:: )
+export(EXPORT uvco FILE UvcoTargets.cmake NAMESPACE Uvco::)
+configure_package_config_file(Config.cmake.in UvcoConfig.cmake INSTALL_DESTINATION lib/cmake/uvco)
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/UvcoConfig.cmake"
+    DESTINATION lib/cmake/uvco
+)
 
 # Optional integrations
 

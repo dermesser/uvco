@@ -338,13 +338,45 @@ Standard cmake build:
 
 ```bash
 mkdir build && cd build
-cmake ../CMakeLists.txt
-make
+cmake -GNinja ../CMakeLists.txt
+ninja
+sudo ninja install
 ```
 
-In order to use it from your code, I suggest vendoring the entire source tree.
-It is currently simple enough for that. This counts as static linking and falls
-under the terms of the license (GNU LGPL 2.1).
+You can then use `uvco` in your own projects by linking against `uvco`. CMake packages are exported,
+so you can use it in your cmake project as follows:
+
+```cmake
+# Your CMakeLists.txt
+cmake_minimum_required(VERSION 3.20)
+project(your_project)
+
+find_package(Uvco)
+
+set(CMAKE_CXX_STANDARD 23)
+
+add_executable(your_project main.cc)
+target_link_libraries(your_project Uvco::uv-co-lib)
+```
+
+This will result in the following compiler invocations:
+
+```shell
+# Ninja syntax:
+[1/2] /usr/bin/c++  \
+    -std=gnu++23 -MD -MT \
+    CMakeFiles/your_project.dir/main.cc.o \
+    -MF CMakeFiles/your_project.dir/main.cc.o.d \
+    -o CMakeFiles/your_project.dir/main.cc.o \
+    -c /path/to/your/dev_tree/your_project/main.cc
+[2/2] : && /usr/bin/c++   CMakeFiles/your_project.dir/main.cc.o \
+    -o your_project  \
+    /usr/local/lib/libuv-co-lib.a  /usr/local/lib/libuv-co-promise.a  /usr/local/lib/libuv-co-base.a  \
+    -luv  -lpthread  -ldl  -lrt  -lfmt &&
+```
+
+Please let me know if this doesn't work for you (although I don't promise any help, I'm tired enough
+of cmake already).
 
 ## Testing
 
