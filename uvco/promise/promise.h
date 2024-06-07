@@ -229,21 +229,21 @@ public:
   using promise_type = Coroutine<void>;
 
   /// Promise ready to be awaited or fulfilled.
-  Promise() : core_{makeRefCounted<PromiseCore<void>>()} {}
+  Promise();
   Promise(Promise<void> &&other) noexcept;
   Promise &operator=(const Promise<void> &other);
   Promise &operator=(Promise<void> &&other) noexcept;
   Promise(const Promise<void> &other);
   ~Promise();
 
-  PromiseHandle<void> handle() { return PromiseHandle<void>{core_}; }
+  PromiseHandle<void> handle();
 
   /// Returns an awaiter object for the promise, handling actual suspension and
   /// resumption.
-  PromiseAwaiter_ operator co_await() const { return PromiseAwaiter_{*core_}; }
+  PromiseAwaiter_ operator co_await() const;
 
   /// Returns whether the promise has already been fulfilled.
-  bool ready() { return core_->ready; }
+  [[nodiscard]] bool ready() const;
 
   // Get the result *right now*, and throw an exception if the promise
   // is not ready, or if it encountered an exception itself.
@@ -254,7 +254,7 @@ private:
   struct PromiseAwaiter_ {
     /// The `core` is shared among all copies of this Promise and holds the
     /// resumption handle to a waiting coroutine, as well as the ready state.
-    explicit PromiseAwaiter_(PromiseCore<void> &core) : core_{core} {}
+    explicit PromiseAwaiter_(PromiseCore<void> &core);
     PromiseAwaiter_(PromiseAwaiter_ &&) = delete;
     PromiseAwaiter_(const PromiseAwaiter_ &) = delete;
     PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
@@ -271,9 +271,12 @@ private:
     PromiseCore<void> &core_;
   };
 
-  friend class Coroutine<void>;
+  explicit Promise(SharedCore_ core);
 
-  explicit Promise(SharedCore_ core) : core_{core->addRef()} {}
+  friend class Coroutine<void>;
+  template <typename... Ts> friend class SelectSet;
+
+  SharedCore_ &core() { return core_; }
 
   SharedCore_ core_;
 };

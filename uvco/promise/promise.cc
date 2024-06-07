@@ -3,13 +3,22 @@
 #include <uv.h>
 
 #include "uvco/exception.h"
+#include "uvco/internal/internal_utils.h"
 #include "uvco/promise/promise.h"
+#include "uvco/promise/promise_core.h"
 
 #include <coroutine>
 #include <cstdio>
 #include <exception>
 
 namespace uvco {
+
+Promise<void>::PromiseAwaiter_::PromiseAwaiter_(PromiseCore<void> &core)
+    : core_{core} {}
+
+Promise<void>::PromiseAwaiter_ Promise<void>::operator co_await() const {
+  return PromiseAwaiter_{*core_};
+}
 
 bool Promise<void>::PromiseAwaiter_::await_suspend(
     std::coroutine_handle<> handle) const {
@@ -31,6 +40,8 @@ void Promise<void>::PromiseAwaiter_::await_resume() const {
   BOOST_ASSERT(core_.ready);
 }
 
+Promise<void>::Promise() : core_{makeRefCounted<PromiseCore<void>>()} {}
+Promise<void>::Promise(SharedCore_ core) : core_{core->addRef()} {}
 Promise<void>::Promise(Promise<void> &&other) noexcept : core_{other.core_} {
   other.core_ = nullptr;
 }
@@ -67,6 +78,8 @@ Promise<void>::~Promise() {
   }
 }
 
+bool Promise<void>::ready() const { return core_->ready; }
+
 void Promise<void>::unwrap() {
   if (ready()) {
     if (core_->exception) {
@@ -75,6 +88,10 @@ void Promise<void>::unwrap() {
   } else {
     throw UvcoException(UV_EAGAIN, "unwrap called on unfulfilled promise");
   }
+}
+
+PromiseHandle<void> Promise<void>::handle() {
+  return PromiseHandle<void>{core_};
 }
 
 void Coroutine<void>::return_void() {

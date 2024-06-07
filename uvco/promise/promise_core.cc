@@ -19,17 +19,21 @@ void PromiseCore<void>::setHandle(std::coroutine_handle<> handle) {
     throw UvcoException("PromiseCore is already awaited or has finished");
   }
   BOOST_ASSERT(state_ == PromiseState::init);
-  resume_ = handle;
+  handle_ = handle;
   state_ = PromiseState::waitedOn;
 }
 
-bool PromiseCore<void>::willResume() { return resume_.has_value(); }
+bool PromiseCore<void>::willResume() const { return handle_.has_value(); }
+
+bool PromiseCore<void>::finished() const {
+  return state_ == PromiseState::finished;
+}
 
 void PromiseCore<void>::resume() {
-  if (resume_) {
+  if (handle_) {
     BOOST_ASSERT(state_ == PromiseState::waitedOn);
-    auto resumeHandle = *resume_;
-    resume_.reset();
+    auto resumeHandle = *handle_;
+    handle_.reset();
     state_ = PromiseState::running;
     Loop::enqueue(resumeHandle);
   } else {
@@ -43,9 +47,9 @@ PromiseCore<void>::~PromiseCore() {
   if (state_ == PromiseState::init) {
     fmt::print(stderr, "void Promise not finished\n");
   }
-  if (resume_) {
+  if (handle_) {
     fmt::print(stderr, "resumable coroutine destroyed\n");
-    resume_->destroy();
+    handle_->destroy();
   }
 }
 
@@ -66,4 +70,14 @@ void PromiseCore<void>::cancel() {
     resume();
   }
 }
+
+void PromiseCore<void>::resetHandle() {
+  BOOST_ASSERT((state_ == PromiseState::waitedOn && handle_) ||
+               (state_ == PromiseState::finished && !handle_));
+  handle_.reset();
+  if (state_ == PromiseState::waitedOn) {
+    state_ = PromiseState::init;
+  }
+}
+
 } // namespace uvco

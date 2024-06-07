@@ -2,10 +2,12 @@
 
 #pragma once
 
+#include <fmt/core.h>
+#include <fmt/ranges.h>
+
 #include "uvco/promise/promise.h"
 
 #include <coroutine>
-#include <fmt/core.h>
 #include <tuple>
 #include <utility>
 #include <variant>
@@ -42,7 +44,8 @@ public:
   [[nodiscard]] bool await_ready() const noexcept {
     return resumed_ ||
            std::apply(
-               [](auto &&...promise) { return (promise.ready() || ...); },
+               [](auto &&...promise) -> bool {
+        return (promise.ready() || ...); },
                promises_);
   }
 

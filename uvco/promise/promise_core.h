@@ -73,9 +73,10 @@ public:
 
   void resetHandle() {
     BOOST_ASSERT((state_ == PromiseState::waitedOn && handle_) ||
-                 (state_ == PromiseState::finished && !handle_));
-    handle_.reset();
+                 (state_ == PromiseState::finished && !handle_) ||
+                 (state_ == PromiseState::init && !handle_));
     if (state_ == PromiseState::waitedOn) {
+      handle_.reset();
       state_ = PromiseState::init;
     }
   }
@@ -189,8 +190,13 @@ public:
 
   /// See `PromiseCore::set_resume`.
   void setHandle(std::coroutine_handle<> handle);
+
+  /// See `PromiseCore::reset_resume`.
+  void resetHandle();
   /// See `PromiseCore::will_resume`.
-  bool willResume();
+  [[nodiscard]] bool willResume() const;
+  [[nodiscard]] bool finished() const;
+
   /// See `PromiseCore::resume`.
   void resume();
 
@@ -201,7 +207,7 @@ public:
   std::optional<std::exception_ptr> exception;
 
 private:
-  std::optional<std::coroutine_handle<>> resume_;
+  std::optional<std::coroutine_handle<>> handle_;
   PromiseState state_ = PromiseState::init;
 };
 

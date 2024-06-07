@@ -7,6 +7,7 @@
 #include "uvco/loop/loop.h"
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
+#include "uvco/run.h"
 
 #include <coroutine>
 #include <optional>
@@ -76,6 +77,18 @@ TEST(MultiPromiseTest, exceptionWithTimer) {
     EXPECT_EQ(co_await ticker, 1);
     EXPECT_EQ(co_await ticker, 2);
     EXPECT_THROW({ co_await ticker; }, UvcoException);
+  };
+
+  run_loop(setup);
+}
+
+TEST(MultiPromiseTest, yield) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    static constexpr unsigned count = 10;
+    MultiPromise<unsigned> ticker = yield(count);
+    for (int i = 0; i < count; ++i) {
+      EXPECT_EQ(co_await ticker, i);
+    }
   };
 
   run_loop(setup);
