@@ -28,7 +28,6 @@ public:
   MultiPromiseCore &operator=(const MultiPromiseCore &) = delete;
   MultiPromiseCore &operator=(MultiPromiseCore &&) = delete;
   static_assert(!std::is_void_v<T>);
-
   ~MultiPromiseCore() override = default;
 
   /// See `PromiseCore::setHandle`. Called by a `MultiPromise` when it is
@@ -124,6 +123,9 @@ template <typename T> class Generator;
 /// coroutine. For example in the `Udp` class, a method exists which generates
 /// packets.
 ///
+/// As an adapter, for example for SelectSet, the `next()` method returns a
+/// promise returning the next yielded value.
+///
 /// NOTE: currently uses a `shared_ptr` PromiseCore, due to issues with
 /// inheritance. It is expected that normal `Promise<T>` will be used most
 /// frequently, therefore the lack of optimization is not as grave.
@@ -158,6 +160,9 @@ public:
       weakCore->cancelGenerator();
     }
   }
+
+  /// Obtain the next value yielded by a generator coroutine.
+  Promise<std::optional<T>> next() { co_return (co_await *this); }
 
   /// Return an awaiter for this MultiPromise, which resumes the waiting
   /// coroutine once the generator yields its next value.

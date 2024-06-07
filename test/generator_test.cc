@@ -81,4 +81,21 @@ TEST(MultiPromiseTest, exceptionWithTimer) {
   run_loop(setup);
 }
 
+TEST(MultiPromiseTest, nextValue) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    MultiPromise<int> gen = []() -> uvco::MultiPromise<int> {
+      co_yield 1;
+      co_yield 2;
+      co_yield 3;
+    }();
+
+    EXPECT_EQ(co_await gen.next(), std::optional{1});
+    EXPECT_EQ(co_await gen.next(), std::optional{2});
+    EXPECT_EQ(co_await gen.next(), std::optional{3});
+    EXPECT_EQ(co_await gen.next(), std::nullopt);
+  };
+
+  run_loop(setup);
+}
+
 } // namespace
