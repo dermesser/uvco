@@ -161,7 +161,7 @@ add_library(test-util STATIC test/test_util.cc)
 target_include_directories(test-util PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(test-util PRIVATE uv-co-lib)
 
-foreach(TESTCASE IN ITEMS async_work channel fs generator loop name_resolution promise stream timer udp uds tcp misc)
+foreach(TESTCASE IN ITEMS async_work channel fs generator loop name_resolution promise select stream timer udp uds tcp misc)
     add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
     target_link_libraries(${TESTCASE}-test PRIVATE uv-co-lib test-util GTest::gtest_main)
     add_test(NAME ${TESTCASE}-test COMMAND ${TESTCASE}-test)
