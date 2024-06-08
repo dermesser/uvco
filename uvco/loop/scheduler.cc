@@ -50,7 +50,12 @@ unsigned findFirstIndexOf(std::span<const std::coroutine_handle<>> handles,
 } // namespace
 
 void Scheduler::runAll() {
-  while (!resumableActive_.empty()) {
+  // In order to not delay checking for new I/O in the UV loop, we only run up
+  // to a fixed number of times.
+  static constexpr unsigned maxTurnsBeforeReturning = 5;
+  unsigned turns = 0;
+
+  while (!resumableActive_.empty() && turns < maxTurnsBeforeReturning) {
     BloomFilter seenHandles = 0;
     resumableRunning_.swap(resumableActive_);
     for (unsigned i = 0; i < resumableRunning_.size(); ++i) {
@@ -75,6 +80,7 @@ void Scheduler::runAll() {
       }
     }
     resumableRunning_.clear();
+    ++turns;
   }
 }
 
