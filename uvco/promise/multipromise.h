@@ -162,7 +162,9 @@ public:
   }
 
   /// Obtain the next value yielded by a generator coroutine.
-  Promise<std::optional<T>> next() { co_return (co_await *this); }
+  Promise<std::optional<T>> next() {
+    co_return (co_await *this);
+  }
 
   /// Return an awaiter for this MultiPromise, which resumes the waiting
   /// coroutine once the generator yields its next value.
@@ -171,11 +173,11 @@ public:
   /// The awaiter handles the actual suspension and resumption.
   MultiPromiseAwaiter_ operator co_await() const {
     BOOST_ASSERT(core_);
-    return MultiPromiseAwaiter_{*core_};
+    return MultiPromiseAwaiter_{core_};
   }
 
   /// Returns true if a value is available.
-  bool ready() { return core_->slot.has_value(); }
+  bool ready() { return core_->slot.has_value() || core_->isTerminated(); }
 
   /// Immediately cancel the suspended generator coroutine. This will drop all
   /// stack variables inside the generator (and run their destructors), and
@@ -198,7 +200,7 @@ protected:
   /// receiving values from a generating (yielding) coroutine. This awaiter is
   /// used when applying the `co_await` operator on a `MultiPromise`.
   struct MultiPromiseAwaiter_ {
-    constexpr explicit MultiPromiseAwaiter_(PromiseCore_ &core) : core_{core} {}
+    constexpr explicit MultiPromiseAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
     MultiPromiseAwaiter_(MultiPromiseAwaiter_ &&) = delete;
     MultiPromiseAwaiter_(const MultiPromiseAwaiter_ &) = delete;
     MultiPromiseAwaiter_ &operator=(MultiPromiseAwaiter_ &&) = delete;
@@ -208,35 +210,35 @@ protected:
     /// Part of the coroutine protocol. Returns `true` if the MultiPromise
     /// already has a value.
     [[nodiscard]] bool await_ready() const {
-      return core_.isTerminated() || core_.slot.has_value();
+      return core_->isTerminated() || core_->slot.has_value();
     }
     /// Part of the coroutine protocol. Always returns `true`; stores the
     /// suspension handle in the MultiPromiseCore for later resumption.
     [[nodiscard]] bool await_suspend(std::coroutine_handle<> handle) const {
-      BOOST_ASSERT_MSG(!core_.willResume(),
+      BOOST_ASSERT_MSG(!core_->willResume(),
                        "promise is already being waited on!\n");
-      core_.setHandle(handle);
-      core_.resumeGenerator();
+      core_->setHandle(handle);
+      core_->resumeGenerator();
       return true;
     }
     /// Part of the coroutine protocol. Returns a value if `co_yield` was called
     /// in the generating coroutine. Otherwise, returns an empty `optional` if
     /// the generating coroutine has `co_return`ed.
     std::optional<T> await_resume() const {
-      if (!core_.slot) {
+      if (!core_->slot) {
         // Terminated by co_return
         return std::nullopt;
       } else {
-        switch (core_.slot->index()) {
+        switch (core_->slot->index()) {
         case 0: {
-          std::optional<T> result = std::move(std::get<0>(core_.slot.value()));
-          core_.slot.reset();
+          std::optional<T> result = std::move(std::get<0>(core_->slot.value()));
+          core_->slot.reset();
           return std::move(result);
         }
         case 1:
           // Terminated by exception
-          BOOST_ASSERT(core_.isTerminated());
-          std::rethrow_exception(std::get<1>(core_.slot.value()));
+          BOOST_ASSERT(core_->isTerminated());
+          std::rethrow_exception(std::get<1>(core_->slot.value()));
         default:
           throw UvcoException(
               "MultiPromiseAwaiter_::await_resume: invalid slot");
@@ -244,7 +246,7 @@ protected:
       }
     }
 
-    PromiseCore_ &core_;
+    SharedCore_ core_;
   };
 
   template <typename U> friend class Generator;

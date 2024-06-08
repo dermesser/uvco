@@ -33,6 +33,9 @@ namespace uvco {
 /// ```
 ///
 /// It is okay to add an already finished promise to a SelectSet.
+///
+/// It is possible that no events are returned ("spurious wakeup"); make sure
+/// that you can handle an empty result vector.
 template <typename... Ts> class SelectSet {
 public:
   using Variant = std::variant<Promise<Ts>...>;
@@ -45,7 +48,8 @@ public:
     return resumed_ ||
            std::apply(
                [](auto &&...promise) -> bool {
-        return (promise.ready() || ...); },
+                 return (promise.ready() || ...);
+               },
                promises_);
   }
 
@@ -64,8 +68,9 @@ public:
     resumed_ = true;
     std::vector<Variant> readyPromises;
     checkPromises(readyPromises);
-    BOOST_ASSERT_MSG(!readyPromises.empty(),
-                     "SelectSet::await_resume: no promise is ready (bug!)");
+    // It is possible that no promise is ready, in the case that two promises
+    // were ready at once; one promise scheduled the SelectSet for resumption,
+    // we delivered both events, and will be woken up a second time.
     return readyPromises;
   }
 

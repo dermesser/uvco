@@ -201,4 +201,53 @@ TEST(SelectTest, DISABLED_benchmark) {
   run_loop(setup);
 }
 
+TEST(SelectTest, reliableSelectLoop) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    constexpr int count = 10;
+
+    // Finely orchestrated generators, yielding one after another.
+    MultiPromise<int> gen1 = []() -> uvco::MultiPromise<int> {
+      for (int i = 0; i < count; ++i) {
+        co_yield i;
+        co_await yield();
+      }
+    }();
+    MultiPromise<int> gen2 = []() -> uvco::MultiPromise<int> {
+      for (int i = 0; i < count; ++i) {
+        co_await yield();
+        co_await yield();
+        co_yield i;
+      }
+    }();
+
+    Promise<std::optional<int>> promise1 = gen1.next();
+    Promise<std::optional<int>> promise2 = gen2.next();
+    for (int i = 0; i < 2 * count;) {
+      auto result = co_await SelectSet{promise1, promise2};
+      for (auto &promise : result) {
+        switch (promise.index()) {
+        case 0:
+          if (co_await std::get<0>(promise) != std::nullopt) {
+            ++i;
+            promise1 = gen1.next();
+          }
+          break;
+        case 1:
+          if (co_await std::get<1>(promise) != std::nullopt) {
+            ++i;
+            promise2 = gen2.next();
+          }
+          break;
+        default:
+          EXPECT_FALSE(true);
+          co_return;
+        }
+      }
+    }
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
 } // namespace
