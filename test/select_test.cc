@@ -222,6 +222,8 @@ TEST(SelectTest, reliableSelectLoop) {
 
     Promise<std::optional<int>> promise1 = gen1.next();
     Promise<std::optional<int>> promise2 = gen2.next();
+
+    // On my Core i5-7300U, this takes about 600 ns per iteration.
     for (int i = 0; i < 2 * count;) {
       auto result = co_await SelectSet{promise1, promise2};
       for (auto &promise : result) {
@@ -244,6 +246,12 @@ TEST(SelectTest, reliableSelectLoop) {
         }
       }
     }
+
+    EXPECT_FALSE((co_await gen1.next()).has_value());
+    EXPECT_FALSE((co_await gen2.next()).has_value());
+    EXPECT_FALSE((co_await gen1).has_value());
+    EXPECT_FALSE((co_await gen2).has_value());
+
     co_return;
   };
 
