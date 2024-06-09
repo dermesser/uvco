@@ -45,14 +45,15 @@ public:
       : promises_{std::move(promises)...} {}
 
   [[nodiscard]] bool await_ready() const noexcept {
-    return resumed_ ||
-           std::apply(
-               [](auto &&...promise) -> bool {
-                 return (promise.ready() || ...);
-               },
-               promises_);
+    return resumed_ || std::apply(
+                           [](auto &&...promise) -> bool {
+                             return (promise.ready() || ...);
+                           },
+                           promises_);
   }
 
+  /// Register the current coroutine to be resumed when one of the promises is
+  /// ready.
   void await_suspend(std::coroutine_handle<> handle) {
     BOOST_ASSERT_MSG(!resumed_, "A select set can only be used once");
     std::apply(
@@ -64,13 +65,17 @@ public:
         promises_);
   }
 
+  /// Returns all promises that are ready.
+  /// It is possible that no promise is ready, and the returned vector is empty,
+  /// in the case that two promises were ready at once; one promise scheduled
+  /// the SelectSet for resumption, we delivered both events, and will be woken
+  /// up a second time.
+  ///
+  /// TODO: provide a no-/rare-allocation API by reusing a vector or span.
   std::vector<Variant> await_resume() {
     resumed_ = true;
     std::vector<Variant> readyPromises;
     checkPromises(readyPromises);
-    // It is possible that no promise is ready, in the case that two promises
-    // were ready at once; one promise scheduled the SelectSet for resumption,
-    // we delivered both events, and will be woken up a second time.
     return readyPromises;
   }
 
