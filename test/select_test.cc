@@ -222,21 +222,27 @@ TEST(SelectTest, reliableSelectLoop) {
 
     Promise<std::optional<int>> promise1 = gen1.next();
     Promise<std::optional<int>> promise2 = gen2.next();
+    bool promise1Done = false;
+    bool promise2Done = false;
 
-    // On my Core i5-7300U, this takes about 600 ns per iteration.
-    for (int i = 0; i < 2 * count;) {
+    // On my Core i5-7300U, this takes about 600 ns per iteration with three
+    // yields per two items. The baseline - no yield() calls - is about 270 ns
+    // per iteration.
+    while (!promise1Done || !promise2Done) {
       auto result = co_await SelectSet{promise1, promise2};
       for (auto &promise : result) {
         switch (promise.index()) {
         case 0:
-          if (co_await std::get<0>(promise) != std::nullopt) {
-            ++i;
+          if (co_await std::get<0>(promise) == std::nullopt) {
+            promise1Done = true;
+          } else {
             promise1 = gen1.next();
           }
           break;
         case 1:
-          if (co_await std::get<1>(promise) != std::nullopt) {
-            ++i;
+          if (co_await std::get<1>(promise) == std::nullopt) {
+            promise2Done = true;
+          } else {
             promise2 = gen2.next();
           }
           break;
