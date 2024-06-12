@@ -1,0 +1,23 @@
+on: [push, pull_request]
+
+name: Actions CI + Docs
+
+jobs:
+  build_and_test:
+    name: uvco
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run:  |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build
+      - name: Build and Test
+        run: |
+          mkdir build
+          cd build
+          cmake -GNinja -DCMAKE_CXX_COMPILER=clang++ ..
+          ninja
+          ninja test
