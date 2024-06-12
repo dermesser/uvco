@@ -20,4 +20,4 @@ jobs:
           cd build
           cmake -GNinja -DCMAKE_CXX_COMPILER=clang++ ..
           ninja
-          ninja test
+          ctest --output-on-failure
