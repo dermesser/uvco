@@ -18,6 +18,7 @@ Supported functionality:
 * File functionality (`read`, `write`, `mkdir`, `unlink`, ...)
 * A libcurl integration, allowing e.g. HTTP(S) downloads.
 * A threadpool for synchronous or CPU-bound tasks
+* A `SelectSet` for polling multiple promises at once
 
 ## Context
 
