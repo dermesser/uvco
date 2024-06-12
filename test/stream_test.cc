@@ -24,7 +24,8 @@ namespace {
 
 using namespace uvco;
 
-TEST(TtyTest, stdioTest) {
+// Doesn't work on Github Actions because no TTY is attached.
+TEST(TtyTest, DISABLED_stdioTest) {
   uint64_t counter = 0;
   auto setup = [&counter](const Loop &loop) -> uvco::Promise<void> {
     std::vector<TtyStream> ttys;
