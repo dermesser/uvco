@@ -161,7 +161,7 @@ TEST(PromiseTest, movePromiseBetweenFunctions) {
 
 TEST(PromiseTest, destroyWithoutResume) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    Promise<int> promise = [&loop]() -> uvco::Promise<int> {
+    Promise<int> promise = []() -> uvco::Promise<int> {
       co_await yield();
       // Will put promise core in state finished, all good.
       co_return 1;
@@ -182,8 +182,8 @@ TEST(PromiseTest, cancellation) {
     Promise<int> promise = awaited();
     PromiseHandle<int> handle = promise.handle();
 
-    auto awaiter = [](Promise<int> p) -> uvco::Promise<void> {
-      EXPECT_THROW({ co_await p; }, UvcoException);
+    auto awaiter = [](Promise<int> promise) -> uvco::Promise<void> {
+      EXPECT_THROW({ co_await promise; }, UvcoException);
     };
 
     Promise<void> awaiterPromise = awaiter(std::move(promise));

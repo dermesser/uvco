@@ -7,6 +7,7 @@
 #include "uvco/loop/loop.h"
 
 #include <boost/assert.hpp>
+#include <fmt/core.h>
 #include <fmt/format.h>
 
 #include <coroutine>
@@ -73,11 +74,12 @@ public:
     if (state_ != PromiseState::init) {
       throw UvcoException("PromiseCore is already awaited or has finished");
     }
-    BOOST_ASSERT(state_ == PromiseState::init);
     handle_ = handle;
     state_ = PromiseState::waitedOn;
   }
 
+  /// Reset the handle, so that the coroutine is not resumed anymore. This is
+  /// required for SelectSet.
   void resetHandle() {
     BOOST_ASSERT((state_ == PromiseState::waitedOn && handle_) ||
                  (state_ == PromiseState::finished && !handle_) ||
@@ -92,22 +94,26 @@ public:
   /// exception. The coroutine itself will keep running, however. (This may be
   /// changed later)
   void cancel() {
-    if (state_ == PromiseState::waitedOn) {
-      BOOST_ASSERT(!slot);
+    if (state_ == PromiseState::init || state_ == PromiseState::waitedOn) {
+      BOOST_ASSERT(!ready());
       // Fill the slot with an exception, so that the coroutine can be resumed.
+      // Double-check `if` for release builds.
       if (!slot) {
         slot = std::make_exception_ptr(
             UvcoException(UV_ECANCELED, "Promise cancelled"));
       }
       resume();
     }
-    // else: the promise is already finished, so there is no need to cancel it.
+    // else: the underlying coroutine has already returned, so there is no need
+    // to cancel it.
   }
 
-  /// Checks if a coroutine is waiting on this core.
+  /// Checks if a coroutine is waiting on a promise belonging to this core.
   bool willResume() { return handle_.has_value(); }
   /// Checks if a value is present in the slot.
   [[nodiscard]] bool ready() const { return slot.has_value(); }
+  /// Checks if the coroutine has returned, and the results have been fetched
+  /// (i.e. after co_return -> co_await).
   [[nodiscard]] bool stale() const {
     return state_ == PromiseState::finished && !ready();
   }
@@ -193,6 +199,7 @@ public:
   PromiseCore<void> &operator=(PromiseCore &&) = delete;
   ~PromiseCore() override;
 
+  /// See `PromiseCore::cancel`.
   void cancel();
 
   /// See `PromiseCore::set_resume`.
@@ -202,16 +209,22 @@ public:
   void resetHandle();
   /// See `PromiseCore::willResume`.
   [[nodiscard]] bool willResume() const;
+  /// See `PromiseCore::ready`.
   [[nodiscard]] bool ready() const;
+  /// See `PromiseCore::stale`.
   [[nodiscard]] bool stale() const;
 
   /// See `PromiseCore::resume`.
   void resume();
 
+  /// See `PromiseCore::except`.
   void except(std::exception_ptr exc);
 
+  /// In a void promise, we only track *if* the coroutine has finished, because
+  /// it doesn't return anything.
   bool ready_ = false;
 
+  /// Contains the exception if thrown.
   std::optional<std::exception_ptr> exception_;
 
 private:
