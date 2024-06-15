@@ -31,9 +31,16 @@ namespace uvco {
 /// After the caller has been run (and suspended again), the state is
 /// `finished`, and no more operations may be executed on this promise.
 enum class PromiseState {
+  /// After construction, as the associated coroutine is about to start, up to
+  /// the first suspension point and the following co_await.
   init = 0,
+  /// After the coroutine has reached a suspension point and another coroutine
+  /// has started co_awaiting it.
   waitedOn = 1,
-  running = 2,
+  /// After the coroutine has been resumed, and is scheduled to be run on the
+  /// next Loop turn.
+  resuming = 2,
+  ///
   finished = 3,
 };
 
@@ -99,9 +106,10 @@ public:
 
   /// Checks if a coroutine is waiting on this core.
   bool willResume() { return handle_.has_value(); }
+  /// Checks if a value is present in the slot.
   [[nodiscard]] bool ready() const { return slot.has_value(); }
-  [[nodiscard]] bool finished() const {
-    return state_ == PromiseState::finished;
+  [[nodiscard]] bool stale() const {
+    return state_ == PromiseState::finished && !ready();
   }
 
   /// Resume a suspended coroutine waiting on the associated coroutine by
@@ -111,7 +119,7 @@ public:
   virtual void resume() {
     if (handle_) {
       BOOST_ASSERT(state_ == PromiseState::waitedOn);
-      state_ = PromiseState::running;
+      state_ = PromiseState::resuming;
       auto resume = *handle_;
       handle_.reset();
       Loop::enqueue(resume);
@@ -121,26 +129,25 @@ public:
       // returned a value. (await_ready() == true)
     }
 
-    // Note: with asynchronous resumption (Loop::enqueue), this state machine
-    // is a bit faulty. The promise awaiter is resumed in state `finished`.
-    // However, this works out fine for the purpose of enforcing the
-    // "protocol" of interactions with the promise core: a promise can be
-    // destroyed without the resumption having run, but that is an issue in
-    // the loop or the result of a premature termination.
     switch (state_) {
     case PromiseState::init:
-    case PromiseState::running:
+      // Coroutine returns but nobody has awaited yet. This is fine.
+      state_ = PromiseState::finished;
+      break;
+    case PromiseState::resuming:
+      // Not entirely correct, but the resumed awaiting coroutine is not coming
+      // back to us.
       state_ = PromiseState::finished;
       break;
     case PromiseState::waitedOn:
-      // It is possible that set_resume() was called in a stack originating at
-      // resume(), thus updating the state. In that case, the state should be
-      // preserved.
-      state_ = PromiseState::waitedOn;
+      // state is waitedOn, but no handle is set - that's an error.
+      BOOST_ASSERT_MSG(
+          false,
+          "PromiseCore::resume() called without handle in state waitedOn");
       break;
     case PromiseState::finished:
       // Happens in MultiPromiseCore on co_return if the co_awaiter has lost
-      // interest. Harmless if !resume_ (asserted above).
+      // interest. Harmless if !handle_ (asserted above).
       break;
     }
   }
@@ -191,20 +198,21 @@ public:
   /// See `PromiseCore::set_resume`.
   void setHandle(std::coroutine_handle<> handle);
 
-  /// See `PromiseCore::reset_resume`.
+  /// See `PromiseCore::resetHandle`.
   void resetHandle();
-  /// See `PromiseCore::will_resume`.
+  /// See `PromiseCore::willResume`.
   [[nodiscard]] bool willResume() const;
-  [[nodiscard]] bool finished() const;
+  [[nodiscard]] bool ready() const;
+  [[nodiscard]] bool stale() const;
 
   /// See `PromiseCore::resume`.
   void resume();
 
   void except(std::exception_ptr exc);
 
-  bool ready = false;
+  bool ready_ = false;
 
-  std::optional<std::exception_ptr> exception;
+  std::optional<std::exception_ptr> exception_;
 
 private:
   std::optional<std::coroutine_handle<>> handle_;

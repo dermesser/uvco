@@ -24,17 +24,17 @@ void PromiseCore<void>::setHandle(std::coroutine_handle<> handle) {
 }
 
 bool PromiseCore<void>::willResume() const { return handle_.has_value(); }
-
-bool PromiseCore<void>::finished() const {
-  return state_ == PromiseState::finished;
+bool PromiseCore<void>::ready() const { return exception_ || ready_; }
+bool PromiseCore<void>::stale() const {
+  return state_ == PromiseState::finished && !ready();
 }
 
 void PromiseCore<void>::resume() {
   if (handle_) {
     BOOST_ASSERT(state_ == PromiseState::waitedOn);
+    state_ = PromiseState::resuming;
     auto resumeHandle = *handle_;
     handle_.reset();
-    state_ = PromiseState::running;
     Loop::enqueue(resumeHandle);
   } else {
     // If a coroutine returned immediately, or nobody is co_awaiting the result.
@@ -43,7 +43,7 @@ void PromiseCore<void>::resume() {
 }
 
 PromiseCore<void>::~PromiseCore() {
-  BOOST_ASSERT(state_ != PromiseState::running);
+  BOOST_ASSERT(state_ != PromiseState::resuming);
   if (state_ == PromiseState::init) {
     fmt::print(stderr, "void Promise not finished\n");
   }
@@ -56,15 +56,15 @@ PromiseCore<void>::~PromiseCore() {
 void PromiseCore<void>::except(std::exception_ptr exc) {
   BOOST_ASSERT(state_ == PromiseState::init ||
                state_ == PromiseState::waitedOn);
-  exception = std::move(exc);
-  ready = true;
+  exception_ = std::move(exc);
+  ready_ = true;
 }
 
 void PromiseCore<void>::cancel() {
   if (state_ == PromiseState::waitedOn) {
-    BOOST_ASSERT(!exception);
-    if (!exception) {
-      exception = std::make_exception_ptr(
+    BOOST_ASSERT(!exception_);
+    if (!exception_) {
+      exception_ = std::make_exception_ptr(
           UvcoException(UV_ECANCELED, "Promise cancelled"));
     }
     resume();

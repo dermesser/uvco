@@ -126,6 +126,7 @@ public:
     }
   }
 
+  /// Return a handle that can be used to cancel the coroutine.
   PromiseHandle<T> handle() { return PromiseHandle<T>{core_}; }
 
   /// Part of the coroutine protocol: called by `co_await p` where `p` is a
@@ -174,7 +175,7 @@ protected:
 
     /// Part of the coroutine protocol: returns `true` if the promise is already
     /// fulfilled.
-    [[nodiscard]] bool await_ready() const { return core_.slot.has_value(); }
+    [[nodiscard]] bool await_ready() const { return core_.ready(); }
     /// Part of the coroutine protocol: returns if suspension is desired (always
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
     [[nodiscard]] bool await_suspend(std::coroutine_handle<> handle) const {
@@ -186,6 +187,10 @@ protected:
     /// Part of the coroutine protocol: extracts the resulting value from the
     /// promise core and returns it.
     T await_resume() const {
+      if (core_.stale()) {
+        throw UvcoException(
+            "co_await called on previously finished promise (T)");
+      }
       if (core_.slot.has_value()) {
         switch (core_.slot->index()) {
         case 0: {
@@ -288,8 +293,8 @@ template <typename T> class Coroutine {
   using SharedCore_ = PromiseCore_ *;
 
 public:
-  // Coroutine object is pinned within the coroutine frame; copy/move is
-  // disallowed.
+  /// Coroutine object lives and is pinned within the coroutine frame; copy/move
+  /// is disallowed.
   Coroutine() : core_{makeRefCounted<PromiseCore_>()} {}
   Coroutine(const Coroutine &other) = delete;
   Coroutine &operator=(const Coroutine &other) = delete;

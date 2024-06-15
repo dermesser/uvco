@@ -58,8 +58,8 @@ public:
     BOOST_ASSERT_MSG(!resumed_, "A select set can only be used once");
     std::apply(
         [handle](auto &&...promise) {
-          ((!promise.core()->finished() ? promise.core()->setHandle(handle)
-                                        : (void)0),
+          ((!promise.core()->stale() ? promise.core()->setHandle(handle)
+                                     : (void)0),
            ...);
         },
         promises_);

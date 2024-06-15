@@ -162,9 +162,7 @@ public:
   }
 
   /// Obtain the next value yielded by a generator coroutine.
-  Promise<std::optional<T>> next() {
-    co_return (co_await *this);
-  }
+  Promise<std::optional<T>> next() { co_return (co_await *this); }
 
   /// Return an awaiter for this MultiPromise, which resumes the waiting
   /// coroutine once the generator yields its next value.
@@ -200,7 +198,8 @@ protected:
   /// receiving values from a generating (yielding) coroutine. This awaiter is
   /// used when applying the `co_await` operator on a `MultiPromise`.
   struct MultiPromiseAwaiter_ {
-    constexpr explicit MultiPromiseAwaiter_(SharedCore_ core) : core_{std::move(core)} {}
+    constexpr explicit MultiPromiseAwaiter_(SharedCore_ core)
+        : core_{std::move(core)} {}
     MultiPromiseAwaiter_(MultiPromiseAwaiter_ &&) = delete;
     MultiPromiseAwaiter_(const MultiPromiseAwaiter_ &) = delete;
     MultiPromiseAwaiter_ &operator=(MultiPromiseAwaiter_ &&) = delete;
