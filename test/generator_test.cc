@@ -86,7 +86,7 @@ TEST(MultiPromiseTest, yield) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
     static constexpr unsigned count = 10;
     MultiPromise<unsigned> ticker = yield(count);
-    for (int i = 0; i < count; ++i) {
+    for (unsigned i = 0; i < count; ++i) {
       EXPECT_EQ(co_await ticker, i);
     }
   };

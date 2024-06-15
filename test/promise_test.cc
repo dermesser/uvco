@@ -125,6 +125,7 @@ TEST(PromiseTest, temporaryOk) {
   run_loop(setup);
 }
 
+#if defined(__SANITIZE_ADDRESS__) || __has_feature(address_sanitizer)
 TEST(PromiseTest, danglingReferenceCrashesAsan) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
     Promise<void> promise =
@@ -134,10 +135,9 @@ TEST(PromiseTest, danglingReferenceCrashesAsan) {
     co_await promise;
   };
 
-#if defined(__SANITIZE_ADDRESS__) || __has_feature(address_sanitizer)
   EXPECT_DEATH({ run_loop(setup); }, "stack-use-after-return");
-#endif
 }
+#endif
 
 TEST(PromiseTest, movePromiseBetweenFunctions) {
   auto coro1 = [](Promise<int> promise) -> uvco::Promise<void> {
