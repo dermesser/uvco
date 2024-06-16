@@ -41,7 +41,8 @@ enum class PromiseState {
   /// After the coroutine has been resumed, and is scheduled to be run on the
   /// next Loop turn.
   resuming = 2,
-  ///
+  /// A coroutine has returned the value and the promise is either ready to be
+  /// resolved, or has already been resolved (ready() vs stale()).
   finished = 3,
 };
 

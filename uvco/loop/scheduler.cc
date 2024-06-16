@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <coroutine>
 #include <cstddef>
-#include <functional>
 #include <span>
 
 namespace uvco {
@@ -17,10 +16,16 @@ namespace {
 
 using BloomFilter = std::size_t;
 
+size_t splitmix64(size_t x) {
+  size_t z = (x + 0x9e3779b97f4a7c15);
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+  return z ^ (z >> 31);
+}
+
 bool haveSeenOrAdd(BloomFilter &filter, std::coroutine_handle<> handle) {
   static_assert(sizeof(BloomFilter) == 8, "BloomFilter is not 64 bits");
-
-  const size_t hash = std::hash<std::coroutine_handle<>>{}(handle);
+  const size_t hash = splitmix64((size_t)handle.address());
   const unsigned index1 = hash % 64;
   const unsigned index2 = (hash >> 6U) % 64;
   const unsigned index3 = (hash >> 12U) % 64;
