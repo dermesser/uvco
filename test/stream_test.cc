@@ -100,6 +100,21 @@ TEST(PipeTest, pipePingPong) {
   run_loop(setup);
 }
 
+TEST(PipeTest, doubleReadDies) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    auto [read, write] = pipe(loop);
+
+    Promise<std::optional<std::string>> readPromise = read.read();
+    EXPECT_DEATH(
+        { Promise<std::optional<std::string>> readPromise2 = read.read(); },
+        "data == nullptr");
+    co_await read.close();
+    co_await write.close();
+  };
+
+  run_loop(setup);
+}
+
 TEST(PipeTest, largeWriteRead) {
   std::ifstream urandom("/dev/urandom", std::ios::binary);
   std::array<char, 1024> buffer{};

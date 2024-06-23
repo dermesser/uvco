@@ -45,12 +45,20 @@ public:
   /// whereas most other types of I/O start in the promise root function.
   /// For streams it is more convenient to do it like this, but there is no
   /// deeper reason.
+  ///
+  /// NOTE: only one reader is allowed to be active at a time. If a read is
+  /// started while another is still active, uvco will abort the process (in
+  /// Debug mode), or ignore the first read (in Release mode).
   [[nodiscard]] Promise<std::optional<std::string>> read();
 
   /// Write a buffer to the stream. A copy of `buf` is taken because it is
   /// undetermined when the actual write will occur. Await the result if the
   /// status is important; the write will be executed even without awaiting (as
   /// long as the process keeps running).
+  ///
+  /// NOTE: only one writer is allowed to be active at a time. If two writes
+  /// are started simultaneously, the process will be aborted in Debug mode, or
+  /// the first `write()` coroutine will not return in Release mode.
   [[nodiscard]] Promise<uv_status> write(std::string buf);
 
   /// Shut down stream for writing. This is a half-close; the other side

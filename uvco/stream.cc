@@ -93,6 +93,7 @@ bool StreamBase::InStreamAwaiter_::await_ready() {
 
 bool StreamBase::InStreamAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
+  BOOST_ASSERT(stream_.stream().data == nullptr);
   stream_.stream().data = this;
   handle_ = handle;
   stream_.reader_ = handle;
@@ -123,6 +124,7 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
                                                   ssize_t nread,
                                                   const uv_buf_t *buf) {
   auto *awaiter = (InStreamAwaiter_ *)stream->data;
+  BOOST_ASSERT(awaiter != nullptr);
   awaiter->stop_read();
 
   if (nread == UV_EOF) {
@@ -132,6 +134,7 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
     awaiter->slot_ = std::move(line);
   } else {
     // Some error; assume EOF.
+    // TODO: propagate error.
     awaiter->slot_ = std::optional<std::string>{};
   }
 
@@ -141,6 +144,7 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
     awaiter->handle_.reset();
     Loop::enqueue(handle);
   }
+  stream->data = nullptr;
 }
 
 StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream,
@@ -165,6 +169,7 @@ bool StreamBase::OutStreamAwaiter_::await_ready() {
 
 bool StreamBase::OutStreamAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
+  BOOST_ASSERT(write_.data == nullptr);
   write_.data = this;
   handle_ = handle;
   // For resumption during close.
@@ -190,11 +195,13 @@ uv_status StreamBase::OutStreamAwaiter_::await_resume() {
 void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
                                                      uv_status status) {
   auto *awaiter = (OutStreamAwaiter_ *)write->data;
+  BOOST_ASSERT(awaiter != nullptr);
   awaiter->status_ = status;
   BOOST_ASSERT(awaiter->handle_);
   auto handle = awaiter->handle_.value();
   awaiter->handle_.reset();
   Loop::enqueue(handle);
+  write->data = nullptr;
 }
 
 bool StreamBase::ShutdownAwaiter_::await_ready() { return false; }
