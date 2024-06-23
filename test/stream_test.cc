@@ -107,7 +107,7 @@ TEST(PipeTest, doubleReadDies) {
     Promise<std::optional<std::string>> readPromise = read.read();
     EXPECT_DEATH(
         { Promise<std::optional<std::string>> readPromise2 = read.read(); },
-        "data == nullptr");
+        R"(stream\(\)\) == nullptr)");
     co_await read.close();
     co_await write.close();
   };

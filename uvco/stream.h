@@ -4,6 +4,7 @@
 
 #include <boost/assert.hpp>
 #include <fmt/core.h>
+#include <string_view>
 #include <uv.h>
 #include <uv/unix.h>
 
@@ -92,14 +93,13 @@ private:
   std::optional<std::coroutine_handle<>> writer_;
 
   struct ShutdownAwaiter_ {
-    explicit ShutdownAwaiter_(uv_shutdown_t &shutdownReq) : req_{shutdownReq} {}
+    explicit ShutdownAwaiter_() {}
     static void onShutdown(uv_shutdown_t *req, uv_status status);
 
     bool await_ready();
     bool await_suspend(std::coroutine_handle<> handle);
     void await_resume();
 
-    uv_shutdown_t &req_;
     std::optional<std::coroutine_handle<>> handle_;
     std::optional<uv_status> status_;
   };
@@ -123,24 +123,23 @@ private:
   };
 
   struct OutStreamAwaiter_ {
-    OutStreamAwaiter_(StreamBase &stream, std::string &&buffer);
+    OutStreamAwaiter_(StreamBase &stream, std::string_view buffer);
 
     [[nodiscard]] std::array<uv_buf_t, 1> prepare_buffers() const;
 
     bool await_ready();
-
     bool await_suspend(std::coroutine_handle<> handle);
-
     uv_status await_resume();
 
     static void onOutStreamWrite(uv_write_t *write, uv_status status);
 
-    StreamBase &stream_;
     std::optional<std::coroutine_handle<>> handle_;
-
-    std::string buffer_;
-    uv_write_t write_{};
     std::optional<uv_status> status_;
+
+    // State necessary for both immediate and delayed writing.
+    std::string_view buffer_;
+    uv_write_t write_{};
+    StreamBase &stream_;
   };
 };
 

@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace uvco {
@@ -60,8 +61,11 @@ Promise<uv_status> StreamBase::write(std::string buf) {
 
 Promise<void> StreamBase::shutdown() {
   uv_shutdown_t shutdownReq;
-  shutdownReq.handle = &stream();
-  ShutdownAwaiter_ awaiter{shutdownReq};
+  ShutdownAwaiter_ awaiter;
+
+  shutdownReq.data = &awaiter;
+  uv_shutdown(&shutdownReq, &stream(),
+              StreamBase::ShutdownAwaiter_::onShutdown);
   co_await awaiter;
   co_return;
 }
@@ -84,7 +88,8 @@ Promise<void> StreamBase::close() {
 bool StreamBase::InStreamAwaiter_::await_ready() {
   uv_status state = uv_is_readable(&stream_.stream());
   if (state == 1) {
-    // Read available data and return immediately.
+    // If data is available, the callback onInStreamRead will be called
+    // immediately. In that case we don't have to wait.
     start_read();
     stop_read();
   }
@@ -93,8 +98,8 @@ bool StreamBase::InStreamAwaiter_::await_ready() {
 
 bool StreamBase::InStreamAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
-  BOOST_ASSERT(stream_.stream().data == nullptr);
-  stream_.stream().data = this;
+  BOOST_ASSERT(uv_handle_get_data((uv_handle_t *)&stream_.stream()) == nullptr);
+  uv_handle_set_data((uv_handle_t *)&stream_.stream(), this);
   handle_ = handle;
   stream_.reader_ = handle;
   start_read();
@@ -148,11 +153,12 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
 }
 
 StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream,
-                                                 std::string &&buffer)
-    : stream_{stream}, buffer_{std::move(buffer)}, write_{} {}
+                                                 std::string_view buffer)
+    : stream_{stream}, buffer_{buffer}, write_{} {}
+
 std::array<uv_buf_t, 1> StreamBase::OutStreamAwaiter_::prepare_buffers() const {
   std::array<uv_buf_t, 1> bufs{};
-  bufs[0].base = const_cast<char *>(buffer_.c_str());
+  bufs[0].base = const_cast<char *>(buffer_.data());
   bufs[0].len = buffer_.size();
   return bufs;
 }
@@ -210,9 +216,6 @@ bool StreamBase::ShutdownAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
   BOOST_ASSERT(!handle_);
   handle_ = handle;
-
-  req_.data = this;
-  uv_shutdown(&req_, req_.handle, StreamBase::ShutdownAwaiter_::onShutdown);
   return true;
 }
 
@@ -227,8 +230,11 @@ void StreamBase::ShutdownAwaiter_::onShutdown(uv_shutdown_t *req,
                                               uv_status status) {
   auto *awaiter = (ShutdownAwaiter_ *)req->data;
   awaiter->status_ = status;
-  BOOST_ASSERT(awaiter->handle_);
-  Loop::enqueue(*awaiter->handle_);
+  if (awaiter->handle_) {
+    auto handle = awaiter->handle_.value();
+    awaiter->handle_.reset();
+    Loop::enqueue(handle);
+  }
 }
 
 } // namespace uvco
