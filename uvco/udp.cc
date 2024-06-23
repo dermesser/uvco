@@ -98,7 +98,8 @@ Promise<void> Udp::connect(const AddressHandle &address) {
 Promise<void> Udp::send(std::span<char> buffer,
                         std::optional<AddressHandle> address) {
   SendAwaiter_ sendAwaiter{};
-  uv_udp_send_t req;
+  uv_udp_send_t req{};
+  BOOST_ASSERT(uv_req_get_data((uv_req_t *)&req) == nullptr);
   uv_req_set_data((uv_req_t *)&req, &sendAwaiter);
 
   std::array<uv_buf_t, 1> bufs{};
@@ -115,13 +116,17 @@ Promise<void> Udp::send(std::span<char> buffer,
   const uv_status status =
       uv_udp_send(&req, udp_.get(), bufs.begin(), 1, addr, onSendDone);
   if (status != 0) {
+    uv_req_set_data((uv_req_t *)&req, nullptr);
     throw UvcoException{status, "uv_udp_send() failed immediately"};
   }
 
   const uv_status status_done = co_await sendAwaiter;
   if (status_done != 0) {
+    uv_req_set_data((uv_req_t *)&req, nullptr);
     throw UvcoException{status_done, "uv_udp_send() failed while sending"};
   }
+
+  uv_req_set_data((uv_req_t *)&req, nullptr);
 
   co_return;
 }
@@ -133,9 +138,11 @@ Promise<std::string> Udp::receiveOne() {
 
 Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
   RecvAwaiter_ awaiter{};
-  udp_->data = &awaiter;
+  BOOST_ASSERT(uv_handle_get_data((uv_handle_t *)udp_.get()) == nullptr);
+  uv_handle_set_data((uv_handle_t *)udp_.get(), &awaiter);
   const uv_status status = udpStartReceive();
   if (status != 0) {
+    uv_handle_set_data((uv_handle_t *)udp_.get(), nullptr);
     throw UvcoException(status, "uv_udp_recv_start()");
   }
 
@@ -144,19 +151,19 @@ Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
       co_await awaiter;
 
   // Any exceptions are thrown in RecvAwaiter_::await_resume
-  udp_->data = nullptr;
+  uv_handle_set_data((uv_handle_t *)udp_.get(), nullptr);
   co_return std::move(packet.value());
 }
 
 MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
-  FlagGuard receivingGuard{is_receiving_};
-
   RecvAwaiter_ awaiter{};
   awaiter.stop_receiving_ = false;
-  udp_->data = &awaiter;
+  BOOST_ASSERT(uv_handle_get_data((uv_handle_t *)udp_.get()) == nullptr);
+  uv_handle_set_data((uv_handle_t *)udp_.get(), &awaiter);
 
   const uv_status status = udpStartReceive();
   if (status != 0) {
+    uv_handle_set_data((uv_handle_t *)udp_.get(), nullptr);
     throw UvcoException(status, "receiveMany(): uv_udp_recv_start()");
   }
 
@@ -169,11 +176,12 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
     }
     // It's possible that co_yield doesn't resume anymore, therefore clear
     // reference to local awaiter.
-    udp_->data = nullptr;
+    uv_handle_set_data((uv_handle_t *)udp_.get(), nullptr);
     co_yield std::move(buffer.value());
-    udp_->data = &awaiter;
+    BOOST_ASSERT(uv_handle_get_data((uv_handle_t *)udp_.get()) == nullptr);
+    uv_handle_set_data((uv_handle_t *)udp_.get(), &awaiter);
   }
-  udp_->data = nullptr;
+  uv_handle_set_data((uv_handle_t *)udp_.get(), nullptr);
   udpStopReceive();
   co_return;
 }

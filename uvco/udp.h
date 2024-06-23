@@ -60,14 +60,24 @@ public:
   /// Receive a single UDP packet.
   ///
   /// TODO: use a better-suited buffer type.
+  ///
+  /// Only one coroutine can be receiving at a time. This is currently enforced
+  /// by assertions.
   Promise<std::string> receiveOne();
 
   /// Receive a single UDP packet and also return the sender's address.
+  ///
+  /// Only one coroutine can be receiving at a time. This is currently enforced
+  /// by assertions.
   Promise<std::pair<std::string, AddressHandle>> receiveOneFrom();
 
   /// Generate packets received on socket. Call stopReceiveMany() when no more
   /// packets are desired; otherwise this will continue indefinitely.
+  ///
+  /// Only one coroutine can be receiving at a time. This is currently enforced
+  /// by assertions.
   MultiPromise<std::pair<std::string, AddressHandle>> receiveMany();
+
   /// Stop receiving with `receiveMany()` by cancelling the receiving generator
   /// coroutine.
   void

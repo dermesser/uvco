@@ -252,6 +252,37 @@ TEST(UdpTest, testBroadcast) {
   run_loop(setup);
 }
 
+TEST(UdpTest, simultaneousReceiveDies) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Udp server{loop};
+    co_await server.bind("::1", 9999, 0);
+
+    MultiPromise<std::pair<std::string, AddressHandle>> packets =
+        server.receiveMany();
+
+    EXPECT_DEATH(
+        { auto packets2 = server.receiveMany(); }, "== nullptr' failed");
+
+    co_await server.close();
+  };
+
+  run_loop(setup);
+}
+
+TEST(UdpTest, simultaneousReceiveOneDies) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Udp server{loop};
+    co_await server.bind("::1", 9999, 0);
+
+    Promise<std::string> packet = server.receiveOne();
+    EXPECT_DEATH({ auto packet = server.receiveOne(); }, "== nullptr' failed");
+
+    co_await server.close();
+  };
+
+  run_loop(setup);
+}
+
 TEST(UdpTest, udpNoClose) {
   uint64_t counter = 0;
   const uv_udp_t *underlying{};
