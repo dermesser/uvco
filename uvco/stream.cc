@@ -2,6 +2,7 @@
 
 #include <boost/assert.hpp>
 #include <fmt/core.h>
+#include <span>
 #include <uv.h>
 #include <uv/unix.h>
 
@@ -46,17 +47,32 @@ TtyStream TtyStream::tty(const Loop &loop, int fd) {
   return TtyStream{std::move(tty)};
 }
 
-Promise<std::optional<std::string>> StreamBase::read() {
+Promise<std::optional<std::string>> StreamBase::read(size_t maxSize) {
   // This is a promise root function, i.e. origin of a promise.
-  InStreamAwaiter_ awaiter{*this};
-  std::optional<std::string> buf = co_await awaiter;
+  std::string buf(maxSize, '\0');
+  InStreamAwaiter_ awaiter{*this, buf};
+  const size_t nRead = co_await awaiter;
+  if (nRead == 0) {
+    // EOF.
+    co_return std::nullopt;
+  }
+  buf.resize(nRead);
   co_return buf;
 }
 
-Promise<uv_status> StreamBase::write(std::string buf) {
+Promise<size_t> StreamBase::read(std::span<char> buffer) {
+  InStreamAwaiter_ awaiter{*this, buffer};
+  size_t n = co_await awaiter;
+  co_return n;
+}
+
+Promise<size_t> StreamBase::write(std::string buf) {
   OutStreamAwaiter_ awaiter{*this, std::move(buf)};
   uv_status status = co_await awaiter;
-  co_return status;
+  if (status < 0) {
+    throw UvcoException{status, "StreamBase::write() encountered error"};
+  }
+  co_return static_cast<size_t>(status);
 }
 
 Promise<void> StreamBase::shutdown() {
@@ -93,7 +109,7 @@ bool StreamBase::InStreamAwaiter_::await_ready() {
     start_read();
     stop_read();
   }
-  return slot_.has_value();
+  return status_.has_value();
 }
 
 bool StreamBase::InStreamAwaiter_::await_suspend(
@@ -106,44 +122,51 @@ bool StreamBase::InStreamAwaiter_::await_suspend(
   return true;
 }
 
-std::optional<std::string> StreamBase::InStreamAwaiter_::await_resume() {
-  if (!slot_ && !stream_.stream_) {
+size_t StreamBase::InStreamAwaiter_::await_resume() {
+  if (!status_ && !stream_.stream_) {
     return {};
   }
-  BOOST_ASSERT(slot_);
-  std::optional<std::string> result = std::move(*slot_);
-  slot_.reset();
+  BOOST_ASSERT(status_);
   stream_.reader_.reset();
-  return result;
+  if (status_ && *status_ == UV_EOF) {
+    return 0;
+  }
+  if (status_ && *status_ < 0) {
+    throw UvcoException{static_cast<uv_status>(*status_),
+                        "StreamBase::read() encountered error"};
+  }
+  BOOST_ASSERT(status_.value() >= 0);
+  return static_cast<size_t>(status_.value());
+}
+
+// Provides the InStreamAwaiter_'s span buffer to libuv.
+void StreamBase::InStreamAwaiter_::allocate(uv_handle_t *handle,
+                                            size_t /*suggested_size*/,
+                                            uv_buf_t *buf) {
+  const InStreamAwaiter_ *awaiter = (InStreamAwaiter_ *)handle->data;
+  BOOST_ASSERT(awaiter != nullptr);
+  buf->base = awaiter->buffer_.data();
+  buf->len = awaiter->buffer_.size();
 }
 
 void StreamBase::InStreamAwaiter_::start_read() {
-  uv_read_start(&stream_.stream(), allocator, onInStreamRead);
+  uv_read_start(&stream_.stream(), StreamBase::InStreamAwaiter_::allocate,
+                StreamBase::InStreamAwaiter_::onInStreamRead);
 }
 
 void StreamBase::InStreamAwaiter_::stop_read() {
   uv_read_stop(&stream_.stream());
 }
 
+// buf is not used, because it is an alias to awaiter->buffer_.
 void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
                                                   ssize_t nread,
-                                                  const uv_buf_t *buf) {
+                                                  const uv_buf_t * /*buf*/) {
   auto *awaiter = (InStreamAwaiter_ *)stream->data;
   BOOST_ASSERT(awaiter != nullptr);
   awaiter->stop_read();
+  awaiter->status_ = nread;
 
-  if (nread == UV_EOF) {
-    awaiter->slot_ = std::optional<std::string>{};
-  } else if (nread >= 0) {
-    std::string line{buf->base, static_cast<size_t>(nread)};
-    awaiter->slot_ = std::move(line);
-  } else {
-    // Some error; assume EOF.
-    // TODO: propagate error.
-    awaiter->slot_ = std::optional<std::string>{};
-  }
-
-  freeUvBuf(buf);
   if (awaiter->handle_) {
     auto handle = awaiter->handle_.value();
     awaiter->handle_.reset();
@@ -154,7 +177,7 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
 
 StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream,
                                                  std::string_view buffer)
-    : stream_{stream}, buffer_{buffer}, write_{} {}
+    : buffer_{buffer}, write_{}, stream_{stream} {}
 
 std::array<uv_buf_t, 1> StreamBase::OutStreamAwaiter_::prepare_buffers() const {
   std::array<uv_buf_t, 1> bufs{};

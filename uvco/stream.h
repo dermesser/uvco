@@ -4,6 +4,7 @@
 
 #include <boost/assert.hpp>
 #include <fmt/core.h>
+#include <span>
 #include <string_view>
 #include <uv.h>
 #include <uv/unix.h>
@@ -39,18 +40,26 @@ public:
   StreamBase &operator=(StreamBase &&) = default;
   virtual ~StreamBase();
 
-  /// Read available data (up to 4 kB) from stream. Returns an empty optional on
-  /// EOF or closed handle (`close()`).
+  static constexpr size_t defaultMaxReadSize = 4096;
+
+  /// Read available data (up to `maxSize` bytes) from stream. Returns
+  /// `std::nullopt` on EOF or closed handle (`close()`).
   ///
-  /// Implementation note: the actual read start occurs in the awaiter,
-  /// whereas most other types of I/O start in the promise root function.
-  /// For streams it is more convenient to do it like this, but there is no
-  /// deeper reason.
+  /// Throws `UvcoException` on error.
+  ///
+  /// NOTE: Consider using `read(std::span<char>)` for better performance.
   ///
   /// NOTE: only one reader is allowed to be active at a time. If a read is
   /// started while another is still active, uvco will abort the process (in
   /// Debug mode), or ignore the first read (in Release mode).
-  [[nodiscard]] Promise<std::optional<std::string>> read();
+  [[nodiscard]] Promise<std::optional<std::string>>
+  read(size_t maxSize = defaultMaxReadSize);
+
+  /// Read available data (up to `buffer.size()` bytes) from stream. Returns
+  /// the number of bytes read, or 0 on EOF or closed handle (`close()`).
+  ///
+  /// Throws `UvcoException` on error.
+  Promise<size_t> read(std::span<char> buffer);
 
   /// Write a buffer to the stream. A copy of `buf` is taken because it is
   /// undetermined when the actual write will occur. Await the result if the
@@ -60,7 +69,7 @@ public:
   /// NOTE: only one writer is allowed to be active at a time. If two writes
   /// are started simultaneously, the process will be aborted in Debug mode, or
   /// the first `write()` coroutine will not return in Release mode.
-  [[nodiscard]] Promise<uv_status> write(std::string buf);
+  [[nodiscard]] Promise<size_t> write(std::string buf);
 
   /// Shut down stream for writing. This is a half-close; the other side
   /// can still write. The result of `shutdown()` *must be `co_await`ed*.
@@ -105,20 +114,24 @@ private:
   };
 
   struct InStreamAwaiter_ {
-    explicit InStreamAwaiter_(StreamBase &stream) : stream_{stream} {}
+    explicit InStreamAwaiter_(StreamBase &stream, std::span<char> buffer)
+        : stream_{stream}, buffer_{buffer} {}
 
     bool await_ready();
     bool await_suspend(std::coroutine_handle<> handle);
-    std::optional<std::string> await_resume();
+    size_t await_resume();
 
     void start_read();
     void stop_read();
 
+    static void allocate(uv_handle_t *handle, size_t suggested_size,
+                         uv_buf_t *buf);
     static void onInStreamRead(uv_stream_t *stream, ssize_t nread,
                                const uv_buf_t *buf);
 
     StreamBase &stream_;
-    std::optional<std::optional<std::string>> slot_;
+    std::span<char> buffer_;
+    std::optional<ssize_t> status_;
     std::optional<std::coroutine_handle<>> handle_;
   };
 

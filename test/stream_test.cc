@@ -1,4 +1,5 @@
 
+#include <boost/assert.hpp>
 #include <gtest/gtest.h>
 #include <sys/socket.h>
 #include <uv.h>
@@ -124,23 +125,40 @@ TEST(PipeTest, largeWriteRead) {
     auto [read, write] = pipe(loop);
 
     for (unsigned i = 0; i < 10; ++i) {
-      co_await write.write(std::string(buffer.data(), buffer.size()));
+      EXPECT_EQ(buffer.size(), co_await write.write(
+                                   std::string(buffer.data(), buffer.size())));
     }
     co_await write.close();
 
     size_t bytesRead{};
 
     while (true) {
-      auto chunk = co_await read.read();
+      // Read random chunk size.
+      auto chunk = co_await read.read(732);
       if (!chunk.has_value()) {
         break;
       }
       bytesRead += chunk->size();
     }
-
+    BOOST_ASSERT(bytesRead == 10240);
     co_await read.close();
   };
 
+  run_loop(setup);
+}
+
+TEST(PipeTest, readIntoBuffer) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    auto [read, write] = pipe(loop);
+
+    co_await write.write("Hello");
+    std::array<char, 32> buffer{};
+    size_t bytesRead = co_await read.read(buffer);
+    EXPECT_EQ(bytesRead, 5);
+    EXPECT_EQ(std::string(buffer.data(), bytesRead), "Hello");
+    co_await read.close();
+    co_await write.close();
+  };
   run_loop(setup);
 }
 

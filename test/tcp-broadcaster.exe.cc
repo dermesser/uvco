@@ -1,13 +1,19 @@
 
 #include <boost/program_options.hpp>
+#include <boost/program_options/detail/parsers.hpp>
+#include <boost/program_options/options_description.hpp>
+#include <boost/program_options/value_semantic.hpp>
 #include <boost/program_options/variables_map.hpp>
+#include <fmt/core.h>
 #include <fmt/format.h>
 
+#include "uvco/name_resolution.h"
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
 #include "uvco/stream.h"
 #include "uvco/tcp.h"
+#include "uvco/tcp_stream.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -16,7 +22,10 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 struct Options {
   const uvco::Loop *loop;
@@ -55,7 +64,7 @@ public:
 
   Promise<void> broadcast(std::string_view from, std::string_view what) {
     const std::string message = fmt::format("{} says: {}", from, what);
-    std::vector<Promise<uv_status>> promises;
+    std::vector<Promise<size_t>> promises;
     promises.reserve(clients_.size());
 
     for (const auto &clientPtr : clients_) {
