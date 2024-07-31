@@ -238,6 +238,7 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
                        const struct sockaddr *addr, unsigned int flags) {
 
   auto *awaiter = (RecvAwaiter_ *)handle->data;
+  BOOST_ASSERT(awaiter != nullptr);
 
   if (addr == nullptr) {
     // Error or asking to free buffers.

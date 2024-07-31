@@ -44,6 +44,14 @@ public:
   explicit SelectSet(Promise<Ts>... promises)
       : promises_{std::move(promises)...} {}
 
+  ~SelectSet() {
+    if (!resumed_) {
+      std::apply(
+          [](auto &&...promise) { (promise.core()->resetHandle(), ...); },
+          promises_);
+    }
+  }
+
   [[nodiscard]] bool await_ready() const noexcept {
     return resumed_ || std::apply(
                            [](auto &&...promise) -> bool {
