@@ -1,5 +1,6 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include <fmt/core.h>
 #include <uv.h>
 
 #include <boost/assert.hpp>
@@ -52,8 +53,13 @@ public:
   }
   ~TimerAwaiter() {
     stop();
-    BOOST_ASSERT_MSG(
-        closed_, "Timer still active: please close explicitly using close()");
+    if (!closed_ && timer_) {
+      fmt::print(stderr,
+                 "TimerAwaiter::~TimerAwaiter(): closing timer in dtor; "
+                 "this will leak memory. "
+                 "Please co_await timer.close() if possible.\n");
+      closeHandle(timer_.release());
+    }
   }
 
   Promise<void> close() {

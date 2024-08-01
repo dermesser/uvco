@@ -31,6 +31,7 @@ TEST(TimerTest, tickerTest) {
   auto setup = [&](const Loop &loop) -> Promise<void> {
     auto ticker = tick(loop, 1, count);
     MultiPromise<uint64_t> tickerProm = ticker->ticker();
+
     while (true) {
       std::optional<uint64_t> got = co_await tickerProm;
       if (got) {
