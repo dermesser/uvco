@@ -157,32 +157,39 @@ endif()
 
 # Unit tests
 
-add_library(test-util STATIC test/test_util.cc)
-target_include_directories(test-util PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(test-util PRIVATE uv-co-lib)
+if(GTest_FOUND)
+    enable_testing()
 
-foreach(TESTCASE IN ITEMS async_work channel fs generator loop name_resolution promise select stream timer udp uds tcp misc)
-    add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
-    target_link_libraries(${TESTCASE}-test PRIVATE uv-co-lib test-util GTest::gtest_main)
-    add_test(NAME ${TESTCASE}-test COMMAND ${TESTCASE}-test)
+    add_library(test-util STATIC test/test_util.cc)
+    target_include_directories(test-util PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(test-util PRIVATE uv-co-lib)
 
-    if(ENABLE_COVERAGE)
-        target_compile_options(${TESTCASE}-test PRIVATE "--coverage")
-        target_link_libraries(${TESTCASE}-test PRIVATE gcov)
+    foreach(TESTCASE IN ITEMS async_work channel fs generator loop name_resolution promise select stream timer udp uds tcp misc)
+        add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
+        target_link_libraries(${TESTCASE}-test PRIVATE uv-co-lib test-util GTest::gtest_main)
+        add_test(NAME ${TESTCASE}-test COMMAND ${TESTCASE}-test)
+
+        if(ENABLE_COVERAGE)
+            target_compile_options(${TESTCASE}-test PRIVATE "--coverage")
+            target_link_libraries(${TESTCASE}-test PRIVATE gcov)
+        endif()
+    endforeach()
+
+    foreach(TESTBINARY IN ITEMS tcp-broadcaster multicast http10 memcached-impl)
+        add_executable(test-${TESTBINARY} test/${TESTBINARY}.exe.cc)
+        target_link_libraries(test-${TESTBINARY} PRIVATE uv-co-lib Boost::program_options)
+    endforeach()
+
+    target_link_libraries(test-memcached-impl PRIVATE Boost::log Boost::log_setup)
+
+    if(CURL_FOUND)
+        add_executable(curl-test test/curl_test.cc)
+        target_link_libraries(curl-test PRIVATE uv-co-curl test-util GTest::gtest_main)
+        add_test(NAME curl-test COMMAND curl-test)
     endif()
-endforeach()
 
-foreach(TESTBINARY IN ITEMS tcp-broadcaster multicast http10 memcached-impl)
-    add_executable(test-${TESTBINARY} test/${TESTBINARY}.exe.cc)
-    target_link_libraries(test-${TESTBINARY} PRIVATE uv-co-lib Boost::program_options)
-endforeach()
-
-target_link_libraries(test-memcached-impl PRIVATE Boost::log Boost::log_setup)
-
-if(CURL_FOUND)
-    add_executable(curl-test test/curl_test.cc)
-    target_link_libraries(curl-test PRIVATE uv-co-curl test-util GTest::gtest_main)
-    add_test(NAME curl-test COMMAND curl-test)
+else()
+    message(WARNING "GTest not found, skipping tests")
 endif()
 
 # Coverage

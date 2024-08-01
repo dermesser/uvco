@@ -187,7 +187,6 @@ TEST(UdpTest, testDropReceiver) {
 
     MultiPromise<std::pair<std::string, AddressHandle>> packets =
         server.receiveMany();
-    ;
 
     std::string fromClient{"Hello there!"};
     co_await client.send(fromClient, {});

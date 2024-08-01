@@ -70,13 +70,13 @@ public:
   [[nodiscard]] std::string toString() const;
 
 private:
-  std::variant<struct sockaddr_in, struct sockaddr_in6> addr_{};
+  std::variant<struct sockaddr_in, struct sockaddr_in6> addr_;
 
   /// A helper for calling `inet_ntop(3)`.
   struct NtopHelper_ {
-    std::string operator()(const struct sockaddr_in &ipv4);
-    std::string operator()(const struct sockaddr_in6 &ipv6);
-    std::string ntop(int family, void *addr);
+    static std::string operator()(const struct sockaddr_in &ipv4);
+    static std::string operator()(const struct sockaddr_in6 &ipv6);
+    static std::string ntop(int family, void *addr);
   };
 };
 

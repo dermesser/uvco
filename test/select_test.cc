@@ -160,7 +160,7 @@ TEST(SelectTest, selectVoid) {
 
 TEST(SelectTest, DISABLED_benchmark) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    constexpr int count = 1000000;
+    constexpr unsigned count = 1000000;
 
     // Finely orchestrated generators, yielding one after another.
     MultiPromise<int> gen1 = []() -> uvco::MultiPromise<int> {
@@ -203,7 +203,7 @@ TEST(SelectTest, DISABLED_benchmark) {
 
 TEST(SelectTest, reliableSelectLoop) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    constexpr int count = 10;
+    constexpr unsigned count = 10;
 
     // Finely orchestrated generators, yielding one after another.
     MultiPromise<int> gen1 = []() -> uvco::MultiPromise<int> {

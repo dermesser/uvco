@@ -345,7 +345,7 @@ std::optional<AddressHandle> Udp::getPeername() const {
       uv_udp_getpeername(udp_.get(), (struct sockaddr *)&address, &ss_size);
   if (status < 0) {
     if (status == UV_ENOTCONN) {
-      return {};
+      return std::nullopt;
     }
     throw UvcoException(status, "Error in getpeername");
   }
@@ -369,7 +369,7 @@ std::optional<std::pair<std::string, AddressHandle>>
 Udp::RecvAwaiter_::await_resume() {
   // Woken up without read packet: stop receiving.
   if (buffer_.empty()) {
-    return {};
+    return std::nullopt;
   }
   QueueItem_ item = buffer_.get();
   if (std::holds_alternative<uv_status>(item)) {

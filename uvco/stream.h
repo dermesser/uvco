@@ -102,7 +102,7 @@ private:
   std::optional<std::coroutine_handle<>> writer_;
 
   struct ShutdownAwaiter_ {
-    explicit ShutdownAwaiter_() {}
+    ShutdownAwaiter_() = default;
     static void onShutdown(uv_shutdown_t *req, uv_status status);
 
     bool await_ready();
