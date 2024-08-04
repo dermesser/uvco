@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <array>
 #include <boost/assert.hpp>
 #include <uv.h>
 
@@ -62,9 +63,9 @@ public:
   explicit Scheduler(RunMode mode = RunMode::Deferred);
 
   Scheduler(const Scheduler &) = delete;
-  Scheduler(Scheduler &&) = default;
+  Scheduler(Scheduler &&) = delete;
   Scheduler &operator=(const Scheduler &) = delete;
-  Scheduler &operator=(Scheduler &&) = default;
+  Scheduler &operator=(Scheduler &&) = delete;
   ~Scheduler();
 
   /// Set up scheduler with event loop. This is required for all uvco
@@ -88,10 +89,10 @@ public:
   [[nodiscard]] bool empty() const { return resumableActive_.empty(); }
 
 private:
-  // Vectors of coroutine handles to be resumed.
-  std::vector<std::coroutine_handle<>> resumableActive_ = {};
-  // Vectors of coroutines currently being resumed (while in runAll()).
-  std::vector<std::coroutine_handle<>> resumableRunning_ = {};
+  // Vector of coroutine handles to be resumed.
+  std::vector<std::coroutine_handle<>> resumableActive_;
+  // Vector of coroutines currently being resumed (while in runAll()).
+  std::vector<std::coroutine_handle<>> resumableRunning_;
 
   RunMode run_mode_;
 };

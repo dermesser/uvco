@@ -103,6 +103,35 @@ TEST(ChannelTest, DISABLED_basicWriteReadBench) {
   run_loop(setup);
 }
 
+TEST(ChannelTest, DISABLED_generatorWriteReadBench) {
+  static constexpr int N_iter = 1000000;
+
+  auto reader = [](Channel<int> &chan) -> Promise<void> {
+    MultiPromise<int> gen = chan.getAll();
+    for (int i = 1; i < N_iter; ++i) {
+      EXPECT_EQ(i, co_await gen);
+    }
+  };
+
+  auto writer = [](Channel<int> &chan) -> Promise<void> {
+    for (int i = 1; i < N_iter; ++i) {
+      co_await chan.put(i);
+    }
+  };
+
+  auto setup = [&](const Loop &) -> Promise<void> {
+    Channel<int> chan{2};
+
+    Promise<void> readerCoroutine = reader(chan);
+    Promise<void> writerCoroutine = writer(chan);
+
+    co_await readerCoroutine;
+    co_await writerCoroutine;
+  };
+
+  run_loop(setup);
+}
+
 TEST(ChannelTest, blockingRead) {
 
   auto drain = [](Channel<int> &chan) -> Promise<void> {

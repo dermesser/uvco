@@ -144,7 +144,7 @@ private:
       if (!waiters_.hasSpace()) {
         throw UvcoException(
             UV_EBUSY,
-            "only one coroutine can wait for reading/writing a channel");
+            "too many coroutines waiting for reading/writing a channel");
       }
       waiters_.put(handle);
       return true;

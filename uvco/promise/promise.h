@@ -151,9 +151,8 @@ public:
       default:
         throw UvcoException("PromiseAwaiter_::await_resume: invalid slot");
       }
-    } else {
-      throw UvcoException("unwrap called on unfulfilled promise");
     }
+    throw UvcoException("unwrap called on unfulfilled promise");
   }
 
 protected:
@@ -203,10 +202,8 @@ protected:
         default:
           throw UvcoException("PromiseAwaiter_::await_resume: invalid slot");
         }
-      } else {
-        throw UvcoException(
-            "await_resume called on unfulfilled promise (bug?)");
       }
+      throw UvcoException("await_resume called on unfulfilled promise (bug?)");
     }
 
     PromiseCore_ &core_;

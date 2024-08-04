@@ -1,5 +1,6 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include <array>
 #include <fmt/core.h>
 #include <uv.h>
 
@@ -13,37 +14,6 @@
 namespace uvco {
 
 namespace {
-
-using BloomFilter = std::size_t;
-
-size_t splitmix64(size_t x) {
-  size_t z = (x + 0x9e3779b97f4a7c15);
-  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
-  z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
-  return z ^ (z >> 31);
-}
-
-bool haveSeenOrAdd(BloomFilter &filter, std::coroutine_handle<> handle) {
-  static_assert(sizeof(BloomFilter) == 8, "BloomFilter is not 64 bits");
-  const size_t hash = splitmix64((size_t)handle.address());
-  const unsigned index1 = hash % 64;
-  const unsigned index2 = (hash >> 6U) % 64;
-  const unsigned index3 = (hash >> 12U) % 64;
-  const unsigned index4 = (hash >> 18U) % 64;
-  const unsigned index5 = (hash >> 24U) % 64;
-
-  // More than the first 32 bits appear to not gain much.
-  const size_t bloomIndex = (1U << index1) | (1U << index2) | (1U << index3) |
-                            (1U << index4) | (1U << index5);
-
-  if ((filter & bloomIndex) == bloomIndex) {
-    // Potentially a false positive.
-    return true;
-  }
-  // Definitely not seen before.
-  filter |= bloomIndex;
-  return false;
-}
 
 unsigned findFirstIndexOf(std::span<const std::coroutine_handle<>> handles,
                           std::coroutine_handle<> handle) {
@@ -61,27 +31,23 @@ void Scheduler::runAll() {
   unsigned turns = 0;
 
   while (!resumableActive_.empty() && turns < maxTurnsBeforeReturning) {
-    BloomFilter seenHandles = 0;
     resumableRunning_.swap(resumableActive_);
     for (unsigned i = 0; i < resumableRunning_.size(); ++i) {
       auto &coro = resumableRunning_[i];
-
       // Defend against resuming the same coroutine twice in the same loop pass.
       // This happens when SelectSet selects two coroutines which return at the
       // same time. Resuming the same handle twice is not good, very bad, and
       // will usually at least cause a heap use-after-free.
 
-      // Explicitly written in an explicit way :)
-      if (!haveSeenOrAdd(seenHandles, coro)) [[likely]] {
-        coro.resume();
-      } else if (findFirstIndexOf(resumableRunning_, coro) == i) {
+      // Check if this coroutine handle has already been resumed. This has
+      // quadratic complexity, but appears to be faster than e.g. a Bloom
+      // filter, because it takes fewer calculations and is a nice linear search
+      // over a usually short vector.
+      if (findFirstIndexOf(resumableRunning_, coro) == i) {
         // This is only true if the coroutine is a false positive in the bloom
         // filter, and has not been run before. The linear search is slow (but
         // not too slow), and only happens in the case of a false positive.
         coro.resume();
-      } else {
-        // This is most likely a SelectSet being awaited, with two coroutines
-        // being ready at the same time.
       }
     }
     resumableRunning_.clear();
@@ -89,11 +55,11 @@ void Scheduler::runAll() {
   }
 }
 
-void Scheduler::close() { BOOST_ASSERT(resumableActive_.empty()); }
+void Scheduler::close() { BOOST_ASSERT(!resumableActive_.empty()); }
 
 void Scheduler::enqueue(std::coroutine_handle<> handle) {
   // Use of moved-out Scheduler?
-  BOOST_ASSERT(resumableActive_.capacity() != 0);
+  BOOST_ASSERT(resumableActive_.capacity() > 0);
 
   if (run_mode_ == RunMode::Immediate) {
     handle.resume();
@@ -108,9 +74,8 @@ void Scheduler::setUpLoop(uv_loop_t *loop) { uv_loop_set_data(loop, this); }
 Scheduler::~Scheduler() = default;
 
 Scheduler::Scheduler(RunMode mode) : run_mode_{mode} {
-  static constexpr size_t resumableBufferSize = 16;
-  resumableActive_.reserve(resumableBufferSize);
-  resumableRunning_.reserve(resumableBufferSize);
+  resumableActive_.reserve(16);
+  resumableRunning_.reserve(16);
 }
 
 } // namespace uvco

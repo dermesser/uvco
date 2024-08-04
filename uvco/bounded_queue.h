@@ -43,7 +43,7 @@ public:
   }
   /// Pop an item from the queue.
   T get() {
-    if (empty()) {
+    if (empty()) [[unlikely]] {
       throw UvcoException(UV_EAGAIN, "queue is empty");
     }
     T element = std::move(queue_.at(tail_++));

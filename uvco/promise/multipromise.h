@@ -62,8 +62,7 @@ public:
   /// next value.
   ///
   /// Called by a `MultiPromiseAwaiter_` when the `MultiPromise` is
-  /// `co_await`ed, so that the generator coroutine can continue yielding the
-  /// next value.
+  /// `co_await`ed, after a value has been successfully awaited.
   void resumeGenerator() {
     BOOST_ASSERT(PromiseCore<T>::state_ != PromiseState::finished);
     if (generatorHandle_) {
@@ -100,15 +99,17 @@ public:
     }
   }
 
-  /// Mark generator as finished, yielding no more values.
-  ///
-  /// Called when the generator coroutine returns or throws.
+  /// Mark generator as finished, yielding no more values. Called from within
+  /// the MultiPromise upon return_value and unhandled_exception. From hereon
+  /// awaiting the generator will either rethrow the thrown exception, or yield
+  /// nullopt.
   void terminated() { terminated_ = true; }
 
   /// Check if the generator has been cancelled or has returned.
   [[nodiscard]] bool isTerminated() const { return terminated_; }
 
 private:
+  /// Coroutine handle referring to the suspended generator.
   std::optional<std::coroutine_handle<>> generatorHandle_;
   /// Set to true once the generator coroutine has returned or has been
   /// cancelled.
@@ -161,7 +162,8 @@ public:
     }
   }
 
-  /// Obtain the next value yielded by a generator coroutine.
+  /// Obtain the next value yielded by a generator coroutine. This is less
+  /// efficient than awaiting the multipromise directly.
   Promise<std::optional<T>> next() { co_return (co_await *this); }
 
   /// Return an awaiter for this MultiPromise, which resumes the waiting
@@ -174,7 +176,8 @@ public:
     return MultiPromiseAwaiter_{core_};
   }
 
-  /// Returns true if a value is available.
+  /// Returns true if a value is available, or the generator has returned or
+  /// thrown.
   bool ready() { return core_->slot.has_value() || core_->isTerminated(); }
 
   /// Immediately cancel the suspended generator coroutine. This will drop all
@@ -230,21 +233,19 @@ protected:
       if (!core_->slot) {
         // Terminated by co_return
         return std::nullopt;
-      } else {
-        switch (core_->slot->index()) {
-        case 0: {
-          std::optional<T> result = std::move(std::get<0>(core_->slot.value()));
-          core_->slot.reset();
-          return std::move(result);
-        }
-        case 1:
-          // Terminated by exception
-          BOOST_ASSERT(core_->isTerminated());
-          std::rethrow_exception(std::get<1>(core_->slot.value()));
-        default:
-          throw UvcoException(
-              "MultiPromiseAwaiter_::await_resume: invalid slot");
-        }
+      }
+      switch (core_->slot->index()) {
+      [[likely]] case 0: {
+        std::optional<T> result = std::move(std::get<0>(core_->slot.value()));
+        core_->slot.reset();
+        return std::move(result);
+      }
+      case 1:
+        // Terminated by exception
+        BOOST_ASSERT(core_->isTerminated());
+        std::rethrow_exception(std::get<1>(core_->slot.value()));
+      default:
+        throw UvcoException("MultiPromiseAwaiter_::await_resume: invalid slot");
       }
     }
 
