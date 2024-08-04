@@ -13,6 +13,7 @@ link_directories(BEFORE /usr/local/lib64)
 
 find_package(Boost 1.80 COMPONENTS log log_setup program_options REQUIRED)
 find_package(CURL)
+find_package(libpqxx)
 find_package(GTest)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
@@ -155,6 +156,23 @@ if(CURL_FOUND)
     install(TARGETS uv-co-curl FILE_SET HEADERS DESTINATION include/uvco)
 endif()
 
+if(libpqxx_FOUND)
+    add_library(uv-co-pqxx STATIC
+        uvco/integrations/pqxx/pqxx.cc
+    )
+    target_sources(uv-co-pqxx INTERFACE
+        FILE_SET HEADERS
+        TYPE HEADERS
+        BASE_DIRS uvco/
+        FILES
+        uvco/integrations/pqxx/pqxx.h
+    )
+    target_link_libraries(uv-co-pqxx PUBLIC uv-co-lib libpqxx::pqxx)
+    target_include_directories(uv-co-pqxx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    install(TARGETS uv-co-pqxx)
+    install(TARGETS uv-co-pqxx FILE_SET HEADERS DESTINATION include/uvco)
+endif()
+
 # Unit tests
 
 if(GTest_FOUND)
@@ -186,6 +204,11 @@ if(GTest_FOUND)
         add_executable(curl-test test/curl_test.cc)
         target_link_libraries(curl-test PRIVATE uv-co-curl test-util GTest::gtest_main)
         add_test(NAME curl-test COMMAND curl-test)
+    endif()
+    if(libpqxx_FOUND)
+        add_executable(pqxx-test test/pqxx_test.cc)
+        target_link_libraries(pqxx-test PRIVATE uv-co-pqxx test-util GTest::gtest_main)
+        add_test(NAME pqxx-test COMMAND pqxx-test)
     endif()
 
 else()

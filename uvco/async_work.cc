@@ -1,6 +1,7 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #include <coroutine>
+#include <exception>
 #include <optional>
 #include <utility>
 #include <uv.h>
@@ -83,11 +84,29 @@ private:
 
 } // namespace
 
-Promise<void> submitWork(const Loop &loop, std::function<void()> work) {
+Promise<void> innerSubmitWork(const Loop &loop, std::function<void()> work) {
   AsyncWorkAwaiter_ awaiter{work};
   uv_queue_work(loop.uvloop(), &awaiter.work(), AsyncWorkAwaiter_::onDoWork,
                 AsyncWorkAwaiter_::onWorkDone);
   co_await awaiter;
+  co_return;
+}
+
+template <>
+Promise<void> submitWork(const Loop &loop, std::function<void()> work) {
+  std::optional<std::exception_ptr> result;
+  // Erase return type and use generic submitWork().
+  std::function<void()> agnosticWork = [&result, work]() {
+    try {
+      work();
+    } catch (...) {
+      result = std::current_exception();
+    }
+  };
+  co_await innerSubmitWork(loop, agnosticWork);
+  if (result.has_value()) {
+    std::rethrow_exception(result.value());
+  }
   co_return;
 }
 

@@ -1,6 +1,7 @@
 
 #include <atomic>
 #include <functional>
+#include <stdexcept>
 #include <uv.h>
 
 #include "test_util.h"
@@ -24,7 +25,7 @@ TEST(AsyncWorkTest, basicVoidFunction) {
   auto work = [&]() -> void { ran = true; };
 
   auto setup = [&](const Loop &loop) -> Promise<void> {
-    co_await submitWork(loop, work);
+    co_await submitWork<void>(loop, work);
   };
 
   run_loop(setup);
@@ -41,7 +42,7 @@ TEST(AsyncWorkTest, scheduleMany) {
   auto setup = [&](const Loop &loop) -> Promise<void> {
     std::vector<Promise<void>> promises;
     for (unsigned i = 0; i < num; ++i) {
-      promises.push_back(submitWork(loop, [i, &work]() { work(i); }));
+      promises.push_back(submitWork<void>(loop, [i, &work]() { work(i); }));
     }
 
     unsigned waited{};
@@ -78,6 +79,37 @@ TEST(AsyncWorkTest, resultReturned) {
     EXPECT_EQ(waited, num);
   };
 
+  run_loop(setup);
+}
+
+TEST(AsyncWorkTest, exceptionThrown) {
+  auto work = []() -> void { throw std::runtime_error("test"); };
+
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    auto p = submitWork<void>(loop, work);
+    try {
+      co_await p;
+      EXPECT_TRUE(false) << "Expected exception";
+    } catch (const std::runtime_error &e) {
+      EXPECT_STREQ(e.what(), "test");
+    }
+  };
+
+  run_loop(setup);
+}
+
+TEST(AsyncWorkTest, execptionThrownForValue) {
+  auto work = []() -> unsigned { throw std::runtime_error("test"); };
+
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    auto p = submitWork<unsigned>(loop, work);
+    try {
+      co_await p;
+      EXPECT_TRUE(false) << "Expected exception";
+    } catch (const std::runtime_error &e) {
+      EXPECT_STREQ(e.what(), "test");
+    }
+  };
   run_loop(setup);
 }
 
