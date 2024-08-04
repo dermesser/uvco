@@ -8,6 +8,7 @@
 #include "uvco/exception.h"
 #include "uvco/fs.h"
 #include "uvco/loop/loop.h"
+#include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 
 #include <algorithm>
@@ -149,6 +150,152 @@ TEST(FsTest, scanDir) {
       ++count;
     }
     EXPECT_GT(count, 0);
+  };
+
+  run_loop(setup);
+}
+
+TEST(FsWatchTest, basicFileWatch) {
+  static constexpr std::string_view filename = "/tmp/_uvco_watch_test";
+
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto file = co_await File::open(loop, filename, O_RDWR | O_CREAT);
+
+    auto watch = FsWatch::create(loop, filename);
+    MultiPromise<FsWatch::FileEvent> watcher = watch.watch();
+
+    co_await file.write("Hello World\n");
+
+    const std::optional<FsWatch::FileEvent> event = co_await watcher;
+    BOOST_ASSERT(event.has_value());
+    EXPECT_EQ(event->path, "_uvco_watch_test");
+    EXPECT_EQ(event->events, UV_CHANGE);
+
+    co_await watch.stopWatch(std::move(watcher));
+    co_await watch.close();
+    co_await file.close();
+    co_await File::unlink(loop, filename);
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(FsWatchTest, basicDirWatch) {
+  static constexpr std::string_view dirName = "/tmp/_uvco_watch_test_dir";
+  static constexpr std::string_view filename = "/tmp/_uvco_watch_test_dir/file";
+  static constexpr std::string_view dirName2 =
+      "/tmp/_uvco_watch_test_dir/subdir";
+  static constexpr std::string_view filename2 =
+      "/tmp/_uvco_watch_test_dir/subdir/subfile";
+
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    co_await Directory::mkdir(loop, dirName);
+    co_await Directory::mkdir(loop, dirName2);
+
+    auto file = co_await File::open(loop, filename, O_RDWR | O_CREAT);
+
+    auto watch = FsWatch::create(loop, dirName);
+    MultiPromise<FsWatch::FileEvent> watcher = watch.watch();
+
+    // Check that FsWatch::create is not recursive
+    auto file2 = co_await File::open(loop, filename2, O_RDWR | O_CREAT);
+    co_await file2.write("Hello World\n");
+    co_await file.write("Hello World\n");
+
+    const std::optional<FsWatch::FileEvent> event = co_await watcher;
+    BOOST_ASSERT(event.has_value());
+    EXPECT_EQ(event->path, "file");
+    EXPECT_EQ(event->events, UV_CHANGE);
+
+    co_await watch.stopWatch(std::move(watcher));
+    co_await watch.close();
+    co_await file.close();
+    co_await file2.close();
+    co_await File::unlink(loop, filename);
+    co_await File::unlink(loop, filename2);
+    co_await Directory::rmdir(loop, dirName2);
+    co_await Directory::rmdir(loop, dirName);
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+// This test shoould only work on macOS and Windows
+// https://docs.libuv.org/en/v1.x/fs_event.html#c.uv_fs_event_start
+TEST(DISABLED_FsWatchTest, watchRecursive) {
+  static constexpr std::string_view dirName = "/tmp/_uvco_watch_test_dir";
+  static constexpr std::string_view subdirName =
+      "/tmp/_uvco_watch_test_dir/subdir";
+  static constexpr std::string_view filename =
+      "/tmp/_uvco_watch_test_dir/subdir/file";
+
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    co_await Directory::mkdir(loop, dirName);
+    co_await Directory::mkdir(loop, subdirName);
+
+    auto watch = FsWatch::createRecursive(loop, dirName);
+    MultiPromise<FsWatch::FileEvent> watcher = watch.watch();
+
+    auto file = co_await File::open(loop, filename, O_RDWR | O_CREAT);
+    co_await file.write("Hello World\n");
+
+    const std::optional<FsWatch::FileEvent> event = co_await watcher;
+    BOOST_ASSERT(event.has_value());
+    EXPECT_EQ(event->path, "subdir/file");
+    EXPECT_EQ(event->events, UV_CHANGE);
+
+    co_await watch.stopWatch(std::move(watcher));
+    co_await watch.close();
+    co_await file.close();
+    co_await File::unlink(loop, filename);
+    co_await Directory::rmdir(loop, subdirName);
+    co_await Directory::rmdir(loop, dirName);
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(FsWatchTest, watchNonExisting) {
+  static constexpr std::string_view filename =
+      "/tmp/_uvco_watch_test_non_existing";
+
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    try {
+      auto watcher = FsWatch::create(loop, filename);
+      EXPECT_FALSE(true) << "Expected UvcoException";
+    } catch (const UvcoException &e) {
+      EXPECT_EQ(e.status, UV_ENOENT);
+    }
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(FsWatchTest, repeatedWatchFails) {
+  static constexpr std::string_view filename = "/tmp/_uvco_watch_test";
+
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto file = co_await File::open(loop, filename, O_RDWR | O_CREAT);
+
+    auto watch = FsWatch::create(loop, filename);
+    MultiPromise<FsWatch::FileEvent> watcher = watch.watch();
+
+    try {
+      auto eventGenerator2 = watch.watch();
+      EXPECT_FALSE(true) << "Expected UvcoException";
+    } catch (const UvcoException &e) {
+      EXPECT_EQ(e.status, UV_EBUSY);
+    }
+
+    co_await watch.stopWatch(std::move(watcher));
+    co_await watch.close();
+    co_await file.close();
+    co_await File::unlink(loop, filename);
+    co_return;
   };
 
   run_loop(setup);

@@ -1,9 +1,11 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #include <boost/assert.hpp>
+#include <fmt/core.h>
 #include <uv.h>
 #include <uv/unix.h>
 
+#include "uvco/close.h"
 #include "uvco/exception.h"
 #include "uvco/fs.h"
 #include "uvco/internal/internal_utils.h"
@@ -277,6 +279,130 @@ Promise<void> File::close() {
   file_ = -1;
 
   co_await awaiter;
+}
+
+FsWatch::~FsWatch() {
+  BOOST_ASSERT_MSG(dataIsNull(&uv_handle_),
+                   "don't drop an FsWatch while a watch() generator is "
+                   "running (use stopWatch()!)");
+  uv_fs_event_stop(&uv_handle_);
+}
+
+FsWatch FsWatch::create(const Loop &loop, std::string_view path) {
+  return FsWatch{loop, path, {}};
+}
+
+FsWatch FsWatch::createRecursive(const Loop &loop, std::string_view path) {
+  return FsWatch{loop, path, UV_FS_EVENT_RECURSIVE};
+}
+
+MultiPromise<FsWatch::FileEvent> FsWatch::watch() {
+  if (!dataIsNull(&uv_handle_)) {
+    throw UvcoException(UV_EBUSY, "FsWatch::watch() is already active!");
+  }
+  return watch_();
+}
+
+MultiPromise<FsWatch::FileEvent> FsWatch::watch_() {
+  FsWatchAwaiter_ awaiter;
+  setData(&uv_handle_, &awaiter);
+  ZeroAtExit<void> zeroAtExit{&uv_handle_.data};
+
+  while (co_await awaiter) {
+    co_yield awaiter.events_.get();
+  }
+}
+
+Promise<void> FsWatch::stopWatch(MultiPromise<FsWatch::FileEvent> watcher) {
+  auto *awaiter = getData<FsWatchAwaiter_>(&uv_handle_);
+  awaiter->stop();
+  co_await watcher;
+}
+
+Promise<void> FsWatch::close() { return closeHandle(&uv_handle_); }
+
+FsWatch::FsWatch(const Loop &loop, std::string_view path,
+                 uv_fs_event_flags flags) {
+  const uv_status initStatus = uv_fs_event_init(loop.uvloop(), &uv_handle_);
+  if (initStatus != 0) {
+    throw UvcoException{
+        initStatus,
+        "uv_fs_event_init returned error while initializing FsWatch"};
+  }
+  const auto startStatus =
+      callWithNullTerminated<uv_status>(path, [&](std::string_view safePath) {
+        return uv_fs_event_start(&uv_handle_, onFsWatcherEvent, safePath.data(),
+                                 flags);
+      });
+  if (startStatus != 0) {
+    uv_fs_event_stop(&uv_handle_);
+    // This works with the current Loop::~Loop implementation.
+    uv_close((uv_handle_t *)&uv_handle_, nullptr);
+    throw UvcoException{
+        startStatus, "uv_fs_event_start returned error while starting FsWatch"};
+  }
+}
+
+void FsWatch::onFsWatcherEvent(uv_fs_event_t *handle, const char *path,
+                               int events, uv_status status) {
+  BOOST_ASSERT(events < 4);
+  if (dataIsNull(handle)) {
+    // No watcher generator set up yet.
+    return;
+  }
+  auto *awaiter = getData<FsWatchAwaiter_>(handle);
+  if (status == 0) {
+    awaiter->addEvent(FileEvent{std::string{path}, (uv_fs_event)events});
+  } else {
+    awaiter->addError(status);
+  }
+  awaiter->schedule();
+}
+
+FsWatch::FsWatchAwaiter_::FsWatchAwaiter_() : events_{defaultCapacity} {}
+
+bool FsWatch::FsWatchAwaiter_::await_ready() const {
+  return stopped_ || !events_.empty();
+}
+
+void FsWatch::FsWatchAwaiter_::await_suspend(std::coroutine_handle<> handle) {
+  BOOST_ASSERT(!handle_);
+  handle_ = handle;
+}
+
+bool FsWatch::FsWatchAwaiter_::await_resume() {
+  handle_.reset();
+  BOOST_ASSERT(stopped_ || !events_.empty());
+  return !stopped_;
+}
+
+void FsWatch::FsWatchAwaiter_::schedule() {
+  if (handle_) {
+    std::coroutine_handle<> handle = handle_.value();
+    handle_.reset();
+    Loop::enqueue(handle);
+  }
+}
+
+void FsWatch::FsWatchAwaiter_::stop() {
+  stopped_ = true;
+  schedule();
+}
+
+void FsWatch::FsWatchAwaiter_::addError(uv_status status) {
+  if (!events_.hasSpace()) {
+    fmt::print(stderr, "uvco dropped FS event error {}", uv_strerror(status));
+  }
+  events_.put(FileEvent{status});
+}
+
+void FsWatch::FsWatchAwaiter_::addEvent(FileEvent event) {
+  if (!events_.hasSpace()) {
+    fmt::print(stderr, "uvco dropped FS event on {} due to queue overload\n",
+               event.path);
+    return;
+  }
+  events_.put(std::move(event));
 }
 
 } // namespace uvco

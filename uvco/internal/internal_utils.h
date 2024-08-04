@@ -2,7 +2,9 @@
 
 #pragma once
 
+#include <boost/assert.hpp>
 #include <fmt/core.h>
+#include <string_view>
 #include <uv.h>
 #include <uv/unix.h>
 
@@ -22,6 +24,35 @@ using uv_status = int;
 void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf);
 
 void freeUvBuf(const uv_buf_t *buf);
+
+// Checks if string_view is null-terminated. If it is, the fast path  is taken.
+// Otherwise, a string is allocated which is null-terminated, and the function
+// is called with it.
+template <typename R, typename F>
+  requires std::is_invocable_r_v<R, F, std::string_view>
+R callWithNullTerminated(std::string_view view, F &&f) {
+  if (view.data()[view.size()] == '\0') {
+    return f(view.data());
+  }
+  std::string str(view);
+  return f(str.c_str());
+}
+
+template <typename Into, typename Handle> Into *getData(const Handle *handle) {
+  const void *data = uv_handle_get_data((const uv_handle_t *)handle);
+  BOOST_ASSERT(nullptr != data);
+  return (Into *)data;
+}
+
+template <typename Handle, typename Data>
+void setData(Handle *handle, Data *data) {
+  BOOST_ASSERT(handle != nullptr);
+  uv_handle_set_data((uv_handle_t *)handle, (void *)data);
+}
+
+template <typename Handle> bool dataIsNull(Handle *handle) {
+  return nullptr == uv_handle_get_data((const uv_handle_t *)handle);
+}
 
 /// A polymorphic functor for deleting a `uv_handle_t`. It dispatches
 /// to the correct `uv_...` function based on the handle's type. This

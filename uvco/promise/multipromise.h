@@ -67,9 +67,9 @@ public:
   void resumeGenerator() {
     BOOST_ASSERT(PromiseCore<T>::state_ != PromiseState::finished);
     if (generatorHandle_) {
-      const auto handle = generatorHandle_.value();
+      const auto generatorHandle = generatorHandle_.value();
       generatorHandle_.reset();
-      Loop::enqueue(handle);
+      Loop::enqueue(generatorHandle);
     }
   }
 
@@ -93,10 +93,10 @@ public:
   void cancelGenerator() {
     terminated();
     if (generatorHandle_) {
-      const std::coroutine_handle<> handle = generatorHandle_.value();
+      const std::coroutine_handle<> generatorHandle = generatorHandle_.value();
       generatorHandle_.reset();
       // Careful: within this function, this class' dtor is called!
-      handle.destroy();
+      generatorHandle.destroy();
     }
   }
 
@@ -223,6 +223,9 @@ protected:
     /// Part of the coroutine protocol. Returns a value if `co_yield` was called
     /// in the generating coroutine. Otherwise, returns an empty `optional` if
     /// the generating coroutine has `co_return`ed.
+    ///
+    /// If an exception has been thrown, repeatedly rethrows this exception upon
+    /// awaiting.
     std::optional<T> await_resume() const {
       if (!core_->slot) {
         // Terminated by co_return

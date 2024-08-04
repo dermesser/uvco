@@ -5,16 +5,20 @@
 #include <uv.h>
 #include <uv/unix.h>
 
+#include "uvco/bounded_queue.h"
+#include "uvco/internal/internal_utils.h"
 #include "uvco/loop/loop.h"
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 
+#include <coroutine>
 #include <cstddef>
 #include <cstdint>
-#include <fcntl.h>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace uvco {
@@ -92,6 +96,83 @@ private:
 
   uv_loop_t *loop_;
   uv_file file_;
+};
+
+class FsWatch {
+public:
+  /// Create aa new FsWatch instance. The path is the file or directory to
+  /// watch.
+  static FsWatch create(const Loop &loop, std::string_view path);
+
+  /// Create a recursive watch. NOTE! This is only supported on macOS and
+  /// Windows; see
+  /// https://docs.libuv.org/en/v1.x/fs_event.html#c.uv_fs_event_start.
+  static FsWatch createRecursive(const Loop &loop, std::string_view path);
+
+  /// Destructor. If the watch is still active, it is stopped.
+  ~FsWatch();
+
+  /// An event in an observed file. If status is not 0, an error occurred; this
+  /// doesn't mean however that no more events occur.
+  struct FileEvent {
+    FileEvent(std::string p, uv_fs_event e)
+        : path{std::move(p)}, events{e}, status{} {}
+    explicit FileEvent(uv_status s) : events{}, status{s} {}
+    FileEvent(FileEvent &&) = default;
+    FileEvent &operator=(FileEvent &&) = default;
+    FileEvent(const FileEvent &) = default;
+    FileEvent &operator=(const FileEvent &) = default;
+    ~FileEvent() = default;
+
+    std::string path;
+    uv_fs_event events;
+    uv_status status;
+  };
+
+  // Start watching the file or path. Events that occurred before calling
+  // watch() are dropped.
+  //
+  // Note: watch() may be only called once at a time. However, after
+  // stopWatch(), watch() can be called again.
+  MultiPromise<FileEvent> watch();
+
+  // In order to ensure a clean shutdown, call stopWatch() before dropping the
+  // FsWatch, and consume all remaining events until the watch() generator
+  // returns std::nullopt.
+  //
+  // You must supply the generator returned by watch() to ensure completion of
+  // all events.
+  Promise<void> stopWatch(MultiPromise<FileEvent> watcher);
+
+  // Call this to retire the libuv handle.
+  Promise<void> close();
+
+private:
+  FsWatch(const Loop &loop, std::string_view path, uv_fs_event_flags flags);
+  MultiPromise<FileEvent> watch_();
+  static void onFsWatcherEvent(uv_fs_event_t *handle, const char *path,
+                               int events, uv_status status);
+
+  struct FsWatchAwaiter_ {
+    static constexpr unsigned defaultCapacity = 128;
+
+    FsWatchAwaiter_();
+
+    [[nodiscard]] bool await_ready() const;
+    void await_suspend(std::coroutine_handle<> handle);
+    bool await_resume();
+
+    void schedule();
+    void stop();
+    void addError(uv_status status);
+    void addEvent(FileEvent event);
+
+    std::optional<std::coroutine_handle<>> handle_;
+    BoundedQueue<FileEvent> events_;
+    bool stopped_{};
+  };
+
+  uv_fs_event_t uv_handle_{};
 };
 
 /// @}
