@@ -55,7 +55,7 @@ void Scheduler::runAll() {
   }
 }
 
-void Scheduler::close() { BOOST_ASSERT(!resumableActive_.empty()); }
+void Scheduler::close() { BOOST_ASSERT(resumableActive_.empty()); }
 
 void Scheduler::enqueue(std::coroutine_handle<> handle) {
   // Use of moved-out Scheduler?
