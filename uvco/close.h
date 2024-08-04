@@ -28,10 +28,10 @@ template <typename T, typename C>
 Promise<void> closeHandle(T *handle, C closer) {
   BOOST_ASSERT(handle != nullptr);
   CloseAwaiter awaiter{};
-  handle->data = &awaiter;
+  setData(handle, &awaiter);
   closer(handle, onCloseCallback);
   co_await awaiter;
-  handle->data = nullptr;
+  setData(handle, (void *)nullptr);
   BOOST_ASSERT(awaiter.closed_);
 }
 

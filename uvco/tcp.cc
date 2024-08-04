@@ -77,7 +77,7 @@ Promise<TcpStream> TcpClient::connect() {
 }
 
 void TcpClient::onConnect(uv_connect_t *req, uv_status status) {
-  auto *connect = static_cast<ConnectAwaiter_ *>(req->data);
+  auto *connect = getRequestData<ConnectAwaiter_>(req);
   connect->onConnect(status);
 }
 

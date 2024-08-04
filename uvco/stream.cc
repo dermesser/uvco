@@ -143,7 +143,7 @@ size_t StreamBase::InStreamAwaiter_::await_resume() {
 void StreamBase::InStreamAwaiter_::allocate(uv_handle_t *handle,
                                             size_t /*suggested_size*/,
                                             uv_buf_t *buf) {
-  const InStreamAwaiter_ *awaiter = (InStreamAwaiter_ *)handle->data;
+  const InStreamAwaiter_ *awaiter = getData<InStreamAwaiter_>(handle);
   BOOST_ASSERT(awaiter != nullptr);
   buf->base = awaiter->buffer_.data();
   buf->len = awaiter->buffer_.size();
@@ -162,7 +162,7 @@ void StreamBase::InStreamAwaiter_::stop_read() {
 void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
                                                   ssize_t nread,
                                                   const uv_buf_t * /*buf*/) {
-  auto *awaiter = (InStreamAwaiter_ *)stream->data;
+  auto *awaiter = getData<InStreamAwaiter_>(stream);
   BOOST_ASSERT(awaiter != nullptr);
   awaiter->stop_read();
   awaiter->status_ = nread;
@@ -172,7 +172,7 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
     awaiter->handle_.reset();
     Loop::enqueue(handle);
   }
-  stream->data = nullptr;
+  setData(stream, (void*)nullptr);
 }
 
 StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream,
@@ -223,14 +223,14 @@ uv_status StreamBase::OutStreamAwaiter_::await_resume() {
 
 void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
                                                      uv_status status) {
-  auto *awaiter = (OutStreamAwaiter_ *)write->data;
+  auto *awaiter = getRequestData<OutStreamAwaiter_>(write);
   BOOST_ASSERT(awaiter != nullptr);
   awaiter->status_ = status;
   BOOST_ASSERT(awaiter->handle_);
   auto handle = awaiter->handle_.value();
   awaiter->handle_.reset();
   Loop::enqueue(handle);
-  write->data = nullptr;
+  setData(write, (void*) nullptr);
 }
 
 bool StreamBase::ShutdownAwaiter_::await_ready() { return false; }
@@ -251,7 +251,7 @@ void StreamBase::ShutdownAwaiter_::await_resume() {
 
 void StreamBase::ShutdownAwaiter_::onShutdown(uv_shutdown_t *req,
                                               uv_status status) {
-  auto *awaiter = (ShutdownAwaiter_ *)req->data;
+  auto *awaiter = getRequestData<ShutdownAwaiter_>(req);
   awaiter->status_ = status;
   if (awaiter->handle_) {
     auto handle = awaiter->handle_.value();

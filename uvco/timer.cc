@@ -29,7 +29,7 @@ public:
   TimerAwaiter(TimerAwaiter &&other) noexcept
       : timer_{std::move(other.timer_)}, handle_{other.handle_},
         stopped_{other.stopped_} {
-    timer_->data = this;
+    setData(timer_.get(), this);
     other.closed_ = true;
   }
   TimerAwaiter &operator=(const TimerAwaiter &) = delete;
@@ -37,14 +37,14 @@ public:
     timer_ = std::move(other.timer_);
     handle_ = other.handle_;
     stopped_ = other.stopped_;
-    timer_->data = this;
+    setData(timer_.get(), this);
     other.closed_ = true;
     return *this;
   }
   TimerAwaiter(const Loop &loop, uint64_t millis, bool repeating = false)
       : timer_{std::make_unique<uv_timer_t>()} {
     uv_timer_init(loop.uvloop(), timer_.get());
-    timer_->data = this;
+    setData(timer_.get(), this);
     if (repeating) {
       uv_timer_start(timer_.get(), onMultiTimerFired, millis, millis);
     } else {
@@ -110,13 +110,13 @@ private:
 };
 
 void onSingleTimerDone(uv_timer_t *handle) {
-  auto *awaiter = (TimerAwaiter *)handle->data;
+  auto *awaiter = getData<TimerAwaiter>(handle);
   awaiter->stop();
   awaiter->resume();
 }
 
 void onMultiTimerFired(uv_timer_t *handle) {
-  auto *awaiter = (TimerAwaiter *)handle->data;
+  auto *awaiter = getData<TimerAwaiter>(handle);
   awaiter->resume();
 }
 

@@ -39,9 +39,12 @@ public:
     uv_dirent_type_t type;
   };
 
+  /// Create a directory.
   static Promise<void> mkdir(const Loop &loop, std::string_view path,
                              int mode = 0755);
+  /// Remove a directory. It must be empty.
   static Promise<void> rmdir(const Loop &loop, std::string_view path);
+  /// Open a directory for reading.
   static Promise<Directory> open(const Loop &loop, std::string_view path);
   /// Read all directory entries of the given directory.
   static MultiPromise<DirEnt> readAll(const Loop &loop, std::string_view path);

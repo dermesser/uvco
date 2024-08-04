@@ -79,7 +79,8 @@ public:
   MultiPromise<std::pair<std::string, AddressHandle>> receiveMany();
 
   /// Stop receiving with `receiveMany()` by cancelling the receiving generator
-  /// coroutine.
+  /// coroutine. Supply the MultiPromise obtained from receiveMany() in order to
+  /// guarantee a complete clean-up.
   void
   stopReceiveMany(MultiPromise<std::pair<std::string, AddressHandle>> &packets);
 

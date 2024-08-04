@@ -41,14 +41,16 @@ StreamServerBase<UvStreamType, StreamType>::~StreamServerBase() {
 
 template <typename UvStreamType, typename StreamType>
 Promise<void> StreamServerBase<UvStreamType, StreamType>::close() {
-  auto *awaiter = (ConnectionAwaiter_ *)socket_->data;
-  // Resume listener coroutine and tell it to exit.
-  // If awaiter == nullptr, one of two things is true:
-  // 1. listener is currently not running
-  // 2. listener has yielded and is suspended there: the listener generator will
-  // be cancelled when its MultiPromise is dropped.
-  if (awaiter != nullptr && awaiter->handle_) {
-    awaiter->stop();
+  if (!dataIsNull(socket_.get())) {
+    auto *awaiter = getData<ConnectionAwaiter_>(socket_.get());
+    // Resume listener coroutine and tell it to exit.
+    // If awaiter == nullptr, one of two things is true:
+    // 1. listener is currently not running
+    // 2. listener has yielded and is suspended there: the listener generator
+    // will be cancelled when its MultiPromise is dropped.
+    if (awaiter->handle_) {
+      awaiter->stop();
+    }
   }
   co_await closeHandle(socket_.get());
   socket_.reset();
@@ -59,13 +61,13 @@ MultiPromise<StreamType>
 StreamServerBase<UvStreamType, StreamType>::listen(int backlog) {
   BOOST_ASSERT(socket_);
   ConnectionAwaiter_ awaiter{*socket_};
-  socket_->data = &awaiter;
+  setData(socket_.get(), &awaiter);
 
   const uv_status listenStatus =
       uv_listen((uv_stream_t *)socket_.get(), backlog,
                 StreamServerBase<UvStreamType, StreamType>::onNewConnection);
   if (listenStatus != 0) {
-    socket_->data = nullptr;
+    setData(socket_.get(), (void *)nullptr);
     throw UvcoException{listenStatus,
                         "StreamServerBase::listen(): failed to listen"};
   }
@@ -90,7 +92,7 @@ StreamServerBase<UvStreamType, StreamType>::listen(int backlog) {
         // and will process the remaining connections. Therefore, first remove
         // the already processed connections.
         awaiter.accepted_.erase(awaiter.accepted_.begin(), it);
-        socket_->data = nullptr;
+        setData(socket_.get(), (void *)nullptr);
         throw UvcoException{status,
                             "UnixStreamServer failed to accept a connection!"};
       } else {
@@ -100,14 +102,14 @@ StreamServerBase<UvStreamType, StreamType>::listen(int backlog) {
         //
         // `close()` also relies on whether `socket_->data` is `nullptr` or not
         // to decide if the socket has been closed already.
-        socket_->data = nullptr;
+        setData(socket_.get(), (void *)nullptr);
         co_yield std::move(std::get<1>(streamSlot));
-        socket_->data = &awaiter;
+        setData(socket_.get(), &awaiter);
       }
     }
     awaiter.accepted_.clear();
   }
-  socket_->data = nullptr;
+  setData(socket_.get(), (void *)nullptr);
 }
 
 template <typename UvStreamType, typename StreamType>
@@ -143,7 +145,7 @@ template <typename UvStreamType, typename StreamType>
 void StreamServerBase<UvStreamType, StreamType>::onNewConnection(
     uv_stream_t *stream, uv_status status) {
   const auto *server = (UvStreamType *)stream;
-  auto *connectionAwaiter = (ConnectionAwaiter_ *)server->data;
+  auto *connectionAwaiter = getData<ConnectionAwaiter_>(server);
   uv_loop_t *const loop = connectionAwaiter->socket_.loop;
 
   if (status == 0) {

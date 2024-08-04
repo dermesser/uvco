@@ -176,7 +176,7 @@ Promise<AddressHandle> Resolver::gai(std::string_view host,
 
 void Resolver::onAddrinfo(uv_getaddrinfo_t *req, uv_status status,
                           struct addrinfo *result) {
-  auto *awaiter = (AddrinfoAwaiter_ *)req->data;
+  auto *awaiter = getRequestData<AddrinfoAwaiter_>(req);
   awaiter->addrinfo_ = result;
   awaiter->status_ = status;
   BOOST_ASSERT(awaiter->handle_);

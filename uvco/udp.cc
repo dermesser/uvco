@@ -187,8 +187,8 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
 
 Promise<void> Udp::close() {
   BOOST_ASSERT(udp_);
-  RecvAwaiter_ *const awaiter = (RecvAwaiter_ *)udp_->data;
-  if (awaiter != nullptr) {
+  if (!dataIsNull(udp_.get())) {
+    auto *const awaiter = getData<RecvAwaiter_>(udp_.get());
     fmt::print(stderr, "Udp::close(): stopping receiving. Please instead use "
                        "Udp::stopReceivingMany() explicitly.\n");
     // Force return from receiveMany() generator.
@@ -208,10 +208,10 @@ void Udp::stopReceiveMany(
   udpStopReceive();
   // Cancel receiving generator if currently suspended by co_yield.
   packets.cancel();
-  auto *const currentAwaiter = (RecvAwaiter_ *)udp_->data;
-  if (currentAwaiter == nullptr) {
+  if (dataIsNull(udp_.get())) {
     return;
   }
+  auto *const currentAwaiter = getData<RecvAwaiter_>(udp_.get());
   // If generator is suspended on co_await, resume it synchronously so it can
   // exit before the Udp instance is possibly destroyed.
   if (currentAwaiter->handle_) {
@@ -236,8 +236,8 @@ int Udp::udpStartReceive() {
 void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
                        const struct sockaddr *addr, unsigned int flags) {
 
-  auto *awaiter = (RecvAwaiter_ *)handle->data;
-  BOOST_ASSERT(awaiter != nullptr);
+  BOOST_ASSERT(!dataIsNull(handle));
+  auto *awaiter = getData<RecvAwaiter_>(handle);
 
   if (addr == nullptr) {
     // Error or asking to free buffers.
@@ -379,7 +379,7 @@ Udp::RecvAwaiter_::await_resume() {
 }
 
 void Udp::onSendDone(uv_udp_send_t *req, uv_status status) {
-  auto *const awaiter = (SendAwaiter_ *)req->data;
+  auto *const awaiter = getRequestData<SendAwaiter_>(req);
   awaiter->status_ = status;
   if (awaiter->handle_) {
     auto resumeHandle = *awaiter->handle_;
