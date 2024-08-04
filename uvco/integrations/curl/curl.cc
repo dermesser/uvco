@@ -121,7 +121,7 @@ public:
     uv_poll_t &poll = newPollCtx.first->second.poll;
     newPollCtx.first->second.request = request;
     uv_poll_init_socket(loop_, &poll, newSocket);
-    uv_handle_set_data((uv_handle_t *)&poll, this);
+    setData(&poll, this);
   }
 
   void uvStartPoll(curl_socket_t socket, unsigned int events) noexcept {
@@ -385,7 +385,7 @@ UvCurlContext_::UvCurlContext_(const Loop &loop)
     : multi_{curl_multi_init()}, loop_{loop.uvloop()}, timer_{} {
   uv_timer_init(loop_, &timer_);
   // Set handle data for onUvTimeout callback.
-  uv_handle_set_data((uv_handle_t *)(&timer_), this);
+  setData(&timer_, this);
 
   // Initialize Curl callbacks.
   curl_multi_setopt(multi_, CURLMOPT_SOCKETFUNCTION,
@@ -435,8 +435,7 @@ int UvCurlContext_::curlTimerFunction(CURLM * /* multi */, long timeoutMs,
 }
 
 void UvCurlContext_::onUvTimeout(uv_timer_t *timer) {
-  auto *curl =
-      static_cast<UvCurlContext_ *>(uv_handle_get_data((uv_handle_t *)timer));
+  auto *curl = getData<UvCurlContext_>(timer);
   int runningHandles = 0;
   curl_multi_socket_action(curl->multi_, CURL_SOCKET_TIMEOUT, 0,
                            &runningHandles);
@@ -446,8 +445,7 @@ void UvCurlContext_::onCurlSocketActive(uv_poll_t *poll, int status,
                                         int events) {
   int runningHandles{};
   unsigned int flags{};
-  auto *context =
-      static_cast<UvCurlContext_ *>(uv_handle_get_data((uv_handle_t *)poll));
+  auto *context = getData<UvCurlContext_>(poll);
 
   curl_socket_t socket{};
   const uv_status filenoStatus = uv_fileno((uv_handle_t *)poll, &socket);

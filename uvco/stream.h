@@ -58,6 +58,8 @@ public:
   /// Read available data (up to `buffer.size()` bytes) from stream. Returns
   /// the number of bytes read, or 0 on EOF or closed handle (`close()`).
   ///
+  /// Only one read() coroutine may be active at a time.
+  ///
   /// Throws `UvcoException` on error.
   Promise<size_t> read(std::span<char> buffer);
 

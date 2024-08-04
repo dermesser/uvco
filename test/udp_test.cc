@@ -260,7 +260,7 @@ TEST(UdpTest, simultaneousReceiveDies) {
         server.receiveMany();
 
     EXPECT_DEATH(
-        { auto packets2 = server.receiveMany(); }, "== nullptr' failed");
+        { auto packets2 = server.receiveMany(); }, "dataIsNull");
 
     co_await server.close();
   };
@@ -274,7 +274,7 @@ TEST(UdpTest, simultaneousReceiveOneDies) {
     co_await server.bind("::1", 9999, 0);
 
     Promise<std::string> packet = server.receiveOne();
-    EXPECT_DEATH({ auto packet = server.receiveOne(); }, "== nullptr' failed");
+    EXPECT_DEATH({ auto packet = server.receiveOne(); }, "dataIsNull");
 
     co_await server.close();
   };

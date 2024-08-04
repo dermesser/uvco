@@ -32,8 +32,7 @@ namespace {
 
 class FileOpAwaiter_ {
   static void onFileOpDone(uv_fs_t *req) {
-    auto *awaiter =
-        static_cast<FileOpAwaiter_ *>(uv_req_get_data((uv_req_t *)req));
+    auto *awaiter = getRequestData<FileOpAwaiter_>(req);
     awaiter->result_ = req->result;
     awaiter->schedule();
   }
@@ -60,7 +59,7 @@ public:
   bool await_suspend(std::coroutine_handle<> handle) {
     BOOST_ASSERT(!result_);
     BOOST_ASSERT_MSG(!handle_, "FileOpAwaiter_ can only be awaited once");
-    uv_req_set_data((uv_req_t *)&req_, this);
+    setRequestData(&req_, this);
     handle_ = handle;
     return true;
   }

@@ -114,8 +114,8 @@ bool StreamBase::InStreamAwaiter_::await_ready() {
 
 bool StreamBase::InStreamAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
-  BOOST_ASSERT(uv_handle_get_data((uv_handle_t *)&stream_.stream()) == nullptr);
-  uv_handle_set_data((uv_handle_t *)&stream_.stream(), this);
+  BOOST_ASSERT(dataIsNull(&stream_.stream()));
+  setData(&stream_.stream(), this);
   handle_ = handle;
   stream_.reader_ = handle;
   start_read();

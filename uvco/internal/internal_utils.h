@@ -44,14 +44,31 @@ template <typename Into, typename Handle> Into *getData(const Handle *handle) {
   return (Into *)data;
 }
 
+template <typename Into, typename Request>
+Into *getRequestData(const Request *req) {
+  const void *data = uv_req_get_data((const uv_req_t *)req);
+  BOOST_ASSERT(nullptr != data);
+  return (Into *)data;
+}
+
 template <typename Handle, typename Data>
 void setData(Handle *handle, Data *data) {
   BOOST_ASSERT(handle != nullptr);
   uv_handle_set_data((uv_handle_t *)handle, (void *)data);
 }
 
+template <typename Request, typename Data>
+void setRequestData(Request *req, Data *data) {
+  BOOST_ASSERT(req != nullptr);
+  uv_req_set_data((uv_req_t *)req, (void *)data);
+}
+
 template <typename Handle> bool dataIsNull(Handle *handle) {
   return nullptr == uv_handle_get_data((const uv_handle_t *)handle);
+}
+
+template <typename Request> bool requestDataIsNull(Request *req) {
+  return nullptr == uv_req_get_data((const uv_req_t *)req);
 }
 
 /// A polymorphic functor for deleting a `uv_handle_t`. It dispatches

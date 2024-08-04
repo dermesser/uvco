@@ -21,7 +21,7 @@ class AsyncWorkAwaiter_ {
 public:
   explicit AsyncWorkAwaiter_(std::function<void()> function)
       : work_{}, function_{std::move(function)} {
-    uv_req_set_data((uv_req_t *)&work_, this);
+    setRequestData(&work_, this);
   }
   AsyncWorkAwaiter_(const AsyncWorkAwaiter_ &) = delete;
   AsyncWorkAwaiter_(AsyncWorkAwaiter_ &&) = delete;
@@ -30,14 +30,12 @@ public:
   ~AsyncWorkAwaiter_() = default;
 
   static void onDoWork(uv_work_t *work) {
-    auto *awaiter =
-        static_cast<AsyncWorkAwaiter_ *>(uv_req_get_data((uv_req_t *)work));
+    auto *awaiter = getRequestData<AsyncWorkAwaiter_>(work);
     awaiter->function_();
   }
 
   static void onWorkDone(uv_work_t *work, uv_status status) {
-    auto *awaiter =
-        static_cast<AsyncWorkAwaiter_ *>(uv_req_get_data((uv_req_t *)work));
+    auto *awaiter = getRequestData<AsyncWorkAwaiter_>(work);
     awaiter->status_ = status;
     awaiter->schedule();
   }
