@@ -17,6 +17,7 @@ Supported functionality:
 * Timer functionality (`sleep`, `tick`)
 * File functionality (`read`, `write`, `mkdir`, `unlink`, ...)
 * A libcurl integration, allowing e.g. HTTP(S) downloads.
+* A libpqxx integration, for easy asynchronous interaction with PostgreSQL databases.
 * A threadpool for synchronous or CPU-bound tasks
 * A `SelectSet` for polling multiple promises at once
 
