@@ -113,4 +113,21 @@ TEST(AsyncWorkTest, execptionThrownForValue) {
   run_loop(setup);
 }
 
+TEST(AsyncWorkTest, workNotAwaited) {
+  // Test that work on the threadpool finishes even if the main function returns early.
+  bool workRan = false;
+  auto work = [&workRan]() -> void {
+    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    workRan = true;
+  };
+
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    submitWork<void>(loop, work);
+    co_return;
+  };
+
+  run_loop(setup);
+  EXPECT_TRUE(workRan);
+}
+
 } // namespace
