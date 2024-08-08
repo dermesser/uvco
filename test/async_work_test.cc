@@ -2,6 +2,7 @@
 #include <atomic>
 #include <functional>
 #include <stdexcept>
+#include <thread>
 #include <uv.h>
 
 #include "test_util.h"
