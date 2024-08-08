@@ -10,6 +10,7 @@
 #include "uvco/loop/loop.h"
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
+#include "uvco/run.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -161,7 +162,7 @@ TEST(FsWatchTest, basicFileWatch) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     auto file = co_await File::open(loop, filename, O_RDWR | O_CREAT);
 
-    auto watch = FsWatch::create(loop, filename);
+    auto watch = co_await FsWatch::create(loop, filename);
     MultiPromise<FsWatch::FileEvent> watcher = watch.watch();
 
     co_await file.write("Hello World\n");
@@ -195,7 +196,7 @@ TEST(FsWatchTest, basicDirWatch) {
 
     auto file = co_await File::open(loop, filename, O_RDWR | O_CREAT);
 
-    auto watch = FsWatch::create(loop, dirName);
+    auto watch = co_await FsWatch::create(loop, dirName);
     MultiPromise<FsWatch::FileEvent> watcher = watch.watch();
 
     // Check that FsWatch::create is not recursive
@@ -235,7 +236,7 @@ TEST(DISABLED_FsWatchTest, watchRecursive) {
     co_await Directory::mkdir(loop, dirName);
     co_await Directory::mkdir(loop, subdirName);
 
-    auto watch = FsWatch::createRecursive(loop, dirName);
+    auto watch = co_await FsWatch::createRecursive(loop, dirName);
     MultiPromise<FsWatch::FileEvent> watcher = watch.watch();
 
     auto file = co_await File::open(loop, filename, O_RDWR | O_CREAT);
@@ -264,11 +265,12 @@ TEST(FsWatchTest, watchNonExisting) {
 
   auto setup = [](const Loop &loop) -> Promise<void> {
     try {
-      auto watcher = FsWatch::create(loop, filename);
+      auto watcher = co_await FsWatch::create(loop, filename);
       EXPECT_FALSE(true) << "Expected UvcoException";
     } catch (const UvcoException &e) {
       EXPECT_EQ(e.status, UV_ENOENT);
     }
+    co_await yield();
     co_return;
   };
 
@@ -281,7 +283,7 @@ TEST(FsWatchTest, repeatedWatchFails) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     auto file = co_await File::open(loop, filename, O_RDWR | O_CREAT);
 
-    auto watch = FsWatch::create(loop, filename);
+    auto watch = co_await FsWatch::create(loop, filename);
     MultiPromise<FsWatch::FileEvent> watcher = watch.watch();
 
     try {

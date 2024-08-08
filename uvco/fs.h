@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <memory>
 #include <uv.h>
 #include <uv/unix.h>
 
@@ -103,17 +104,24 @@ private:
 
 class FsWatch {
 public:
+  FsWatch(const FsWatch &) = delete;
+  FsWatch(FsWatch &&) = default;
+  FsWatch &operator=(const FsWatch &) = delete;
+  FsWatch &operator=(FsWatch &&) = default;
+
+  /// Destructor. If the watch is still active, it is stopped. However, it's
+  /// still required to call close() before dropping the FsWatch.
+  ~FsWatch();
+
   /// Create aa new FsWatch instance. The path is the file or directory to
   /// watch.
-  static FsWatch create(const Loop &loop, std::string_view path);
+  static Promise<FsWatch> create(const Loop &loop, std::string_view path);
 
   /// Create a recursive watch. NOTE! This is only supported on macOS and
   /// Windows; see
   /// https://docs.libuv.org/en/v1.x/fs_event.html#c.uv_fs_event_start.
-  static FsWatch createRecursive(const Loop &loop, std::string_view path);
-
-  /// Destructor. If the watch is still active, it is stopped.
-  ~FsWatch();
+  static Promise<FsWatch> createRecursive(const Loop &loop,
+                                          std::string_view path);
 
   /// An event in an observed file. If status is not 0, an error occurred; this
   /// doesn't mean however that no more events occur.
@@ -151,7 +159,11 @@ public:
   Promise<void> close();
 
 private:
-  FsWatch(const Loop &loop, std::string_view path, uv_fs_event_flags flags);
+  static Promise<FsWatch> createWithFlag(const Loop &loop,
+                                         std::string_view path,
+                                         uv_fs_event_flags flags);
+  FsWatch();
+
   MultiPromise<FileEvent> watch_();
   static void onFsWatcherEvent(uv_fs_event_t *handle, const char *path,
                                int events, uv_status status);
@@ -175,7 +187,7 @@ private:
     bool stopped_{};
   };
 
-  uv_fs_event_t uv_handle_{};
+  std::unique_ptr<uv_fs_event_t> uv_handle_{};
 };
 
 /// @}

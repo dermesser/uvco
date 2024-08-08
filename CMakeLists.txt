@@ -9,7 +9,7 @@ pkg_check_modules(FMT REQUIRED fmt)
 pkg_check_modules(UV REQUIRED libuv)
 
 # Allow using a custom libuv installation.
-link_directories(BEFORE /usr/local/lib64)
+link_directories(BEFORE /usr/local/lib64 /usr/local/lib)
 
 find_package(Boost 1.80 COMPONENTS log log_setup program_options REQUIRED)
 find_package(CURL)

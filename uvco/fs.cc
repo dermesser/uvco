@@ -280,49 +280,33 @@ Promise<void> File::close() {
   co_await awaiter;
 }
 
+FsWatch::FsWatch() : uv_handle_{std::make_unique<uv_fs_event_t>()} {}
+
 FsWatch::~FsWatch() {
-  BOOST_ASSERT_MSG(dataIsNull(&uv_handle_),
+  if (!uv_handle_) {
+    return;
+  }
+  BOOST_ASSERT_MSG(dataIsNull(uv_handle_.get()),
                    "don't drop an FsWatch while a watch() generator is "
                    "running (use stopWatch()!)");
-  uv_fs_event_stop(&uv_handle_);
+  uv_fs_event_stop(uv_handle_.get());
 }
 
-FsWatch FsWatch::create(const Loop &loop, std::string_view path) {
-  return FsWatch{loop, path, {}};
+Promise<FsWatch> FsWatch::create(const Loop &loop, std::string_view path) {
+  return createWithFlag(loop, path, {});
 }
 
-FsWatch FsWatch::createRecursive(const Loop &loop, std::string_view path) {
-  return FsWatch{loop, path, UV_FS_EVENT_RECURSIVE};
+Promise<FsWatch> FsWatch::createRecursive(const Loop &loop,
+                                          std::string_view path) {
+  return createWithFlag(loop, path, UV_FS_EVENT_RECURSIVE);
 }
 
-MultiPromise<FsWatch::FileEvent> FsWatch::watch() {
-  if (!dataIsNull(&uv_handle_)) {
-    throw UvcoException(UV_EBUSY, "FsWatch::watch() is already active!");
-  }
-  return watch_();
-}
-
-MultiPromise<FsWatch::FileEvent> FsWatch::watch_() {
-  FsWatchAwaiter_ awaiter;
-  setData(&uv_handle_, &awaiter);
-  ZeroAtExit<void> zeroAtExit{&uv_handle_.data};
-
-  while (co_await awaiter) {
-    co_yield awaiter.events_.get();
-  }
-}
-
-Promise<void> FsWatch::stopWatch(MultiPromise<FsWatch::FileEvent> watcher) {
-  auto *awaiter = getData<FsWatchAwaiter_>(&uv_handle_);
-  awaiter->stop();
-  co_await watcher;
-}
-
-Promise<void> FsWatch::close() { return closeHandle(&uv_handle_); }
-
-FsWatch::FsWatch(const Loop &loop, std::string_view path,
-                 uv_fs_event_flags flags) {
-  const uv_status initStatus = uv_fs_event_init(loop.uvloop(), &uv_handle_);
+Promise<FsWatch> FsWatch::createWithFlag(const Loop &loop,
+                                         std::string_view path,
+                                         uv_fs_event_flags flags) {
+  FsWatch fsWatch;
+  uv_fs_event_t &uv_handle = *fsWatch.uv_handle_;
+  const uv_status initStatus = uv_fs_event_init(loop.uvloop(), &uv_handle);
   if (initStatus != 0) {
     throw UvcoException{
         initStatus,
@@ -330,16 +314,46 @@ FsWatch::FsWatch(const Loop &loop, std::string_view path,
   }
   const auto startStatus =
       callWithNullTerminated<uv_status>(path, [&](std::string_view safePath) {
-        return uv_fs_event_start(&uv_handle_, onFsWatcherEvent, safePath.data(),
+        return uv_fs_event_start(&uv_handle, onFsWatcherEvent, safePath.data(),
                                  flags);
       });
   if (startStatus != 0) {
-    uv_fs_event_stop(&uv_handle_);
+    uv_fs_event_stop(&uv_handle);
     // This works with the current Loop::~Loop implementation.
-    uv_close((uv_handle_t *)&uv_handle_, nullptr);
+    co_await closeHandle(&uv_handle);
+    fsWatch.uv_handle_.reset();
     throw UvcoException{
         startStatus, "uv_fs_event_start returned error while starting FsWatch"};
   }
+  co_return fsWatch;
+}
+
+MultiPromise<FsWatch::FileEvent> FsWatch::watch() {
+  if (!dataIsNull(uv_handle_.get())) {
+    throw UvcoException(UV_EBUSY, "FsWatch::watch() is already active!");
+  }
+  return watch_();
+}
+
+MultiPromise<FsWatch::FileEvent> FsWatch::watch_() {
+  FsWatchAwaiter_ awaiter;
+  setData(uv_handle_.get(), &awaiter);
+  ZeroAtExit<void> zeroAtExit{&uv_handle_->data};
+
+  while (co_await awaiter) {
+    co_yield awaiter.events_.get();
+  }
+}
+
+Promise<void> FsWatch::stopWatch(MultiPromise<FsWatch::FileEvent> watcher) {
+  auto *awaiter = getData<FsWatchAwaiter_>(uv_handle_.get());
+  awaiter->stop();
+  co_await watcher;
+}
+
+Promise<void> FsWatch::close() {
+  co_await closeHandle(uv_handle_.get());
+  uv_handle_.reset();
 }
 
 void FsWatch::onFsWatcherEvent(uv_fs_event_t *handle, const char *path,
