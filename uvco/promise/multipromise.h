@@ -309,16 +309,9 @@ public:
   /// still moved into the generator's slot, but the generator is not resumed.
   /// Upon the next `co_await`, the returned `MultiPromiseAwaiter_` will
   /// immediately return the value without resuming the generator.
-  YieldAwaiter_ yield_value(T &&value) {
+  YieldAwaiter_ yield_value(T value) {
     BOOST_ASSERT(!core_->slot);
     core_->slot = std::move(value);
-    core_->resume();
-    return YieldAwaiter_{*core_};
-  }
-
-  YieldAwaiter_ yield_value(const T &value) {
-    BOOST_ASSERT(!core_->slot);
-    core_->slot = value;
     core_->resume();
     return YieldAwaiter_{*core_};
   }

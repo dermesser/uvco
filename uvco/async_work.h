@@ -39,7 +39,7 @@ Promise<R> submitWork(const Loop &loop, std::function<R()> work) {
   if (result->index() == 1) {
     std::rethrow_exception(std::get<std::exception_ptr>(*result));
   }
-  co_return std::move(std::get<R>(*result));
+  co_return std::get<R>(std::move(*result));
 }
 
 template <>

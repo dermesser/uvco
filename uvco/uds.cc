@@ -46,7 +46,7 @@ Promise<UnixStream> UnixStreamClient::connect(std::string_view path) {
   // open but not connected handle.
   try {
     UnixStream connection = co_await awaiter;
-    co_return std::move(connection);
+    co_return connection;
   } catch (const UvcoException &e) {
     maybeError = e;
   }

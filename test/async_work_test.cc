@@ -1,20 +1,19 @@
 
-#include <atomic>
-#include <functional>
-#include <stdexcept>
-#include <thread>
-#include <uv.h>
-
-#include "test_util.h"
-
-#include "uvco/async_work.h"
-#include "uvco/loop/loop.h"
-#include "uvco/promise/promise.h"
-
 #include <fcntl.h>
 #include <fmt/core.h>
 #include <fmt/ranges.h>
 #include <gtest/gtest.h>
+#include <uv.h>
+
+#include "test_util.h"
+#include "uvco/async_work.h"
+#include "uvco/loop/loop.h"
+#include "uvco/promise/promise.h"
+
+#include <atomic>
+#include <functional>
+#include <stdexcept>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -115,7 +114,8 @@ TEST(AsyncWorkTest, execptionThrownForValue) {
 }
 
 TEST(AsyncWorkTest, workNotAwaited) {
-  // Test that work on the threadpool finishes even if the main function returns early.
+  // Test that work on the threadpool finishes even if the main function returns
+  // early.
   bool workRan = false;
   auto work = [&workRan]() -> void {
     std::this_thread::sleep_for(std::chrono::milliseconds{10});

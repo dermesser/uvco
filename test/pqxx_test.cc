@@ -22,7 +22,7 @@ constexpr std::string_view schemaTearDown = R"(
 DROP TABLE test;
 )";
 
-constexpr std::string_view connectionString = "dbname=lbo";
+constexpr std::string_view connectionString = "dbname=lbo user=lbo";
 
 // This test obviously only runs if you have a PostgreSQL server running. Change
 // the connection string to match your setup.

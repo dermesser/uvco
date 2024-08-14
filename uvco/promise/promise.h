@@ -310,7 +310,7 @@ public:
 
   /// Part of the coroutine protocol: Called by `co_return`. Schedules the
   /// awaiting coroutine for resumption.
-  void return_value(T &&value) {
+  void return_value(T value) {
     // Probably cancelled.
     if (core_->slot.has_value() && core_->slot->index() == 1) {
       return;
