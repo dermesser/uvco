@@ -17,7 +17,7 @@ Supported functionality:
 * Timer functionality (`sleep`, `tick`)
 * File functionality (`read`, `write`, `mkdir`, `unlink`, ...)
 * A libcurl integration, allowing e.g. HTTP(S) downloads.
-* A libpqxx integration, for easy asynchronous interaction with PostgreSQL databases.
+* A libpqxx integration, for asynchronous interaction with PostgreSQL databases.
 * A threadpool for synchronous or CPU-bound tasks
 * A `SelectSet` for polling multiple promises at once
 
@@ -29,13 +29,11 @@ underlying coroutine to run.
 Where I/O or other activity causes a coroutine to be resumed, the coroutine will typically be run by
 the scheduler, which you don't need to care about. Depending on the `RunMode`, pending coroutines
 are either run once per event loop turn, or immediately from the libuv callback (`Immediate`). By
-default, they are run all at once in every event loop turn (`Deferred`).
+default, they are run all at once in every event loop turn (`Deferred`). While you can set the run
+mode for I/O events in `uvco::runMain()` (`Deferred` vs. `Immediate`), the externally visible
+behavior should be the same, and code will work in both modes. If it doesn't: that's a bug in uvco.
 
-However, as a user you shouldn't have to care about this. While you can set the run mode for
-I/O events in `uvco::runMain()` (`Deferred` vs. `Immediate`), the externally visible behavior should
-be the same, and code will work in both modes. If it doesn't: that's a bug in uvco.
-
-Some types - like buffers received by sockets - use simple types like strings, which are easy to
+Some types - like buffers filled by sockets - use simple types like strings, which are easy to
 handle but not super efficient. This may need to be generalized.
 
 ## Goal
@@ -44,15 +42,17 @@ Provide ergonomic asynchronous abstractions of all libuv functionality, at satis
 
 ## Examples
 
-To run a coroutine, you need to set up an event loop. This is done by calling
-`uvco::runMain` with a lambda that returns a `uvco::Promise<T>`. `runMain()` either
-returns the resulting value after the event loop has finished, or throws an exception if
-a coroutine threw one.
+To run a coroutine, you need to set up an event loop. This is done by calling `uvco::runMain` with a
+callable taking a single `const Loop&` argument and returns a `uvco::Promise<T>`. `runMain()` either
+returns the resulting value after the event loop has finished, or throws an exception if a coroutine
+threw one.
 
 A `Promise<T>` is a coroutine promise, and can be awaited. It is the basic unit, and only
 access to concurrency; there is no `Task` or such. Awaiting a promise will save the current
 execution state, and resume it as soon as the promise is ready. Currently, promises cannot
-be cancelled.
+be properly cancelled; however, suspended coroutines can be cancelled - although the coroutine
+they're waiting on will still run to completion (that's the downside of not having a `Task`
+primitive).
 
 When in doubt, refer to the examples in `test/`; they are actively maintained.
 
@@ -68,9 +68,11 @@ trigger coroutine resumption from the event loop, which is defined in `src/run.c
 #include "run.h"
 #include "promise/promise.h"
 
+using namespace uvco;
+
 Promise<void> someAsynchronousFunction(const Loop& loop) {
   fmt::print("Hello from someAsynchronousFunction\n");
-  co_await loop.sleep(1000);
+  co_await sleep(loop, 1000);
   fmt::print("Goodbye from someAsynchronousFunction\n");
 }
 
@@ -80,7 +82,7 @@ void run_loop() {
   // The `loop` mediates access to the event loop and is used by uvco's types.
   // Create a "root" promise by calling a coroutine, e.g. one that
   // sets up a server.
-  uvco::runMain<void>([](const Loop& loop) -> uvco::Promise<void> {
+  runMain<void>([](const Loop& loop) -> Promise<void> {
     co_await someAsynchronousFunction(loop);
   });
 }
