@@ -22,7 +22,7 @@ Promise<void> echoReceived(TcpStream stream, bool &received, bool &responded) {
   std::optional<std::string> chunk = co_await stream.read();
   BOOST_ASSERT(chunk);
   received = true;
-  co_await stream.write(std::move(*chunk));
+  co_await stream.writeBorrowed(*chunk);
   responded = true;
   co_await stream.shutdown();
   co_await stream.closeReset();

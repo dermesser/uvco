@@ -130,7 +130,8 @@ Promise<void> Udp::send(std::span<char> buffer,
 }
 
 Promise<std::string> Udp::receiveOne() {
-  auto packet = co_await receiveOneFrom();
+  std::pair<std::basic_string<char>, AddressHandle> packet =
+      co_await receiveOneFrom();
   co_return std::move(packet.first);
 }
 
@@ -192,7 +193,7 @@ Promise<void> Udp::close() {
                        "Udp::stopReceivingMany() explicitly.\n");
     // Force return from receiveMany() generator.
     if (awaiter->handle_) {
-      const auto resumeHandle = awaiter->handle_.value();
+      const std::coroutine_handle<void> resumeHandle = awaiter->handle_.value();
       awaiter->handle_.reset();
       resumeHandle.resume();
     }
@@ -269,7 +270,7 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
   // Only enqueues once; if this callback is called again, the receiver will
   // already have been resumed.
   if (awaiter->handle_) {
-    auto resumeHandle = *awaiter->handle_;
+    std::coroutine_handle<void> resumeHandle = *awaiter->handle_;
     awaiter->handle_.reset();
     Loop::enqueue(resumeHandle);
   }
@@ -381,7 +382,7 @@ void Udp::onSendDone(uv_udp_send_t *req, uv_status status) {
   auto *const awaiter = getRequestData<SendAwaiter_>(req);
   awaiter->status_ = status;
   if (awaiter->handle_) {
-    auto resumeHandle = *awaiter->handle_;
+    std::coroutine_handle<void> resumeHandle = *awaiter->handle_;
     awaiter->handle_.reset();
     Loop::enqueue(resumeHandle);
   }

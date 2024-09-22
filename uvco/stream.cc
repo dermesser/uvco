@@ -62,15 +62,19 @@ Promise<std::optional<std::string>> StreamBase::read(size_t maxSize) {
 
 Promise<size_t> StreamBase::read(std::span<char> buffer) {
   InStreamAwaiter_ awaiter{*this, buffer};
-  size_t n = co_await awaiter;
-  co_return n;
+  co_return (co_await awaiter);
 }
 
 Promise<size_t> StreamBase::write(std::string buf) {
-  OutStreamAwaiter_ awaiter{*this, std::move(buf)};
+  co_return (co_await writeBorrowed(std::span{buf}));
+}
+
+Promise<size_t> StreamBase::writeBorrowed(std::span<const char> buffer) {
+  OutStreamAwaiter_ awaiter{*this, buffer};
   uv_status status = co_await awaiter;
   if (status < 0) {
-    throw UvcoException{status, "StreamBase::write() encountered error"};
+    throw UvcoException{status,
+                        "StreamBase::writeBorrowed() encountered error"};
   }
   co_return static_cast<size_t>(status);
 }
@@ -90,12 +94,12 @@ Promise<void> StreamBase::close() {
   auto stream = std::move(stream_);
   co_await closeHandle(stream.get());
   if (reader_) {
-    const auto reader = *reader_;
+    const std::coroutine_handle<void> reader = *reader_;
     reader_.reset();
     Loop::enqueue(reader);
   }
   if (writer_) {
-    const auto writer = *writer_;
+    const std::coroutine_handle<void> writer = *writer_;
     writer_.reset();
     Loop::enqueue(writer);
   }
@@ -145,8 +149,8 @@ void StreamBase::InStreamAwaiter_::allocate(uv_handle_t *handle,
                                             uv_buf_t *buf) {
   const InStreamAwaiter_ *awaiter = getData<InStreamAwaiter_>(handle);
   BOOST_ASSERT(awaiter != nullptr);
-  buf->base = awaiter->buffer_.data();
-  buf->len = awaiter->buffer_.size();
+  *buf = uv_buf_init(const_cast<char *>(awaiter->buffer_.data()),
+                     awaiter->buffer_.size());
 }
 
 void StreamBase::InStreamAwaiter_::start_read() {
@@ -168,7 +172,7 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
   awaiter->status_ = nread;
 
   if (awaiter->handle_) {
-    auto handle = awaiter->handle_.value();
+    std::coroutine_handle<void> handle = awaiter->handle_.value();
     awaiter->handle_.reset();
     Loop::enqueue(handle);
   }
@@ -176,7 +180,7 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
 }
 
 StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream,
-                                                 std::string_view buffer)
+                                                 std::span<const char> buffer)
     : buffer_{buffer}, write_{}, stream_{stream} {}
 
 std::array<uv_buf_t, 1> StreamBase::OutStreamAwaiter_::prepare_buffers() const {
@@ -187,7 +191,7 @@ std::array<uv_buf_t, 1> StreamBase::OutStreamAwaiter_::prepare_buffers() const {
 
 bool StreamBase::OutStreamAwaiter_::await_ready() {
   // Attempt early write:
-  auto bufs = prepare_buffers();
+  std::array<uv_buf_t, 1> bufs = prepare_buffers();
   uv_status result = uv_try_write(&stream_.stream(), bufs.data(), bufs.size());
   if (result > 0) {
     status_ = result;
@@ -202,7 +206,7 @@ bool StreamBase::OutStreamAwaiter_::await_suspend(
   handle_ = handle;
   // For resumption during close.
   stream_.writer_ = handle;
-  auto bufs = prepare_buffers();
+  std::array<uv_buf_t, 1> bufs = prepare_buffers();
   // TODO: move before suspension point.
   uv_write(&write_, &stream_.stream(), bufs.data(), bufs.size(),
            onOutStreamWrite);
@@ -226,7 +230,7 @@ void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
   BOOST_ASSERT(awaiter != nullptr);
   awaiter->status_ = status;
   BOOST_ASSERT(awaiter->handle_);
-  auto handle = awaiter->handle_.value();
+  std::coroutine_handle<void> handle = awaiter->handle_.value();
   awaiter->handle_.reset();
   Loop::enqueue(handle);
   setData(write, (void *)nullptr);
@@ -253,7 +257,7 @@ void StreamBase::ShutdownAwaiter_::onShutdown(uv_shutdown_t *req,
   auto *awaiter = getRequestData<ShutdownAwaiter_>(req);
   awaiter->status_ = status;
   if (awaiter->handle_) {
-    auto handle = awaiter->handle_.value();
+    std::coroutine_handle<void> handle = awaiter->handle_.value();
     awaiter->handle_.reset();
     Loop::enqueue(handle);
   }

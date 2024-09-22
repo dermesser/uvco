@@ -5,7 +5,6 @@
 #include <boost/assert.hpp>
 #include <fmt/core.h>
 #include <span>
-#include <string_view>
 #include <uv.h>
 #include <uv/unix.h>
 
@@ -73,6 +72,12 @@ public:
   /// the first `write()` coroutine will not return in Release mode.
   [[nodiscard]] Promise<size_t> write(std::string buf);
 
+  /// The same as `write(std::string)`, but takes a borrowed buffer. `buf` MUST
+  /// absolutely stay valid until the promise resolves. This means: co_await
+  /// this method and call it with a stored buffer (not a function return value,
+  /// for example).
+  [[nodiscard]] Promise<size_t> writeBorrowed(std::span<const char> buf);
+
   /// Shut down stream for writing. This is a half-close; the other side
   /// can still write. The result of `shutdown()` *must be `co_await`ed*.
   [[nodiscard]] Promise<void> shutdown();
@@ -138,7 +143,7 @@ private:
   };
 
   struct OutStreamAwaiter_ {
-    OutStreamAwaiter_(StreamBase &stream, std::string_view buffer);
+    OutStreamAwaiter_(StreamBase &stream, std::span<const char> buffer);
 
     [[nodiscard]] std::array<uv_buf_t, 1> prepare_buffers() const;
 
@@ -152,7 +157,7 @@ private:
     std::optional<uv_status> status_;
 
     // State necessary for both immediate and delayed writing.
-    std::string_view buffer_;
+    std::span<const char> buffer_;
     uv_write_t write_{};
     StreamBase &stream_;
   };

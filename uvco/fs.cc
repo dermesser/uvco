@@ -84,7 +84,7 @@ private:
 
   void schedule() {
     if (handle_) {
-      const auto handle = handle_.value();
+      const std::coroutine_handle<void> handle = handle_.value();
       handle_ = std::nullopt;
       Loop::enqueue(handle);
     }
@@ -269,7 +269,7 @@ uv_file File::file() const {
 
 Promise<void> File::close() {
   FileOpAwaiter_ awaiter;
-  auto &req = awaiter.req();
+  uv_fs_t &req = awaiter.req();
 
   uv_fs_close(loop_, &req, file(), FileOpAwaiter_::uvCallback());
 
@@ -310,7 +310,7 @@ Promise<FsWatch> FsWatch::createWithFlag(const Loop &loop,
         initStatus,
         "uv_fs_event_init returned error while initializing FsWatch"};
   }
-  const auto startStatus =
+  const int startStatus =
       callWithNullTerminated<uv_status>(path, [&](std::string_view safePath) {
         return uv_fs_event_start(&uv_handle, onFsWatcherEvent, safePath.data(),
                                  flags);
