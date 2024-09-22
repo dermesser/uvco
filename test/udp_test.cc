@@ -259,8 +259,7 @@ TEST(UdpTest, simultaneousReceiveDies) {
     MultiPromise<std::pair<std::string, AddressHandle>> packets =
         server.receiveMany();
 
-    EXPECT_DEATH(
-        { auto packets2 = server.receiveMany(); }, "dataIsNull");
+    EXPECT_DEATH({ auto packets2 = server.receiveMany(); }, "dataIsNull");
 
     co_await server.close();
   };

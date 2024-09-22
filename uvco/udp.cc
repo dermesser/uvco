@@ -104,8 +104,7 @@ Promise<void> Udp::send(std::span<char> buffer,
   std::array<uv_buf_t, 1> bufs{};
   // The buffer is never written to, so this is necessary to interface
   // with the legacy C code.
-  bufs[0].base = &(*buffer.begin());
-  bufs[0].len = buffer.size_bytes();
+  bufs[0] = uv_buf_init(const_cast<char *>(buffer.data()), buffer.size_bytes());
 
   const struct sockaddr *addr = nullptr;
   if (address) {

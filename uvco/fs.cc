@@ -233,8 +233,7 @@ Promise<size_t> File::read(std::string &buffer, int64_t offset) {
   size_t result = 0;
 
   std::array<uv_buf_t, 1> bufs{};
-  bufs[0].base = buffer.data();
-  bufs[0].len = buffer.length();
+  bufs[0] = uv_buf_init(buffer.data(), buffer.length());
 
   uv_fs_read(loop_, &awaiter.req(), file(), bufs.data(), 1, offset,
              FileOpAwaiter_::uvCallback());
@@ -252,8 +251,7 @@ Promise<size_t> File::write(std::string_view buffer, int64_t offset) {
 
   std::array<uv_buf_t, 1> bufs{};
   // Unfortunately necessary: const_cast
-  bufs[0].base = const_cast<char *>(buffer.data());
-  bufs[0].len = buffer.length();
+  bufs[0] = uv_buf_init(const_cast<char *>(buffer.data()), buffer.length());
 
   uv_fs_write(loop_, &awaiter.req(), file(), bufs.data(), 1, offset,
               FileOpAwaiter_::uvCallback());

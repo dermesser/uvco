@@ -172,7 +172,7 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
     awaiter->handle_.reset();
     Loop::enqueue(handle);
   }
-  setData(stream, (void*)nullptr);
+  setData(stream, (void *)nullptr);
 }
 
 StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream,
@@ -181,8 +181,7 @@ StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream,
 
 std::array<uv_buf_t, 1> StreamBase::OutStreamAwaiter_::prepare_buffers() const {
   std::array<uv_buf_t, 1> bufs{};
-  bufs[0].base = const_cast<char *>(buffer_.data());
-  bufs[0].len = buffer_.size();
+  bufs[0] = uv_buf_init(const_cast<char *>(buffer_.data()), buffer_.size());
   return bufs;
 }
 
@@ -230,7 +229,7 @@ void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
   auto handle = awaiter->handle_.value();
   awaiter->handle_.reset();
   Loop::enqueue(handle);
-  setData(write, (void*) nullptr);
+  setData(write, (void *)nullptr);
 }
 
 bool StreamBase::ShutdownAwaiter_::await_ready() { return false; }
