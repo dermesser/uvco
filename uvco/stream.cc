@@ -35,6 +35,12 @@ StreamBase::~StreamBase() {
     // descriptors.
     closeHandle(stream_.release());
   }
+  BOOST_ASSERT_MSG(
+      !reader_,
+      "StreamBase::~StreamBase(): stream must outlive reader coroutines.");
+  BOOST_ASSERT_MSG(
+      !writer_,
+      "StreamBase::~StreamBase(): stream must outlive writer coroutines.");
 }
 
 TtyStream TtyStream::tty(const Loop &loop, int fd) {

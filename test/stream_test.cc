@@ -87,6 +87,18 @@ TEST(TtyTest, closeWhileReading) {
   run_loop(setup);
 }
 
+TEST(PipeTest, danglingReadDies) {
+  auto f = [](const Loop &loop) -> uvco::Promise<std::optional<std::string>> {
+    auto [read, write] = pipe(loop);
+    auto _ = write.write("Hello");
+    return read.read();
+  };
+  auto setup = [&f](const Loop &loop) -> uvco::Promise<void> {
+    co_await f(loop);
+  };
+  EXPECT_DEATH(run_loop(setup), R"(stream must outlive reader coroutine)");
+}
+
 TEST(PipeTest, pipePingPong) {
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     auto [read, write] = pipe(loop);
