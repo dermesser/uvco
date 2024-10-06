@@ -89,11 +89,11 @@ public:
   explicit Resolver(const Loop &loop) : loop_{&loop} {}
 
   /// Resolve a host and port string. Throws an `UvcoException` upon error.
-  Promise<AddressHandle> gai(std::string_view host, std::string_view port,
+  Promise<AddressHandle> gai(std::string host, std::string port,
                              int af_hint = AF_UNSPEC);
   /// Resolve a host string and numeric port. Throws an `UvcoException` upon
   /// error.
-  Promise<AddressHandle> gai(std::string_view host, uint16_t port,
+  Promise<AddressHandle> gai(std::string host, uint16_t port,
                              int af_hint = AF_UNSPEC);
 
 private:

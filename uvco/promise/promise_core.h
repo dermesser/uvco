@@ -184,6 +184,7 @@ public:
   std::optional<std::variant<T, std::exception_ptr>> slot;
 
 protected:
+  // The handle of a coroutine suspended waiting for this promise.
   std::optional<std::coroutine_handle<>> handle_;
   PromiseState state_ = PromiseState::init;
 };

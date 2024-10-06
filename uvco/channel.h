@@ -51,12 +51,7 @@ public:
   ///
   /// Suspends if no space is available in the channel. The suspended coroutine
   /// is resumed by the next reader taking out an item.
-  ///
-  /// Template method: implements perfect forwarding for both copy and move
-  /// insertion.
-  ///
-  /// NOTE: template argument restriction may not be entirely correct?
-  template <typename U> Promise<void> put(U &&value) {
+  Promise<void> put(T value) {
     if (!queue_.hasSpace()) {
       // Block until a reader has popped an item.
       ChannelAwaiter_ awaiter{queue_, write_waiting_};
@@ -65,7 +60,7 @@ public:
       co_await awaiter;
       BOOST_VERIFY(queue_.hasSpace());
     }
-    queue_.put(std::forward<U>(value));
+    queue_.put(std::move(value));
 
     // NOTE: this will switch control to the reader until it suspends; keep this
     // in mind.

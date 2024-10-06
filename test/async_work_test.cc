@@ -123,7 +123,7 @@ TEST(AsyncWorkTest, workNotAwaited) {
   };
 
   auto setup = [&](const Loop &loop) -> Promise<void> {
-    submitWork<void>(loop, work);
+    submitWork<void>(loop, work).schedule();
     co_return;
   };
 

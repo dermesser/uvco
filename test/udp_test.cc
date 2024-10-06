@@ -91,8 +91,12 @@ TEST(UdpTest, testPingPong) {
   unsigned sent = 0;
   unsigned received = 0;
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
-    return join(udpServer(loop, pingPongCount, received),
-                udpClient(loop, pingPongCount, sent));
+    auto serverPromise = udpServer(loop, pingPongCount, received);
+    auto clientPromise = udpClient(loop, pingPongCount, sent);
+
+    serverPromise.schedule();
+    clientPromise.schedule();
+    return join(std::move(serverPromise), std::move(clientPromise));
   };
 
   run_loop(setup);
@@ -105,8 +109,12 @@ TEST(UdpTest, DISABLED_benchmarkPingPong) {
   unsigned sent = 0;
   unsigned received = 0;
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
-    return join(udpServer(loop, pingPongCount, received),
-                udpClient(loop, pingPongCount, sent));
+    auto serverPromise = udpServer(loop, pingPongCount, received);
+    auto clientPromise = udpClient(loop, pingPongCount, sent);
+
+    serverPromise.schedule();
+    clientPromise.schedule();
+    return join(std::move(serverPromise), std::move(clientPromise));
   };
 
   run_loop(setup);
@@ -129,7 +137,7 @@ Promise<void> udpSource(const Loop &loop, unsigned send, unsigned &sent) {
 
   for (uint32_t i = 0; i < send / 2; ++i) {
     // This exercises the packet queue.
-    client.send(msg, dst);
+    client.send(msg, dst).schedule();
     ++sent;
     co_await client.send(msg, dst);
     ++sent;
@@ -278,7 +286,15 @@ TEST(UdpTest, simultaneousReceiveOneDies) {
     co_await server.bind("::1", 9999, 0);
 
     Promise<std::string> packet = server.receiveOne();
-    EXPECT_DEATH({ auto packet = server.receiveOne(); }, "dataIsNull");
+    packet.schedule();
+    co_await yield();
+    EXPECT_DEATH(
+        {
+          auto packet = server.receiveOne();
+          packet.schedule();
+          co_await yield();
+        },
+        "dataIsNull");
 
     co_await server.close();
   };

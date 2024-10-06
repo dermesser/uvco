@@ -82,8 +82,10 @@ TEST(UdsTest, UnixStreamPingPong) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     try {
       Promise<void> server = pingPongServer(loop);
-      co_await yield();
       Promise<void> client = pingPongClient(loop);
+
+      client.schedule();
+
       co_await server;
       co_await client;
     } catch (const UvcoException &e) {

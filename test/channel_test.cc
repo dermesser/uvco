@@ -145,15 +145,14 @@ TEST(ChannelTest, blockingRead) {
     Channel<int> chan{3};
 
     Promise<void> drainer = drain(chan);
+    drainer.schedule();
 
     Promise<void> put1 = chan.put(1);
     Promise<void> put1b;
-    Promise<void> put1c;
     // Test copy and move assignment.
-    put1b = put1;
-    put1c = std::move(put1b);
+    put1b = std::move(put1);
 
-    co_await put1c;
+    co_await put1b;
     co_await chan.put(2);
     co_await chan.put(3);
     co_await chan.put(4);
@@ -184,6 +183,7 @@ TEST(ChannelTest, blockingWriteBench) {
     constexpr static int N_iter = 10;
 
     Promise<void> sourcer = source(chan, N_iter);
+    sourcer.schedule();
 
     for (int i = 1; i < N_iter; ++i) {
       EXPECT_EQ(co_await chan.get(), i);
@@ -238,6 +238,11 @@ TEST(ChannelTest, tooManyWaiters) {
 
     Promise<void> prom1 = reader(chan);
     Promise<void> prom2 = reader(chan);
+
+    prom1.schedule();
+    prom2.schedule();
+
+    co_await yield();
     co_await chan.put(1);
     co_await prom1;
     EXPECT_THROW({ co_await prom2; }, UvcoException);
@@ -265,6 +270,8 @@ TEST(ChannelTest, channelGenerator) {
 
     Promise<void> writerCoroutine = writer(chan, numIters);
     MultiPromise<int> gen = chan.getAll();
+
+    writerCoroutine.schedule();
 
     for (int i = 0; i < numIters; ++i) {
       EXPECT_EQ(counter = (co_await gen).value(), i);

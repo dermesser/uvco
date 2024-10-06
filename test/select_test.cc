@@ -25,16 +25,19 @@ TEST(SelectTest, selectBasic) {
       co_return 234;
     }();
 
+    promise1.schedule();
+    promise2.schedule();
+
     auto selectSet = SelectSet{promise1, promise2};
     auto selected = co_await selectSet;
     EXPECT_EQ(selected.size(), 1);
-    EXPECT_EQ(co_await std::get<0>(selected[0]), 123);
+    EXPECT_EQ(co_await std::get<0>(selected[0]).get(), 123);
 
     // Selecting an already finished promise is okay.
     auto selectSet2 = SelectSet{promise1, promise2};
     auto selected2 = co_await selectSet2;
     EXPECT_EQ(selected2.size(), 1);
-    EXPECT_EQ(co_await std::get<1>(selected2[0]), 234);
+    EXPECT_EQ(co_await std::get<1>(selected2[0]).get(), 234);
   };
 
   run_loop(setup);
@@ -54,11 +57,14 @@ TEST(SelectTest, selectReturnsSimultaneously) {
     auto promiseObject1 = promise1();
     auto promiseObject2 = promise2();
 
+    promiseObject1.schedule();
+    promiseObject2.schedule();
+
     auto selectSet = SelectSet{promiseObject1, promiseObject2};
     auto selected = co_await selectSet;
     EXPECT_EQ(selected.size(), 2);
-    EXPECT_EQ(co_await std::get<0>(selected[0]), 1);
-    EXPECT_EQ(co_await std::get<1>(selected[1]), 2);
+    EXPECT_EQ(co_await std::get<0>(selected[0]).get(), 1);
+    EXPECT_EQ(co_await std::get<1>(selected[1]).get(), 2);
     co_return;
   };
 
@@ -96,13 +102,22 @@ TEST(SelectTest, selectSetMany) {
     auto promiseObject4 = promise4();
     auto promiseObject4a = promise4();
 
+    promiseObject1.schedule();
+    promiseObject1a.schedule();
+    promiseObject2.schedule();
+    promiseObject2a.schedule();
+    promiseObject3.schedule();
+    promiseObject3a.schedule();
+    promiseObject4.schedule();
+    promiseObject4a.schedule();
+
     auto selectSet = SelectSet{
         promiseObject1,  promiseObject2,  promiseObject3,  promiseObject4,
         promiseObject1a, promiseObject2a, promiseObject3a, promiseObject4a};
     const auto selected = co_await selectSet;
     EXPECT_EQ(selected.size(), 2);
-    EXPECT_EQ(co_await std::get<0>(selected[0]), 1);
-    EXPECT_EQ(co_await std::get<4>(selected[1]), 1);
+    EXPECT_EQ(co_await std::get<0>(selected[0]).get(), 1);
+    EXPECT_EQ(co_await std::get<4>(selected[1]).get(), 1);
     co_return;
   };
 
@@ -125,10 +140,13 @@ TEST(SelectTest, onlyCheckOne) {
     auto promiseObject1 = promise1();
     auto promiseObject2 = promise2();
 
+    promiseObject1.schedule();
+    promiseObject2.schedule();
+
     auto selectSet = SelectSet{promiseObject1, promiseObject2};
     auto selected = co_await selectSet;
     EXPECT_EQ(selected.size(), 1);
-    co_await std::get<0>(selected[0]);
+    co_await std::get<0>(selected[0]).get();
     // The second promise is not checked; it is finished anyway after co_return,
     // in order to free the loop.
     co_return;
@@ -148,10 +166,13 @@ TEST(SelectTest, selectVoid) {
     auto promiseObject1 = promise1();
     auto promiseObject2 = promise2();
 
+    promiseObject1.schedule();
+    promiseObject2.schedule();
+
     auto selectSet = SelectSet{promiseObject1, promiseObject2};
     auto selected = co_await selectSet;
     EXPECT_EQ(selected.size(), 1);
-    co_await std::get<0>(selected[0]);
+    co_await std::get<0>(selected[0]).get();
     co_return;
   };
 
@@ -183,16 +204,19 @@ TEST(SelectTest, DISABLED_benchmark) {
       Promise<std::optional<int>> promise1 = gen1.next();
       Promise<std::optional<int>> promise2 = gen2.next();
 
+      promise1.schedule();
+      promise2.schedule();
+
       // Ensure that all promises are awaited .Imagine the next() coroutines as
       // "background threads"; the uvco rules say that only one coroutine may
       // await a promise at a time, so we can't issue two calls to
       // `MultiPromise::next()` right after another.
       auto result1 = co_await SelectSet{promise1, promise2};
       EXPECT_EQ(result1.size(), 1);
-      EXPECT_EQ(co_await std::get<0>(result1[0]), i);
+      EXPECT_EQ(co_await std::get<0>(result1[0]).get(), i);
       auto result2 = co_await SelectSet{promise1, promise2};
       EXPECT_EQ(result2.size(), 1);
-      EXPECT_EQ(co_await std::get<1>(result2[0]), i);
+      EXPECT_EQ(co_await std::get<1>(result2[0]).get(), i);
     }
 
     co_return;
@@ -225,6 +249,9 @@ TEST(SelectTest, reliableSelectLoop) {
     bool promise1Done = false;
     bool promise2Done = false;
 
+    promise1.schedule();
+    promise2.schedule();
+
     // On my Core i5-7300U, this takes about 600 ns per iteration with three
     // yields per two items. The baseline - no yield() calls - is about 270 ns
     // per iteration.
@@ -233,17 +260,19 @@ TEST(SelectTest, reliableSelectLoop) {
       for (auto &promise : result) {
         switch (promise.index()) {
         case 0:
-          if (co_await std::get<0>(promise) == std::nullopt) {
+          if (co_await std::get<0>(promise).get() == std::nullopt) {
             promise1Done = true;
           } else {
             promise1 = gen1.next();
+            promise1.schedule();
           }
           break;
         case 1:
-          if (co_await std::get<1>(promise) == std::nullopt) {
+          if (co_await std::get<1>(promise).get() == std::nullopt) {
             promise2Done = true;
           } else {
             promise2 = gen2.next();
+            promise2.schedule();
           }
           break;
         default:

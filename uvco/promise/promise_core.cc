@@ -61,7 +61,7 @@ void PromiseCore<void>::except(std::exception_ptr exc) {
 }
 
 void PromiseCore<void>::cancel() {
-  if (state_ == PromiseState::waitedOn) {
+  if (state_ == PromiseState::init || state_ == PromiseState::waitedOn) {
     BOOST_ASSERT(!exception_);
     if (!exception_) {
       exception_ = std::make_exception_ptr(

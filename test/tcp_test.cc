@@ -74,6 +74,8 @@ Promise<void> sendTcpClient(const Loop &loop, bool &sent,
 }
 
 Promise<void> join(Promise<void> promise1, Promise<void> promise2) {
+  promise1.schedule();
+  promise2.schedule();
   co_await promise1;
   co_await promise2;
 }
@@ -87,8 +89,9 @@ TEST(TcpTest, singlePingPong) {
   bool responseReceived = false;
 
   auto setup = [&](const uvco::Loop &loop) -> uvco::Promise<void> {
-    return join(echoTcpServer(loop, received, responded),
-                sendTcpClient(loop, sent, responseReceived));
+    auto serverPromise = echoTcpServer(loop, received, responded);
+    auto clientPromise = sendTcpClient(loop, sent, responseReceived);
+    return join(std::move(serverPromise), std::move(clientPromise));
   };
 
   run_loop(setup);

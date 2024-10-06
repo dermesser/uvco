@@ -33,7 +33,8 @@ StreamBase::~StreamBase() {
                        "Please co_await stream.close() if possible.\n");
     // Asynchronously close handle. It's better to leak memory than file
     // descriptors.
-    closeHandle(stream_.release());
+    Promise<void> closePromise = closeHandle(stream_.release());
+    closePromise.schedule();
   }
   BOOST_ASSERT_MSG(
       !reader_,

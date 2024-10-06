@@ -35,7 +35,7 @@ StreamServerBase<UvStreamType, StreamType>::~StreamServerBase() {
                        "Please co_await server.close() if possible.\n");
     // Asynchronously close handle. It's better to leak memory than file
     // descriptors.
-    closeHandle(socket_.release());
+    closeHandle(socket_.release()).schedule();
   }
 }
 

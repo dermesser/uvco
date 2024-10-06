@@ -9,6 +9,7 @@
 #include "uvco/loop/loop.h"
 #include "uvco/pipe.h"
 #include "uvco/promise/promise.h"
+#include "uvco/run.h"
 #include "uvco/stream.h"
 
 #include <array>
@@ -80,6 +81,7 @@ TEST(TtyTest, closeWhileReading) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
     TtyStream tty = TtyStream::stdin(loop);
     auto reader = tty.read();
+    reader.schedule();
     co_await tty.close();
     EXPECT_FALSE((co_await reader).has_value());
   };
@@ -87,14 +89,17 @@ TEST(TtyTest, closeWhileReading) {
   run_loop(setup);
 }
 
-TEST(PipeTest, danglingReadDies) {
+// This test only passes with immediate execution. (no initial suspension of
+// coroutines)
+TEST(PipeTest, DISABLED_danglingReadDies) {
   auto f = [](const Loop &loop) -> uvco::Promise<std::optional<std::string>> {
     auto [read, write] = pipe(loop);
     auto _ = write.write("Hello");
     return read.read();
   };
   auto setup = [&f](const Loop &loop) -> uvco::Promise<void> {
-    co_await f(loop);
+    auto rp = f(loop);
+    co_await rp;
   };
   EXPECT_DEATH(run_loop(setup), R"(stream must outlive reader coroutine)");
 }
@@ -118,8 +123,14 @@ TEST(PipeTest, doubleReadDies) {
     auto [read, write] = pipe(loop);
 
     Promise<std::optional<std::string>> readPromise = read.read();
+    readPromise.schedule();
+
     EXPECT_DEATH(
-        { Promise<std::optional<std::string>> readPromise2 = read.read(); },
+        {
+          Promise<std::optional<std::string>> readPromise2 = read.read();
+          readPromise2.schedule();
+          co_await yield();
+        },
         R"(dataIsNull)");
     co_await read.close();
     co_await write.close();

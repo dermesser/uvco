@@ -16,7 +16,10 @@ namespace uvco {
 Promise<void>::PromiseAwaiter_::PromiseAwaiter_(PromiseCore<void> &core)
     : core_{core} {}
 
-Promise<void>::PromiseAwaiter_ Promise<void>::operator co_await() const {
+Promise<void>::PromiseAwaiter_ Promise<void>::operator co_await() {
+  // The coroutine only starts running once it's awaited (or a Task is created,
+  // TODO).
+  schedule();
   return PromiseAwaiter_{*core_};
 }
 
@@ -45,20 +48,13 @@ void Promise<void>::PromiseAwaiter_::await_resume() const {
 }
 
 Promise<void>::Promise() : core_{makeRefCounted<PromiseCore<void>>()} {}
-Promise<void>::Promise(SharedCore_ core) : core_{core->addRef()} {}
-Promise<void>::Promise(Promise<void> &&other) noexcept : core_{other.core_} {
+Promise<void>::Promise(SharedCore_ core,
+                       std::coroutine_handle<Coroutine<void>> handle)
+    : core_{core->addRef()}, suspendedHandle_{handle} {}
+Promise<void>::Promise(Promise<void> &&other) noexcept
+    : core_{other.core_}, suspendedHandle_{other.suspendedHandle_} {
   other.core_ = nullptr;
-}
-
-Promise<void> &Promise<void>::operator=(const Promise<void> &other) {
-  if (this == &other) {
-    return *this;
-  }
-  if (core_ != nullptr) {
-    core_->delRef();
-  }
-  core_ = other.core_->addRef();
-  return *this;
+  other.suspendedHandle_ = nullptr;
 }
 
 Promise<void> &Promise<void>::operator=(Promise<void> &&other) noexcept {
@@ -69,16 +65,18 @@ Promise<void> &Promise<void>::operator=(Promise<void> &&other) noexcept {
     core_->delRef();
   }
   core_ = other.core_;
+  suspendedHandle_ = other.suspendedHandle_;
   other.core_ = nullptr;
+  other.suspendedHandle_ = nullptr;
   return *this;
 }
-
-Promise<void>::Promise(const Promise<void> &other)
-    : core_{other.core_->addRef()} {}
 
 Promise<void>::~Promise() {
   if (core_ != nullptr) {
     core_->delRef();
+  }
+  if (suspendedHandle_) {
+    suspendedHandle_.destroy();
   }
 }
 
@@ -91,6 +89,13 @@ void Promise<void>::unwrap() {
     }
   } else {
     throw UvcoException(UV_EAGAIN, "unwrap called on unfulfilled promise");
+  }
+}
+
+void Promise<void>::schedule() {
+  if (suspendedHandle_) {
+    Loop::enqueue(suspendedHandle_);
+    suspendedHandle_ = nullptr;
   }
 }
 

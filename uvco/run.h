@@ -51,6 +51,7 @@ template <typename R, MainFunction<R> F>
 R runMain(F main, Scheduler::RunMode mode) {
   Loop loop{mode};
   Promise<R> promise = main(loop);
+  promise.schedule();
   runLoop(loop);
   return promise.unwrap();
 }

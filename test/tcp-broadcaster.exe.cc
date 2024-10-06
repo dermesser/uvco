@@ -89,7 +89,7 @@ Promise<void> handleConnection(Hub &hub, TcpStream stream) {
     if (!chunk) {
       break;
     }
-    hub.broadcast(peerStr, std::move(*chunk));
+    hub.broadcast(peerStr, std::move(*chunk)).schedule();
   }
   hub.clients_.erase(peerStr);
   co_await streamPtr->closeReset();
@@ -107,7 +107,7 @@ Promise<void> server(const Options &opt) {
     if (!maybeStream) {
       break;
     }
-    handleConnection(hub, std::move(*maybeStream));
+    handleConnection(hub, std::move(*maybeStream)).schedule();
   }
   co_await server.close();
 }
@@ -136,6 +136,8 @@ Promise<void> client(Options opt) {
   auto conn = std::make_shared<TcpStream>(co_await tcpCl.connect());
 
   Promise<void> copier = copyIncomingToStdout(*opt.loop, conn);
+  copier.schedule();
+
   while (true) {
     std::optional<std::string> maybeChunk = co_await input.read();
     if (!maybeChunk) {

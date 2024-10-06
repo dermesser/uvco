@@ -39,6 +39,24 @@ TEST(PromiseTest, awaitTwice) {
   run_loop(setup);
 }
 
+TEST(PromiseTest, stackVariableAccessedSafely) {
+  // Test fails through asan if stackVar is accessed in a use-after-return
+  // manner.
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    unsigned int stackVar = 0;
+    auto p = [](unsigned int &stackVar) -> uvco::Promise<void> {
+      co_await yield();
+      stackVar = 1;
+      co_await yield();
+      co_return;
+    }(stackVar);
+
+    co_await p;
+  };
+
+  run_loop(setup);
+}
+
 TEST(PromiseTest, awaitTwiceImmediateReturn) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
     Promise<int> promise = []() -> uvco::Promise<int> { co_return 1; }();
@@ -50,12 +68,15 @@ TEST(PromiseTest, awaitTwiceImmediateReturn) {
 }
 
 TEST(PromiseTest, yield) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+  bool awaited = false;
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     co_await yield();
+    awaited = true;
     co_return;
   };
 
   run_loop(setup);
+  EXPECT_TRUE(awaited);
 }
 
 // Only run this test with --gtest_filter=PromiseTest.yieldBench in Release
@@ -163,7 +184,6 @@ TEST(PromiseTest, destroyWithoutResume) {
   auto setup = [](const Loop &loop) -> uvco::Promise<void> {
     Promise<int> promise = []() -> uvco::Promise<int> {
       co_await yield();
-      // Will put promise core in state finished, all good.
       co_return 1;
     }();
     co_return;
@@ -201,14 +221,15 @@ TEST(PromiseTest, voidCancellation) {
 
     Promise<void> promise = awaited();
     PromiseHandle<void> handle = promise.handle();
+    promise.schedule();
 
     auto awaiter = [](Promise<void> cancelVictim,
                       int /*bogus*/) -> uvco::Promise<void> {
       EXPECT_THROW({ co_await cancelVictim; }, UvcoException);
     };
 
-    Promise<void> awaiterPromise = awaiter(std::move(promise), 1);
     handle.cancel();
+    Promise<void> awaiterPromise = awaiter(std::move(promise), 1);
     co_await awaiterPromise;
     co_return;
   };

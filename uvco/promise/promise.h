@@ -73,7 +73,7 @@ private:
 /// a time.
 ///
 /// See `README.md` for some examples of how to use coroutines and promises.
-template <typename T> class Promise {
+template <typename T> class [[nodiscard]] Promise {
 protected:
   struct PromiseAwaiter_;
   /// PromiseCore_ handles the inner mechanics of resumption and suspension.
@@ -95,17 +95,13 @@ public:
   /// Fulfilled promise; resolves immediately.
   explicit Promise(T &&result)
       : core_{makeRefCounted<PromiseCore_>(std::move(result))} {}
+  Promise<T> &operator=(const Promise<T> &other) = delete;
+  Promise(const Promise<T> &other) = delete;
 
-  Promise(Promise<T> &&other) noexcept : core_{other.core_} {
+  Promise(Promise<T> &&other) noexcept
+      : core_{other.core_}, suspendedHandle_{other.suspendedHandle_} {
     other.core_ = nullptr;
-  }
-  /// A promise can be copied at low cost.
-  Promise &operator=(const Promise<T> &other) {
-    if (this == &other) {
-      return *this;
-    }
-    core_ = other.core_->addRef();
-    return *this;
+    other.suspendedHandle_ = nullptr;
   }
   Promise &operator=(Promise<T> &&other) noexcept {
     if (this == &other) {
@@ -115,14 +111,17 @@ public:
       core_->delRef();
     }
     core_ = other.core_;
+    suspendedHandle_ = other.suspendedHandle_;
     other.core_ = nullptr;
+    other.suspendedHandle_ = nullptr;
     return *this;
   }
-  // A promise can be copied at low cost.
-  Promise(const Promise<T> &other) : core_{other.core_->addRef()} {}
   ~Promise() {
     if (core_ != nullptr) {
       core_->delRef();
+    }
+    if (suspendedHandle_) {
+      suspendedHandle_.destroy();
     }
   }
 
@@ -131,7 +130,10 @@ public:
 
   /// Part of the coroutine protocol: called by `co_await p` where `p` is a
   /// `Promise<T>`. The returned object is awaited on.
-  PromiseAwaiter_ operator co_await() const { return PromiseAwaiter_{*core_}; }
+  PromiseAwaiter_ operator co_await() {
+    schedule();
+    return PromiseAwaiter_{*core_};
+  }
 
   /// Returns if promise has been fulfilled.
   [[nodiscard]] bool ready() const { return core_->ready(); }
@@ -153,6 +155,13 @@ public:
       }
     }
     throw UvcoException("unwrap called on unfulfilled promise");
+  }
+
+  void schedule() {
+    if (suspendedHandle_) {
+      Loop::enqueue(suspendedHandle_);
+      suspendedHandle_ = nullptr;
+    }
   }
 
 protected:
@@ -212,10 +221,14 @@ protected:
   template <typename U> friend class Coroutine;
   template <typename... Ts> friend class SelectSet;
 
-  explicit Promise(SharedCore_ core) : core_{core->addRef()} {}
+  /// Constructor used by Coroutine<T> to create a Promise<T> object.
+  Promise(SharedCore_ core, std::coroutine_handle<Coroutine<T>> handle)
+      : core_{core->addRef()}, suspendedHandle_{handle} {}
+
   SharedCore_ &core() { return core_; }
 
   SharedCore_ core_;
+  std::coroutine_handle<Coroutine<T>> suspendedHandle_;
 };
 
 /// A void promise works slightly differently than a `Promise<T>` in that it
@@ -233,16 +246,16 @@ public:
   /// Promise ready to be awaited or fulfilled.
   Promise();
   Promise(Promise<void> &&other) noexcept;
-  Promise &operator=(const Promise<void> &other);
+  Promise &operator=(const Promise<void> &other) = delete;
   Promise &operator=(Promise<void> &&other) noexcept;
-  Promise(const Promise<void> &other);
+  Promise(const Promise<void> &other) = delete;
   ~Promise();
 
   PromiseHandle<void> handle();
 
   /// Returns an awaiter object for the promise, handling actual suspension and
   /// resumption.
-  PromiseAwaiter_ operator co_await() const;
+  PromiseAwaiter_ operator co_await();
 
   /// Returns whether the promise has already been fulfilled.
   [[nodiscard]] bool ready() const;
@@ -250,6 +263,8 @@ public:
   // Get the result *right now*, and throw an exception if the promise
   // is not ready, or if it encountered an exception itself.
   void unwrap();
+
+  void schedule();
 
 private:
   /// Handles the actual suspension and resumption.
@@ -273,7 +288,10 @@ private:
     PromiseCore<void> &core_;
   };
 
-  explicit Promise(SharedCore_ core);
+  /// Constructor used by Coroutine<void> to create a Promise<void> object.
+  ///
+  /// `handle` refers to the new coroutine which is initially suspended.
+  Promise(SharedCore_ core, std::coroutine_handle<Coroutine<void>> handle);
 
   friend class Coroutine<void>;
   template <typename... Ts> friend class SelectSet;
@@ -281,6 +299,7 @@ private:
   SharedCore_ &core() { return core_; }
 
   SharedCore_ core_;
+  std::coroutine_handle<Coroutine<void>> suspendedHandle_;
 };
 
 /// A coroutine object used internally by C++20 coroutines ("promise object").
@@ -293,6 +312,7 @@ public:
   /// Coroutine object lives and is pinned within the coroutine frame; copy/move
   /// is disallowed.
   Coroutine() : core_{makeRefCounted<PromiseCore_>()} {}
+
   Coroutine(const Coroutine &other) = delete;
   Coroutine &operator=(const Coroutine &other) = delete;
   Coroutine(Coroutine &&other) = delete;
@@ -306,7 +326,10 @@ public:
 
   /// Part of the coroutine protocol: Called on first suspension point
   /// (`co_await`) or `co_return`.
-  Promise<T> get_return_object() { return Promise<T>{core_}; }
+  Promise<T> get_return_object() {
+    return Promise<T>{core_,
+                      std::coroutine_handle<Coroutine<T>>::from_promise(*this)};
+  }
 
   /// Part of the coroutine protocol: Called by `co_return`. Schedules the
   /// awaiting coroutine for resumption.
@@ -329,7 +352,7 @@ public:
   ///
   // Note: if suspend_always is chosen, we can better control when the promise
   // will be scheduled.
-  std::suspend_never initial_suspend() noexcept { return {}; }
+  std::suspend_always initial_suspend() noexcept { return {}; }
   /// Part of the coroutine protocol: called upon `co_return` or unhandled
   /// exception.
   std::suspend_never final_suspend() noexcept { return {}; }
@@ -351,6 +374,7 @@ template <> class Coroutine<void> {
 
 public:
   Coroutine() : core_{makeRefCounted<PromiseCore_>()} {}
+
   // Coroutine is pinned in memory and not allowed to copy/move.
   Coroutine(Coroutine<void> &&other) noexcept = delete;
   Coroutine &operator=(const Coroutine<void> &other) = delete;
@@ -363,10 +387,13 @@ public:
   }
 
   /// Part of the coroutine protocol.
-  Promise<void> get_return_object() { return Promise<void>{core_}; }
+  Promise<void> get_return_object() {
+    return Promise<void>{
+        core_, std::coroutine_handle<Coroutine<void>>::from_promise(*this)};
+  }
   /// Part of the coroutine protocol: `uvco` coroutines always run until the
   /// first suspension point.
-  std::suspend_never initial_suspend() noexcept { return {}; }
+  std::suspend_always initial_suspend() noexcept { return {}; }
   /// Part of the coroutine protocol: nothing happens upon the final suspension
   /// point (after `co_return`).
   std::suspend_never final_suspend() noexcept { return {}; }

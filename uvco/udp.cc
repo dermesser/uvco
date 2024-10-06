@@ -45,7 +45,7 @@ Udp::~Udp() {
                        "this will leak memory. "
                        "Please co_await udp.close() if possible.\n");
     udpStopReceive();
-    closeHandle(udp_.release());
+    closeHandle(udp_.release()).schedule();
   }
 }
 
@@ -56,8 +56,8 @@ Promise<void> Udp::bind(std::string_view address, uint16_t port,
   if ((flag & UV_UDP_IPV6ONLY) != 0U) {
     hint = AF_INET6;
   }
-  AddressHandle addressHandle =
-      co_await resolver.gai(address, fmt::format("{}", port), hint);
+  AddressHandle addressHandle = co_await resolver.gai(
+      std::string{address}, fmt::format("{}", port), hint);
 
   co_await bind(addressHandle, flag);
 }
@@ -74,7 +74,8 @@ Promise<void> Udp::connect(std::string_view address, uint16_t port,
                            bool ipv6only) {
   Resolver resolver{*loop_};
   const int hint = ipv6only ? AF_INET6 : AF_UNSPEC;
-  AddressHandle addressHandle = co_await resolver.gai(address, port, hint);
+  AddressHandle addressHandle = co_await resolver.gai(
+      std::string{address}, fmt::format("{}", port), hint);
 
   uv_udp_connect(udp_.get(), nullptr);
   const uv_status status = uv_udp_connect(udp_.get(), addressHandle.sockaddr());
