@@ -60,11 +60,12 @@ void Scheduler::close() { BOOST_ASSERT(resumableActive_.empty()); }
 void Scheduler::enqueue(std::coroutine_handle<> handle) {
   // Use of moved-out Scheduler?
   BOOST_ASSERT(resumableActive_.capacity() > 0);
+  handle.resume();
+}
 
-  if (run_mode_ == RunMode::Immediate) {
-    handle.resume();
-    return;
-  }
+void Scheduler::enqueueTask(std::coroutine_handle<> handle) {
+  // Use of moved-out Scheduler?
+  BOOST_ASSERT(resumableActive_.capacity() > 0);
 
   resumableActive_.push_back(handle);
 }

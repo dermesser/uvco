@@ -156,7 +156,7 @@ TEST(PromiseTest, danglingReferenceCrashesAsan) {
     co_await promise;
   };
 
-  EXPECT_DEATH({ run_loop(setup); }, "stack-use-after-return");
+  EXPECT_DEATH({ run_loop(setup); }, "stack-use-after-scope");
 }
 #endif
 
@@ -221,7 +221,6 @@ TEST(PromiseTest, voidCancellation) {
 
     Promise<void> promise = awaited();
     PromiseHandle<void> handle = promise.handle();
-    promise.schedule();
 
     auto awaiter = [](Promise<void> cancelVictim,
                       int /*bogus*/) -> uvco::Promise<void> {

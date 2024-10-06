@@ -75,6 +75,8 @@ public:
   /// Schedule a coroutine for resumption.
   void enqueue(std::coroutine_handle<> handle);
 
+  void enqueueTask(std::coroutine_handle<> handle);
+
   /// Run all scheduled coroutines sequentially.
   void runAll();
 

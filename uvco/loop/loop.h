@@ -41,6 +41,8 @@ public:
   // loop.
   static void enqueue(std::coroutine_handle<> handle);
 
+  static void enqueueTask(std::coroutine_handle<> handle);
+
 private:
   // The default loop is the only loop that can be created. It is set/unset by
   // the constructor/destructor.

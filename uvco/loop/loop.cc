@@ -77,4 +77,8 @@ void Loop::enqueue(std::coroutine_handle<> handle) {
   uv_stop(defaultLoop->uvloop());
 }
 
+void Loop::enqueueTask(std::coroutine_handle<> handle) {
+  currentScheduler().enqueue(handle);
+}
+
 } // namespace uvco
