@@ -244,7 +244,7 @@ this:
 
 ```cpp
 Promise<void> fun() {
-    Temporary value;
+    StackLocated value;
     Promise<void> promise = asynchronousFunction(&value);
 
     co_await promise;
@@ -255,14 +255,45 @@ Promise<void> fun() {
 }
 ```
 
-The temporary value is kept alive in the coroutine frame, which has been allocated dynamically.
+The temporary value is kept alive in the coroutine frame of `fun()`, which has
+been allocated dynamically.
 
 It's a different story when moving around promises: if the calling coroutine returns before the
 awaited promise is finished, the result will be an illegal stack access. Don't do this :) Instead
 make sure to e.g. use a `shared_ptr` instead of a reference, or a `std::string` instead of a
 `std::string_view`.
 
-Be extra careful of the following dangerous pattern:
+```cpp
+// BAD
+Promise<void> coroutineBad(std::string_view sv) {
+    // use-after-return once coroutine is scheduled to run
+    fmt::print("Received string: {}\n", sv);
+}
+
+// GOOD
+Promise<void> coroutineGood(std::string s) {
+    // Coroutine owns its arguments, and this is safe.
+    fmt::print("Received string: {}\n", s);
+}
+
+Promise<void> fun() {
+    const std::string string = fmt::format("Hello {}", "world");
+    return coroutine(string);
+}
+```
+
+Another typical pattern that will not work is the following:
+
+```cpp
+Promise<void> returnsPromise(const Loop& loop) {
+    auto in = TtyStream::stdin(loop);
+    return in.read();
+}
+```
+
+This will obviously cause a stack-use-after-return or other use-after-free error, depending on the specific scenario.
+
+Be extra careful of the following dangerous pattern around temporary values:
 
 ```cpp
 Promise<void> takesStringView(std::string_view sv) {
@@ -283,7 +314,12 @@ void run() {
 ```
 
 I may try to change the uvco types to prevent this pattern, but it's not easy to do so without
-impairing the ease of use in other places.
+impairing the ease of use in other places. In general, it is safe to pass all arguments by value
+into coroutines; especially as uvco evolves, the specific execution order of coroutines can change,
+and something that worked previously may not work later. Imagine for example that a coroutine is not
+immediately executed up to the first suspension point, but instead immediately scheduled for later
+execution; this changes how coroutine arguments are accessed.
+
 
 ### Loop Lifetime
 
