@@ -1,9 +1,8 @@
-// uvco (c) 2025 Lewin Bormann. See LICENSE for specific terms.
+// uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #pragma once
 
 #include "uvco/loop/loop.h"
-#include "uvco/loop/scheduler.h"
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 

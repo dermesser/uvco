@@ -1,7 +1,6 @@
 
 #include <uv.h>
 
-#include "uvco/loop/scheduler.h"
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
 
