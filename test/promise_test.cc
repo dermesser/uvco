@@ -156,7 +156,7 @@ TEST(PromiseTest, danglingReferenceCrashesAsan) {
     co_await promise;
   };
 
-  EXPECT_DEATH({ run_loop(setup); }, "stack-use-after-scope");
+  EXPECT_DEATH({ run_loop(setup); }, "stack-use-after-return");
 }
 #endif
 

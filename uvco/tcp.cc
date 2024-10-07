@@ -99,8 +99,9 @@ uv_status TcpClient::ConnectAwaiter_::await_resume() {
 void TcpClient::ConnectAwaiter_::onConnect(uv_status status) {
   status_ = status;
   if (handle_) {
-    Loop::enqueue(*handle_);
+    auto handle = handle_;
     handle_.reset();
+    Loop::enqueue(handle.value());
   }
 }
 

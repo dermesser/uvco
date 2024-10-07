@@ -14,9 +14,9 @@
 
 namespace uvco {
 
-Loop::Loop(Scheduler::RunMode mode)
+Loop::Loop()
     : loop_{std::make_unique<uv_loop_t>()},
-      scheduler_{std::make_unique<Scheduler>(mode)} {
+      scheduler_{std::make_unique<Scheduler>()} {
 
   if (defaultLoop != nullptr) {
     throw UvcoException(UV_EBUSY,
@@ -71,14 +71,15 @@ Scheduler &Loop::currentScheduler() {
 }
 
 void Loop::enqueue(std::coroutine_handle<> handle) {
-  currentScheduler().enqueue(handle);
+  currentScheduler().resume(handle);
   // If any handles are present, ensure that uv_run returns from waiting for I/O
   // soon.
   uv_stop(defaultLoop->uvloop());
 }
 
 void Loop::enqueueTask(std::coroutine_handle<> handle) {
-  currentScheduler().enqueue(handle);
+  currentScheduler().startTask(handle);
+  uv_stop(defaultLoop->uvloop());
 }
 
 } // namespace uvco

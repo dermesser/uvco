@@ -164,8 +164,9 @@ void StreamServerBase<UvStreamType, StreamType>::onNewConnection(
   }
 
   if (connectionAwaiter->handle_) {
-    Loop::enqueue(*connectionAwaiter->handle_);
+    auto handle = connectionAwaiter->handle_;
     connectionAwaiter->handle_.reset();
+    Loop::enqueue(handle.value());
   }
 }
 

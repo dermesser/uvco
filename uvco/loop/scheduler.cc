@@ -57,16 +57,14 @@ void Scheduler::runAll() {
 
 void Scheduler::close() { BOOST_ASSERT(resumableActive_.empty()); }
 
-void Scheduler::enqueue(std::coroutine_handle<> handle) {
-  // Use of moved-out Scheduler?
+void Scheduler::resume(std::coroutine_handle<> handle) {
   BOOST_ASSERT(resumableActive_.capacity() > 0);
-  handle.resume();
+  resumableActive_.push_back(handle);
 }
 
-void Scheduler::enqueueTask(std::coroutine_handle<> handle) {
+void Scheduler::startTask(std::coroutine_handle<> handle) {
   // Use of moved-out Scheduler?
   BOOST_ASSERT(resumableActive_.capacity() > 0);
-
   resumableActive_.push_back(handle);
 }
 
@@ -74,7 +72,7 @@ void Scheduler::setUpLoop(uv_loop_t *loop) { uv_loop_set_data(loop, this); }
 
 Scheduler::~Scheduler() = default;
 
-Scheduler::Scheduler(RunMode mode) : run_mode_{mode} {
+Scheduler::Scheduler() {
   resumableActive_.reserve(16);
   resumableRunning_.reserve(16);
 }

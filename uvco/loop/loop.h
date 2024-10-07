@@ -26,7 +26,7 @@ namespace uvco {
 class Loop {
 public:
   // Don't use this constructor. Use `runMain()` instead.
-  explicit Loop(Scheduler::RunMode mode = Scheduler::RunMode::Deferred);
+  Loop();
 
   Loop(const Loop &) = delete;
   Loop(Loop &&) = delete;
