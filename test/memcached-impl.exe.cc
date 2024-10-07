@@ -175,6 +175,7 @@ Promise<void> mainLoop(const Loop &loop) {
     // Store promise (we won't need it); just calling the function will
     // schedule it for execution.
     clients.push_back(handleClient(std::move(*stream), cache, std::move(peer)));
+    clients.back().schedule();
   }
 
   co_await server.close();
