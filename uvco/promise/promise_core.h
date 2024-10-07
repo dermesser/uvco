@@ -127,7 +127,7 @@ public:
     if (handle_) {
       BOOST_ASSERT(state_ == PromiseState::waitedOn);
       state_ = PromiseState::resuming;
-      auto resume = *handle_;
+      const auto resume = handle_.value();
       handle_.reset();
       Loop::enqueue(resume);
     } else {

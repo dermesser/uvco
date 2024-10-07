@@ -223,6 +223,7 @@ protected:
       core_->resumeGenerator();
       return true;
     }
+
     /// Part of the coroutine protocol. Returns a value if `co_yield` was called
     /// in the generating coroutine. Otherwise, returns an empty `optional` if
     /// the generating coroutine has `co_return`ed.
@@ -312,7 +313,6 @@ public:
   YieldAwaiter_ yield_value(T value) {
     BOOST_ASSERT(!core_->slot);
     core_->slot = std::move(value);
-    core_->resume();
     return YieldAwaiter_{*core_};
   }
 
@@ -327,6 +327,7 @@ private:
 
     bool await_suspend(std::coroutine_handle<> handle) {
       core_.suspendGenerator(handle);
+      core_.resume();
       return true;
     }
 
