@@ -1,6 +1,5 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include <array>
 #include <fmt/core.h>
 #include <uv.h>
 
@@ -8,7 +7,6 @@
 
 #include <algorithm>
 #include <coroutine>
-#include <cstddef>
 #include <span>
 
 namespace uvco {
@@ -44,9 +42,6 @@ void Scheduler::runAll() {
       // filter, because it takes fewer calculations and is a nice linear search
       // over a usually short vector.
       if (findFirstIndexOf(resumableRunning_, coro) == i) {
-        // This is only true if the coroutine is a false positive in the bloom
-        // filter, and has not been run before. The linear search is slow (but
-        // not too slow), and only happens in the case of a false positive.
         coro.resume();
       }
     }
