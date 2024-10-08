@@ -159,7 +159,7 @@ public:
 
   void schedule() {
     if (suspendedHandle_) {
-      Loop::enqueueTask(suspendedHandle_);
+      Loop::enqueue(suspendedHandle_);
       suspendedHandle_ = nullptr;
     }
   }

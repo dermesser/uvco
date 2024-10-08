@@ -51,7 +51,6 @@ public:
   /// by call to `runAll()`.
   ///
   /// Call `setUpLoop()` to attach the scheduler to a libuv event loop.
-
   Scheduler();
   Scheduler(const Scheduler &) = delete;
   Scheduler(Scheduler &&) = delete;
@@ -63,10 +62,7 @@ public:
   /// code to find the scheduler.
   void setUpLoop(uv_loop_t *loop);
 
-  /// Schedule a coroutine for resumption.
-  void resume(std::coroutine_handle<> handle);
-
-  void startTask(std::coroutine_handle<> handle);
+  void enqueue(std::coroutine_handle<> handle);
 
   /// Run all scheduled coroutines sequentially.
   void runAll();

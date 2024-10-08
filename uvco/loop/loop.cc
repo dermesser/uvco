@@ -10,7 +10,6 @@
 
 #include <cstdio>
 #include <fmt/core.h>
-#include <memory>
 
 namespace uvco {
 
@@ -68,14 +67,7 @@ Scheduler &Loop::currentScheduler() {
 }
 
 void Loop::enqueue(std::coroutine_handle<> handle) {
-  currentScheduler().resume(handle);
-  // If any handles are present, ensure that uv_run returns from waiting for I/O
-  // soon.
-  uv_stop(defaultLoop->uvloop());
-}
-
-void Loop::enqueueTask(std::coroutine_handle<> handle) {
-  currentScheduler().startTask(handle);
+  currentScheduler().enqueue(handle);
   uv_stop(defaultLoop->uvloop());
 }
 
