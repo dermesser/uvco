@@ -3,7 +3,6 @@
 #pragma once
 
 #include "uvco/loop/loop.h"
-#include "uvco/loop/scheduler.h"
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 
@@ -24,8 +23,7 @@ MultiPromise<unsigned> yield(unsigned count);
 template <typename F, typename R>
 concept MainFunction = std::is_invocable_r_v<Promise<R>, F, const Loop &>;
 
-template <typename R, MainFunction<R> F>
-R runMain(F main, Scheduler::RunMode mode = Scheduler::RunMode::Deferred);
+template <typename R, MainFunction<R> F> R runMain(F main);
 
 /// Set up event loop, then run main function to set up promises.
 /// Finally, clean up once the event loop has finished. An exception
@@ -47,9 +45,8 @@ R runMain(F main, Scheduler::RunMode mode = Scheduler::RunMode::Deferred);
 /// });
 /// ```
 ///
-template <typename R, MainFunction<R> F>
-R runMain(F main, Scheduler::RunMode mode) {
-  Loop loop{mode};
+template <typename R, MainFunction<R> F> R runMain(F main) {
+  Loop loop;
   Promise<R> promise = main(loop);
   runLoop(loop);
   return promise.unwrap();

@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include <array>
 #include <boost/assert.hpp>
 #include <uv.h>
 
@@ -42,26 +41,7 @@ namespace uvco {
 /// of coroutines), thus it is not introduced everywhere yet.
 class Scheduler {
 public:
-  enum class RunMode {
-    /// Run an enqueued coroutine immediately, in the stack of the
-    /// enqueuing function.
-    Immediate = 0,
-    /// Run all enqueued coroutines sequentially, after all I/O has been
-    /// completed, before the next I/O poll.
-    Deferred = 1,
-  };
-
-  /// Construct a scheduler.
-  ///
-  /// If `immediate_resume` is true, resumed coroutines will be run
-  /// immediately in the call stack of the resuming function. Otherwise
-  /// the coroutine will be resumed upon the next turn of the event loop,
-  /// i.e. after all activity has finished and before the next I/O poll,
-  /// by call to `runAll()`.
-  ///
-  /// Call `setUpLoop()` to attach the scheduler to a libuv event loop.
-  explicit Scheduler(RunMode mode = RunMode::Deferred);
-
+  Scheduler();
   Scheduler(const Scheduler &) = delete;
   Scheduler(Scheduler &&) = delete;
   Scheduler &operator=(const Scheduler &) = delete;
@@ -93,8 +73,6 @@ private:
   std::vector<std::coroutine_handle<>> resumableActive_;
   // Vector of coroutines currently being resumed (while in runAll()).
   std::vector<std::coroutine_handle<>> resumableRunning_;
-
-  RunMode run_mode_;
 };
 
 } // namespace uvco

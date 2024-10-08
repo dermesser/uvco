@@ -14,9 +14,9 @@
 
 namespace uvco {
 
-Loop::Loop(Scheduler::RunMode mode)
+Loop::Loop()
     : loop_{std::make_unique<uv_loop_t>()},
-      scheduler_{std::make_unique<Scheduler>(mode)} {
+      scheduler_{std::make_unique<Scheduler>()} {
 
   if (defaultLoop != nullptr) {
     throw UvcoException(UV_EBUSY,
