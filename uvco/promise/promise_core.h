@@ -123,7 +123,7 @@ public:
   /// enqueuing it in the global event loop.
   ///
   /// A promise core can only be resumed once.
-  virtual void resume() {
+  void resume() {
     if (handle_) {
       BOOST_ASSERT(state_ == PromiseState::waitedOn);
       state_ = PromiseState::resuming;

@@ -1,3 +1,4 @@
+// uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #pragma once
 
@@ -53,10 +54,6 @@ public:
     PromiseCore<T>::handle_ = handle;
     PromiseCore<T>::state_ = PromiseState::waitedOn;
   }
-
-  /// See `Promise::resume`. Implemented here to provide a distinction in stack
-  /// traces.
-  void resume() override { PromiseCore<T>::resume(); }
 
   /// Resume the generator from its last `co_yield` point, so it can yield the
   /// next value.
