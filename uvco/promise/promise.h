@@ -134,7 +134,7 @@ public:
   /// Part of the coroutine protocol: called by `co_await p` where `p` is a
   /// `Promise<T>`. The returned object is awaited on.
   PromiseAwaiter_ operator co_await() {
-    schedule();
+    initialResume();
     return PromiseAwaiter_{*core_};
   }
 
@@ -168,6 +168,15 @@ public:
   }
 
 protected:
+  void initialResume() {
+    if (!suspendedHandle_) {
+      throw UvcoException("Promises can only be awaited once");
+    }
+    const auto suspended = suspendedHandle_;
+    suspendedHandle_ = nullptr;
+    suspended.resume();
+  }
+
   /// Returned as awaiter object when `co_await`ing a promise.
   ///
   /// Handles suspension of current coroutine and resumption upon fulfillment of
