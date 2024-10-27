@@ -62,9 +62,20 @@ TEST(SelectTest, selectReturnsSimultaneously) {
 
     auto selectSet = SelectSet{promiseObject1, promiseObject2};
     auto selected = co_await selectSet;
-    EXPECT_EQ(selected.size(), 2);
-    EXPECT_EQ(co_await std::get<0>(selected[0]).get(), 1);
-    EXPECT_EQ(co_await std::get<1>(selected[1]).get(), 2);
+    EXPECT_EQ(selected.size(), 1);
+    BOOST_ASSERT(selected.size() == 1);
+    switch (selected[0].index()) {
+    case 0:
+      EXPECT_EQ(co_await std::get<0>(selected[0]).get(), 1);
+      EXPECT_EQ(co_await promiseObject2, 2);
+      break;
+    case 1:
+      EXPECT_EQ(co_await std::get<1>(selected[0]).get(), 2);
+      EXPECT_EQ(co_await promiseObject1, 1);
+      break;
+    default:
+      EXPECT_FALSE(true);
+    }
     co_return;
   };
 
@@ -115,9 +126,20 @@ TEST(SelectTest, selectSetMany) {
         promiseObject1,  promiseObject2,  promiseObject3,  promiseObject4,
         promiseObject1a, promiseObject2a, promiseObject3a, promiseObject4a};
     const auto selected = co_await selectSet;
-    EXPECT_EQ(selected.size(), 2);
-    EXPECT_EQ(co_await std::get<0>(selected[0]).get(), 1);
-    EXPECT_EQ(co_await std::get<4>(selected[1]).get(), 1);
+    EXPECT_EQ(selected.size(), 1);
+    BOOST_ASSERT(selected.size() == 1);
+    switch (selected[0].index()) {
+    case 0:
+      EXPECT_EQ(co_await std::get<0>(selected[0]).get(), 1);
+      EXPECT_EQ(co_await promiseObject1a, 1);
+      break;
+    case 4:
+      EXPECT_EQ(co_await std::get<4>(selected[0]).get(), 1);
+      EXPECT_EQ(co_await promiseObject1, 1);
+      break;
+    default:
+      EXPECT_FALSE(true);
+    }
     co_return;
   };
 

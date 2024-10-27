@@ -4,6 +4,7 @@
 
 #include "uvco/exception.h"
 #include "uvco/internal/internal_utils.h"
+#include "uvco/loop/loop.h"
 #include "uvco/promise/promise_core.h"
 
 #include <boost/assert.hpp>
@@ -103,6 +104,7 @@ public:
     other.core_ = nullptr;
     other.suspendedHandle_ = nullptr;
   }
+
   Promise &operator=(Promise<T> &&other) noexcept {
     if (this == &other) {
       return *this;
@@ -116,6 +118,7 @@ public:
     other.suspendedHandle_ = nullptr;
     return *this;
   }
+
   ~Promise() {
     if (core_ != nullptr) {
       core_->delRef();

@@ -2,7 +2,6 @@
 
 #include "uvco/promise/promise_core.h"
 #include "uvco/exception.h"
-#include "uvco/loop/loop.h"
 
 #include <fmt/core.h>
 #include <uv.h>
@@ -15,7 +14,7 @@
 namespace uvco {
 
 void PromiseCore<void>::setHandle(std::coroutine_handle<> handle) {
-  if (state_ != PromiseState::init) {
+  if (state_ != PromiseState::init && state_ != PromiseState::resuming) {
     throw UvcoException("PromiseCore is already awaited or has finished");
   }
   BOOST_ASSERT(state_ == PromiseState::init);
@@ -33,9 +32,9 @@ void PromiseCore<void>::resume() {
   if (handle_) {
     BOOST_ASSERT(state_ == PromiseState::waitedOn);
     state_ = PromiseState::resuming;
-    auto resumeHandle = *handle_;
+    auto handle = *handle_;
     handle_.reset();
-    Loop::enqueue(resumeHandle);
+    handle.resume();
   } else {
     // If a coroutine returned immediately, or nobody is co_awaiting the result.
   }
