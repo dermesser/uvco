@@ -82,6 +82,7 @@ Promise<void> udpClient(const Loop &loop, unsigned send, unsigned &sent) {
 }
 
 Promise<void> join(Promise<void> promise1, Promise<void> promise2) {
+  promise2.schedule();
   co_await promise1;
   co_await promise2;
 }
@@ -159,9 +160,6 @@ Promise<void> udpSink(const Loop &loop, unsigned expect, unsigned &received) {
   expect -= tolerance;
 
   for (uint32_t counter = 0; counter < expect; ++counter) {
-    // TODO: currently we can only receive one packet at a time, the UDP socket
-    // needs an additional internal queue if there is more than one packet at a
-    // time.
     auto recvd = co_await packets;
     if (!recvd) {
       break;
