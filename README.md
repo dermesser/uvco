@@ -61,9 +61,9 @@ all callbacks are finished and all coroutines have been completed. Callbacks (by
 trigger coroutine resumption from the event loop, which is defined in `src/run.cc`.
 
 ```cpp
-#include "loop/loop.h"
-#include "run.h"
-#include "promise/promise.h"
+#include <uvco/loop/loop.h>
+#include <uvco/run.h>
+#include <uvco/promise/promise.h>
 
 using namespace uvco;
 
@@ -97,10 +97,10 @@ Of course, more than one download can be triggered at once: `download()` MultiPr
 independent.
 
 ```cpp
-#include "integrations/curl/curl.h"
-#include "loop/loop.h"
-#include "promise/promise.h"
-#include "run.h"
+#include <uvco/integrations/curl/curl.h>
+#include <uvco/loop/loop.h>
+#include <uvco/promise/promise.h>
+#include <uvco/run.h>
 
 // and other includes ...
 
@@ -142,10 +142,10 @@ int main() {
 Build the project, and run the `test-http10` binary. It works like the following code:
 
 ```cpp
-#include "loop/loop.h"
-#include "promise/promise.h"
-#include "tcp.h"
-#include "tcp_stream.h"
+#include <uvco/loop/loop.h>
+#include <uvco/promise/promise.h>
+#include <uvco/tcp.h>
+#include <uvco/tcp_stream.h>
 
 using namespace uvco;
 
@@ -317,7 +317,6 @@ and something that worked previously may not work later. Imagine for example tha
 immediately executed up to the first suspension point, but instead immediately scheduled for later
 execution; this changes how coroutine arguments are accessed.
 
-
 ### Loop Lifetime
 
 The `Loop` is singular, and outlives all coroutines running on it; therefore it's passed as `const
@@ -450,7 +449,7 @@ both cases, invoking `llvm-cov` when compiling with `clang++`.
 Documentation can be built using `doxygen`:
 
 ```shell
-$ doxygen
+doxygen
 ```
 
 and is delivered to the `doxygen/` directory.
