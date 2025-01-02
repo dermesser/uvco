@@ -178,7 +178,7 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
   awaiter->status_ = nread;
 
   if (awaiter->handle_) {
-    std::coroutine_handle<void> handle = awaiter->handle_.value();
+    const std::coroutine_handle<void> handle = awaiter->handle_.value();
     awaiter->handle_.reset();
     Loop::enqueue(handle);
   }
@@ -236,7 +236,7 @@ void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
   BOOST_ASSERT(awaiter != nullptr);
   awaiter->status_ = status;
   BOOST_ASSERT(awaiter->handle_);
-  std::coroutine_handle<void> handle = awaiter->handle_.value();
+  const std::coroutine_handle<void> handle = awaiter->handle_.value();
   awaiter->handle_.reset();
   Loop::enqueue(handle);
   setData(write, (void *)nullptr);
@@ -263,7 +263,7 @@ void StreamBase::ShutdownAwaiter_::onShutdown(uv_shutdown_t *req,
   auto *awaiter = getRequestData<ShutdownAwaiter_>(req);
   awaiter->status_ = status;
   if (awaiter->handle_) {
-    std::coroutine_handle<void> handle = awaiter->handle_.value();
+    const std::coroutine_handle<void> handle = awaiter->handle_.value();
     awaiter->handle_.reset();
     Loop::enqueue(handle);
   }

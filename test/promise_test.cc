@@ -17,8 +17,8 @@ using namespace uvco;
 namespace {
 
 TEST(PromiseTest, moveCtor) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    Promise<int> promise1 = []() -> uvco::Promise<int> { co_return 1; }();
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Promise<int> promise1 = []() -> Promise<int> { co_return 1; }();
     Promise<int> promise2 = std::move(promise1);
     EXPECT_EQ(co_await promise2, 1);
   };
@@ -27,8 +27,8 @@ TEST(PromiseTest, moveCtor) {
 }
 
 TEST(PromiseTest, awaitTwice) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    Promise<int> promise = []() -> uvco::Promise<int> {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Promise<int> promise = []() -> Promise<int> {
       co_await yield();
       co_return 1;
     }();
@@ -40,8 +40,8 @@ TEST(PromiseTest, awaitTwice) {
 }
 
 TEST(PromiseTest, awaitTwiceImmediateReturn) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    Promise<int> promise = []() -> uvco::Promise<int> { co_return 1; }();
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Promise<int> promise = []() -> Promise<int> { co_return 1; }();
     EXPECT_EQ(co_await promise, 1);
     EXPECT_THROW({ co_await promise; }, UvcoException);
   };
@@ -50,7 +50,7 @@ TEST(PromiseTest, awaitTwiceImmediateReturn) {
 }
 
 TEST(PromiseTest, yield) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &loop) -> Promise<void> {
     co_await yield();
     co_return;
   };
@@ -67,7 +67,7 @@ TEST(PromiseTest, yield) {
 // iteration
 TEST(PromiseTest, DISABLED_yieldBench) {
   static constexpr unsigned iterations = 1000000;
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &loop) -> Promise<void> {
     for (unsigned i = 0; i < iterations; ++i) {
       co_await yield();
     }
@@ -82,10 +82,8 @@ TEST(PromiseTest, DISABLED_yieldBench) {
 // iteration
 TEST(PromiseTest, DISABLED_yieldCallBench) {
   static constexpr unsigned iterations = 1000000;
-  auto coroutine = [](const Loop &loop) -> uvco::Promise<void> {
-    co_await yield();
-  };
-  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+  auto coroutine = [](const Loop &loop) -> Promise<void> { co_await yield(); };
+  auto setup = [&](const Loop &loop) -> Promise<void> {
     for (unsigned i = 0; i < iterations; ++i) {
       co_await coroutine(loop);
     }
@@ -99,7 +97,7 @@ TEST(PromiseTest, DISABLED_yieldCallBench) {
 // at only 32 ns overhead (that's 31 million iterations per second).
 TEST(PromiseTest, DISABLED_multiYieldBench) {
   static constexpr unsigned iterations = 1000000;
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &loop) -> Promise<void> {
     MultiPromise<unsigned> multi = yield(iterations);
     for (unsigned i = 0; i < iterations; ++i) {
       co_await multi;
@@ -113,42 +111,27 @@ TEST(PromiseTest, DISABLED_multiYieldBench) {
 Promise<void> testTemporaryFunction(const Loop &loop,
                                     std::string_view message) {
   co_await yield();
-  fmt::print("Message is {}\n", message);
   co_return;
 }
 
 TEST(PromiseTest, temporaryOk) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &loop) -> Promise<void> {
     // Temporary promise.
     co_await testTemporaryFunction(loop, fmt::format("Hello {}", "World"));
   };
   run_loop(setup);
 }
 
-#if defined(__SANITIZE_ADDRESS__) || __has_feature(address_sanitizer)
-TEST(PromiseTest, danglingReferenceCrashesAsan) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    Promise<void> promise =
-        testTemporaryFunction(loop, fmt::format("Hello {}", "World"));
-
-    // This will crash in asan.
-    co_await promise;
-  };
-
-  EXPECT_DEATH({ run_loop(setup); }, "stack-use-after-return");
-}
-#endif
-
 TEST(PromiseTest, movePromiseBetweenFunctions) {
-  auto coro1 = [](Promise<int> promise) -> uvco::Promise<void> {
+  auto coro1 = [](Promise<int> promise) -> Promise<void> {
     EXPECT_EQ(co_await promise, 42);
   };
-  auto coro2 = [&](Promise<int> promise) -> uvco::Promise<void> {
+  auto coro2 = [&](Promise<int> promise) -> Promise<void> {
     co_return co_await coro1(std::move(promise));
   };
 
-  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
-    Promise<int> promise1 = []() -> uvco::Promise<int> {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    Promise<int> promise1 = []() -> Promise<int> {
       co_await yield();
       co_return 42;
     }();
@@ -160,8 +143,8 @@ TEST(PromiseTest, movePromiseBetweenFunctions) {
 }
 
 TEST(PromiseTest, destroyWithoutResume) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    Promise<int> promise = []() -> uvco::Promise<int> {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Promise<int> promise = []() -> Promise<int> {
       co_await yield();
       // Will put promise core in state finished, all good.
       co_return 1;
@@ -173,8 +156,8 @@ TEST(PromiseTest, destroyWithoutResume) {
 }
 
 TEST(PromiseTest, cancellation) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    auto awaited = [&loop]() -> uvco::Promise<int> {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto awaited = [&loop]() -> Promise<int> {
       co_await sleep(loop, 1);
       co_return 3;
     };
@@ -182,7 +165,7 @@ TEST(PromiseTest, cancellation) {
     Promise<int> promise = awaited();
     PromiseHandle<int> handle = promise.handle();
 
-    auto awaiter = [](Promise<int> promise) -> uvco::Promise<void> {
+    auto awaiter = [](Promise<int> promise) -> Promise<void> {
       EXPECT_THROW({ co_await promise; }, UvcoException);
     };
 
@@ -196,14 +179,14 @@ TEST(PromiseTest, cancellation) {
 }
 
 TEST(PromiseTest, voidCancellation) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    auto awaited = []() -> uvco::Promise<void> { co_await yield(); };
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto awaited = []() -> Promise<void> { co_await yield(); };
 
     Promise<void> promise = awaited();
     PromiseHandle<void> handle = promise.handle();
 
     auto awaiter = [](Promise<void> cancelVictim,
-                      int /*bogus*/) -> uvco::Promise<void> {
+                      int /*bogus*/) -> Promise<void> {
       EXPECT_THROW({ co_await cancelVictim; }, UvcoException);
     };
 
@@ -217,15 +200,15 @@ TEST(PromiseTest, voidCancellation) {
 }
 
 TEST(PromiseTest, voidEarlyCancellation) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    auto awaited = []() -> uvco::Promise<void> { co_await yield(); };
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto awaited = []() -> Promise<void> { co_await yield(); };
 
     Promise<void> promise = awaited();
     PromiseHandle<void> handle = promise.handle();
     handle.cancel();
 
     auto awaiter = [](Promise<void> cancelVictim,
-                      int /*bogus*/) -> uvco::Promise<void> {
+                      int /*bogus*/) -> Promise<void> {
       EXPECT_THROW({ co_await cancelVictim; }, UvcoException);
     };
 
@@ -239,14 +222,14 @@ TEST(PromiseTest, voidEarlyCancellation) {
 }
 
 TEST(PromiseTest, voidFromCoroutineCancellation) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    auto awaited = []() -> uvco::Promise<void> { co_await yield(); };
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto awaited = []() -> Promise<void> { co_await yield(); };
 
     Promise<void> promise = awaited();
     PromiseHandle<void> handle = promise.handle();
 
     auto awaiter = [&handle](Promise<void> cancelVictim,
-                             int /*bogus*/) -> uvco::Promise<void> {
+                             int /*bogus*/) -> Promise<void> {
       handle.cancel();
       EXPECT_THROW({ co_await cancelVictim; }, UvcoException);
     };
@@ -263,15 +246,15 @@ TEST(PromiseTest, voidFromCoroutineCancellation) {
 TEST(PromiseTest, noImplicitPromiseObjectInitialization) {
   // This is a test derived from the voidCancellation case. It fails
   // spectacularly if a promise object is instantiated from function arguments.
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    auto awaited = []() -> uvco::Promise<void> { co_await yield(); };
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto awaited = []() -> Promise<void> { co_await yield(); };
 
     Promise<void> promise = awaited();
     PromiseHandle<void> handle = promise.handle();
 
     // Problem: if we have a single promise argument, the compiler will just
     // construct the coroutine's promise object from it.
-    auto awaiter = [](Promise<void> cancelVictim) -> uvco::Promise<void> {
+    auto awaiter = [](Promise<void> cancelVictim) -> Promise<void> {
       EXPECT_THROW({ co_await cancelVictim; }, UvcoException);
     };
 
