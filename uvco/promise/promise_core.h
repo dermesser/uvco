@@ -1,10 +1,9 @@
-// uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
+// uvco (c) 2023-2024 Lewin Bormann. See LICENSE for specific terms.
 
 #pragma once
 
 #include "uvco/exception.h"
 #include "uvco/internal/internal_utils.h"
-#include "uvco/loop/loop.h"
 
 #include <boost/assert.hpp>
 #include <fmt/core.h>
@@ -20,6 +19,7 @@
 #include <variant>
 
 namespace uvco {
+
 /// @addtogroup Promise
 /// @{
 
@@ -72,7 +72,7 @@ public:
 
   /// Set the coroutine to be resumed once a result is ready.
   virtual void setHandle(std::coroutine_handle<> handle) {
-    if (state_ != PromiseState::init) {
+    if (state_ != PromiseState::init && state_ != PromiseState::resuming) {
       throw UvcoException("PromiseCore is already awaited or has finished");
     }
     handle_ = handle;
@@ -84,7 +84,8 @@ public:
   void resetHandle() {
     BOOST_ASSERT((state_ == PromiseState::waitedOn && handle_) ||
                  (state_ == PromiseState::finished && !handle_) ||
-                 (state_ == PromiseState::init && !handle_));
+                 (state_ == PromiseState::init && !handle_) ||
+                 (state_ == PromiseState::resuming && !handle_));
     if (state_ == PromiseState::waitedOn) {
       handle_.reset();
       state_ = PromiseState::init;
@@ -127,9 +128,9 @@ public:
     if (handle_) {
       BOOST_ASSERT(state_ == PromiseState::waitedOn);
       state_ = PromiseState::resuming;
-      const auto resume = handle_.value();
+      const auto handle = handle_.value();
       handle_.reset();
-      Loop::enqueue(resume);
+      handle.resume();
     } else {
       // This occurs if no co_await has occured until resume. Either the
       // promise was not co_awaited, or the producing coroutine immediately
@@ -148,9 +149,6 @@ public:
       break;
     case PromiseState::waitedOn:
       // state is waitedOn, but no handle is set - that's an error.
-      BOOST_ASSERT_MSG(
-          false,
-          "PromiseCore::resume() called without handle in state waitedOn");
       break;
     case PromiseState::finished:
       // Happens in MultiPromiseCore on co_return if the co_awaiter has lost

@@ -39,6 +39,16 @@ TEST(PromiseTest, awaitTwice) {
   run_loop(setup);
 }
 
+TEST(PromiseTest, awaitTwiceImmediateReturn) {
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    Promise<int> promise = []() -> uvco::Promise<int> { co_return 1; }();
+    EXPECT_EQ(co_await promise, 1);
+    EXPECT_THROW({ co_await promise; }, UvcoException);
+  };
+
+  run_loop(setup);
+}
+
 TEST(PromiseTest, stackVariableAccessedSafely) {
   // Test fails through asan if stackVar is accessed in a use-after-return
   // manner.
@@ -52,16 +62,6 @@ TEST(PromiseTest, stackVariableAccessedSafely) {
     }(stackVar);
 
     co_await p;
-  };
-
-  run_loop(setup);
-}
-
-TEST(PromiseTest, awaitTwiceImmediateReturn) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    Promise<int> promise = []() -> uvco::Promise<int> { co_return 1; }();
-    EXPECT_EQ(co_await promise, 1);
-    EXPECT_THROW({ co_await promise; }, UvcoException);
   };
 
   run_loop(setup);

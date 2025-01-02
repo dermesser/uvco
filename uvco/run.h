@@ -23,8 +23,7 @@ MultiPromise<unsigned> yield(unsigned count);
 template <typename F, typename R>
 concept MainFunction = std::is_invocable_r_v<Promise<R>, F, const Loop &>;
 
-template <typename R, MainFunction<R> F>
-R runMain(F main);
+template <typename R, MainFunction<R> F> R runMain(F main);
 
 /// Set up event loop, then run main function to set up promises.
 /// Finally, clean up once the event loop has finished. An exception
@@ -46,8 +45,7 @@ R runMain(F main);
 /// });
 /// ```
 ///
-template <typename R, MainFunction<R> F>
-R runMain(F main) {
+template <typename R, MainFunction<R> F> R runMain(F main) {
   Loop loop;
   Promise<R> promise = main(loop);
   promise.schedule();
