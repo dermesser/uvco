@@ -160,8 +160,13 @@ void StreamBase::InStreamAwaiter_::allocate(uv_handle_t *handle,
 }
 
 void StreamBase::InStreamAwaiter_::start_read() {
-  uv_read_start(&stream_.stream(), StreamBase::InStreamAwaiter_::allocate,
-                StreamBase::InStreamAwaiter_::onInStreamRead);
+  const int rc =
+      uv_read_start(&stream_.stream(), StreamBase::InStreamAwaiter_::allocate,
+                    StreamBase::InStreamAwaiter_::onInStreamRead);
+  if (rc != 0) {
+    throw UvcoException{
+        rc, "StreamBase::read() encountered error in uv_read_start()"};
+  }
 }
 
 void StreamBase::InStreamAwaiter_::stop_read() {

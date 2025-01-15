@@ -118,9 +118,7 @@ TEST(PipeTest, doubleReadDies) {
     auto [read, write] = pipe(loop);
 
     Promise<std::optional<std::string>> readPromise = read.read();
-    EXPECT_DEATH(
-        { Promise<std::optional<std::string>> readPromise2 = read.read(); },
-        R"(dataIsNull)");
+    EXPECT_THROW({ co_await read.read(); }, UvcoException);
     co_await read.close();
     co_await write.close();
   };
