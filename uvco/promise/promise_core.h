@@ -127,7 +127,7 @@ public:
     if (handle_) {
       BOOST_ASSERT(state_ == PromiseState::waitedOn);
       state_ = PromiseState::resuming;
-      auto resume = *handle_;
+      const std::coroutine_handle<> resume = *handle_;
       handle_.reset();
       Loop::enqueue(resume);
     } else {
@@ -137,13 +137,11 @@ public:
     }
 
     switch (state_) {
-    case PromiseState::init:
       // Coroutine returns but nobody has awaited yet. This is fine.
-      state_ = PromiseState::finished;
-      break;
-    case PromiseState::resuming:
+    case PromiseState::init:
       // Not entirely correct, but the resumed awaiting coroutine is not coming
       // back to us.
+    case PromiseState::resuming:
       state_ = PromiseState::finished;
       break;
     case PromiseState::waitedOn:
