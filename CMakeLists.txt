@@ -11,7 +11,13 @@ pkg_check_modules(UV REQUIRED libuv)
 # Allow using a custom libuv installation.
 link_directories(BEFORE /usr/local/lib64 /usr/local/lib)
 
-find_package(Boost 1.80 COMPONENTS log log_setup program_options REQUIRED)
+find_package(Boost 1.80
+  CONFIG
+  COMPONENTS
+    log
+    log_setup
+    program_options
+  REQUIRED)
 find_package(CURL)
 find_package(libpqxx)
 find_package(GTest)
@@ -22,23 +28,23 @@ add_compile_options(-Wall -pipe)
 
 find_program(MOLD mold)
 if(MOLD)
-    add_link_options(-fuse-ld=mold)
+  add_link_options(-fuse-ld=mold)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options(-fcolor-diagnostics)
+  add_compile_options(-fcolor-diagnostics)
 else()
-    add_compile_options(-fdiagnostics-color=always)
+  add_compile_options(-fdiagnostics-color=always)
 endif()
 
 if(ENABLE_ASAN)
-    add_compile_options(-fsanitize=address)
-    add_link_options(-fsanitize=address)
+  add_compile_options(-fsanitize=address)
+  add_link_options(-fsanitize=address)
 endif()
 
 if(ENABLE_COVERAGE)
-    add_compile_options(--coverage)
-    add_link_options(--coverage -lgcov)
+  add_compile_options(--coverage)
+  add_link_options(--coverage -lgcov)
 endif()
 
 # Core utilities not relying on uv-co-promise or uv-co-lib.
@@ -140,88 +146,88 @@ install(FILES
 # Optional integrations
 
 if(CURL_FOUND)
-    add_library(uv-co-curl STATIC
+  add_library(uv-co-curl STATIC
         uvco/integrations/curl/curl.cc
     )
-    target_sources(uv-co-curl INTERFACE
+  target_sources(uv-co-curl INTERFACE
         FILE_SET HEADERS
         TYPE HEADERS
         BASE_DIRS uvco/
         FILES
         uvco/integrations/curl/curl.h
     )
-    target_link_libraries(uv-co-curl PUBLIC uv-co-lib CURL::libcurl)
-    target_include_directories(uv-co-curl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    install(TARGETS uv-co-curl)
-    install(TARGETS uv-co-curl FILE_SET HEADERS DESTINATION include/uvco)
+  target_link_libraries(uv-co-curl PUBLIC uv-co-lib CURL::libcurl)
+  target_include_directories(uv-co-curl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+  install(TARGETS uv-co-curl)
+  install(TARGETS uv-co-curl FILE_SET HEADERS DESTINATION include/uvco)
 endif()
 
 if(libpqxx_FOUND)
-    add_library(uv-co-pqxx STATIC
+  add_library(uv-co-pqxx STATIC
         uvco/integrations/pqxx/pqxx.cc
     )
-    target_sources(uv-co-pqxx INTERFACE
+  target_sources(uv-co-pqxx INTERFACE
         FILE_SET HEADERS
         TYPE HEADERS
         BASE_DIRS uvco/
         FILES
         uvco/integrations/pqxx/pqxx.h
     )
-    target_link_libraries(uv-co-pqxx PUBLIC uv-co-lib libpqxx::pqxx)
-    target_include_directories(uv-co-pqxx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    install(TARGETS uv-co-pqxx)
-    install(TARGETS uv-co-pqxx FILE_SET HEADERS DESTINATION include/uvco)
+  target_link_libraries(uv-co-pqxx PUBLIC uv-co-lib libpqxx::pqxx)
+  target_include_directories(uv-co-pqxx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+  install(TARGETS uv-co-pqxx)
+  install(TARGETS uv-co-pqxx FILE_SET HEADERS DESTINATION include/uvco)
 endif()
 
 # Unit tests
 
 if(GTest_FOUND)
-    enable_testing()
+  enable_testing()
 
-    add_library(test-util STATIC test/test_util.cc)
-    target_include_directories(test-util PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(test-util PRIVATE uv-co-lib)
+  add_library(test-util STATIC test/test_util.cc)
+  target_include_directories(test-util PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_link_libraries(test-util PRIVATE uv-co-lib)
 
-    foreach(TESTCASE IN ITEMS async_work channel fs generator loop name_resolution promise select stream timer udp uds tcp misc)
-        add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
-        target_link_libraries(${TESTCASE}-test PRIVATE uv-co-lib test-util GTest::gtest_main)
-        add_test(NAME ${TESTCASE}-test COMMAND ${TESTCASE}-test)
+  foreach(TESTCASE IN ITEMS async_work channel fs generator loop name_resolution promise select stream timer udp uds tcp misc)
+    add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
+    target_link_libraries(${TESTCASE}-test PRIVATE uv-co-lib test-util GTest::gtest_main)
+    add_test(NAME ${TESTCASE}-test COMMAND ${TESTCASE}-test)
 
-        if(ENABLE_COVERAGE)
-            target_compile_options(${TESTCASE}-test PRIVATE "--coverage")
-            target_link_libraries(${TESTCASE}-test PRIVATE gcov)
-        endif()
-    endforeach()
-
-    foreach(TESTBINARY IN ITEMS tcp-broadcaster multicast http10 memcached-impl)
-        add_executable(test-${TESTBINARY} test/${TESTBINARY}.exe.cc)
-        target_link_libraries(test-${TESTBINARY} PRIVATE uv-co-lib Boost::program_options)
-    endforeach()
-
-    target_link_libraries(test-memcached-impl PRIVATE Boost::log Boost::log_setup)
-
-    if(CURL_FOUND)
-        add_executable(curl-test test/curl_test.cc)
-        target_link_libraries(curl-test PRIVATE uv-co-curl test-util GTest::gtest_main)
-        add_test(NAME curl-test COMMAND curl-test)
+    if(ENABLE_COVERAGE)
+      target_compile_options(${TESTCASE}-test PRIVATE "--coverage")
+      target_link_libraries(${TESTCASE}-test PRIVATE gcov)
     endif()
-    if(libpqxx_FOUND)
-        add_executable(pqxx-test test/pqxx_test.cc)
-        target_link_libraries(pqxx-test PRIVATE uv-co-pqxx test-util GTest::gtest_main)
-        add_test(NAME pqxx-test COMMAND pqxx-test)
-    endif()
+  endforeach()
+
+  foreach(TESTBINARY IN ITEMS tcp-broadcaster multicast http10 memcached-impl)
+    add_executable(test-${TESTBINARY} test/${TESTBINARY}.exe.cc)
+    target_link_libraries(test-${TESTBINARY} PRIVATE uv-co-lib Boost::program_options)
+  endforeach()
+
+  target_link_libraries(test-memcached-impl PRIVATE Boost::log Boost::log_setup)
+
+  if(CURL_FOUND)
+    add_executable(curl-test test/curl_test.cc)
+    target_link_libraries(curl-test PRIVATE uv-co-curl test-util GTest::gtest_main)
+    add_test(NAME curl-test COMMAND curl-test)
+  endif()
+  if(libpqxx_FOUND)
+    add_executable(pqxx-test test/pqxx_test.cc)
+    target_link_libraries(pqxx-test PRIVATE uv-co-pqxx test-util GTest::gtest_main)
+    add_test(NAME pqxx-test COMMAND pqxx-test)
+  endif()
 
 else()
-    message(WARNING "GTest not found, skipping tests")
+  message(WARNING "GTest not found, skipping tests")
 endif()
 
 # Coverage
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    find_program(LLVM_COV_BINARY NAMES llvm-cov llvm-cov-18)
-    set(GCOV_BINARY "${LLVM_COV_BINARY} gcov")
+  find_program(LLVM_COV_BINARY NAMES llvm-cov llvm-cov-18)
+  set(GCOV_BINARY "${LLVM_COV_BINARY} gcov")
 else()
-    set(GCOV_BINARY "gcov")
+  set(GCOV_BINARY "gcov")
 endif()
 
 add_custom_target(coverage
