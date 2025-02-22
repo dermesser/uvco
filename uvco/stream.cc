@@ -77,10 +77,26 @@ Promise<size_t> StreamBase::write(std::string buf) {
 
 Promise<size_t> StreamBase::writeBorrowed(std::span<const char> buffer) {
   OutStreamAwaiter_ awaiter{*this, buffer};
-  uv_status status = co_await awaiter;
+  std::array<uv_buf_t, 1> bufs{};
+  bufs[0] = uv_buf_init(const_cast<char *>(buffer.data()), buffer.size());
+
+  uv_status status = uv_try_write(&stream(), bufs.data(), bufs.size());
+  if (status > 0) {
+    // Already done, nothing had to be queued.
+    co_return status;
+  }
+
+  status = uv_write(&awaiter.write_, &stream(), bufs.data(), bufs.size(),
+                    OutStreamAwaiter_::onOutStreamWrite);
   if (status < 0) {
-    throw UvcoException{status,
-                        "StreamBase::writeBorrowed() encountered error"};
+    throw UvcoException{
+        status, "StreamBase::writeBorrowed() encountered error in uv_write"};
+  }
+  status = co_await awaiter;
+  if (status < 0) {
+    throw UvcoException{
+        status,
+        "StreamBase::writeBorrowed() encountered error while awaiting write"};
   }
   co_return static_cast<size_t>(status);
 }
@@ -201,13 +217,8 @@ std::array<uv_buf_t, 1> StreamBase::OutStreamAwaiter_::prepare_buffers() const {
 }
 
 bool StreamBase::OutStreamAwaiter_::await_ready() {
-  // Attempt early write:
-  std::array<uv_buf_t, 1> bufs = prepare_buffers();
-  uv_status result = uv_try_write(&stream_.stream(), bufs.data(), bufs.size());
-  if (result > 0) {
-    status_ = result;
-  }
-  return result > 0;
+  // When at this point, we must suspend in any case.
+  return false;
 }
 
 bool StreamBase::OutStreamAwaiter_::await_suspend(
@@ -217,10 +228,6 @@ bool StreamBase::OutStreamAwaiter_::await_suspend(
   handle_ = handle;
   // For resumption during close.
   stream_.writer_ = handle;
-  std::array<uv_buf_t, 1> bufs = prepare_buffers();
-  // TODO: move before suspension point.
-  uv_write(&write_, &stream_.stream(), bufs.data(), bufs.size(),
-           onOutStreamWrite);
 
   return true;
 }
