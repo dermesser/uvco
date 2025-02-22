@@ -164,13 +164,13 @@ TEST(SelectTest, DISABLED_benchmark) {
 
     // Finely orchestrated generators, yielding one after another.
     MultiPromise<int> gen1 = []() -> uvco::MultiPromise<int> {
-      for (int i = 0; i < count; ++i) {
+      for (unsigned i = 0; i < count; ++i) {
         co_yield i;
         co_await yield();
       }
     }();
     MultiPromise<int> gen2 = []() -> uvco::MultiPromise<int> {
-      for (int i = 0; i < count; ++i) {
+      for (unsigned i = 0; i < count; ++i) {
         co_await yield();
         co_yield i;
         co_await yield();
@@ -179,7 +179,7 @@ TEST(SelectTest, DISABLED_benchmark) {
 
     // Each iteration takes about 500 ns on my Intel Core i5-7300U @ 2.6 GHz
     // (your machine is likely faster).
-    for (int i = 0; i < count; ++i) {
+    for (unsigned i = 0; i < count; ++i) {
       Promise<std::optional<int>> promise1 = gen1.next();
       Promise<std::optional<int>> promise2 = gen2.next();
 
@@ -207,13 +207,13 @@ TEST(SelectTest, reliableSelectLoop) {
 
     // Finely orchestrated generators, yielding one after another.
     MultiPromise<int> gen1 = []() -> uvco::MultiPromise<int> {
-      for (int i = 0; i < count; ++i) {
+      for (unsigned i = 0; i < count; ++i) {
         co_yield i;
         co_await yield();
       }
     }();
     MultiPromise<int> gen2 = []() -> uvco::MultiPromise<int> {
-      for (int i = 0; i < count; ++i) {
+      for (unsigned i = 0; i < count; ++i) {
         co_await yield();
         co_await yield();
         co_yield i;
