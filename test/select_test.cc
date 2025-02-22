@@ -163,13 +163,13 @@ TEST(SelectTest, DISABLED_benchmark) {
     constexpr unsigned count = 1000000;
 
     // Finely orchestrated generators, yielding one after another.
-    MultiPromise<int> gen1 = []() -> uvco::MultiPromise<int> {
+    MultiPromise<unsigned> gen1 = []() -> uvco::MultiPromise<unsigned> {
       for (unsigned i = 0; i < count; ++i) {
         co_yield i;
         co_await yield();
       }
     }();
-    MultiPromise<int> gen2 = []() -> uvco::MultiPromise<int> {
+    MultiPromise<unsigned> gen2 = []() -> uvco::MultiPromise<unsigned> {
       for (unsigned i = 0; i < count; ++i) {
         co_await yield();
         co_yield i;
@@ -177,11 +177,11 @@ TEST(SelectTest, DISABLED_benchmark) {
       }
     }();
 
-    // Each iteration takes about 500 ns on my Intel Core i5-7300U @ 2.6 GHz
+    // Each iteration takes about 500 ns on my unsignedel Core i5-7300U @ 2.6 GHz
     // (your machine is likely faster).
     for (unsigned i = 0; i < count; ++i) {
-      Promise<std::optional<int>> promise1 = gen1.next();
-      Promise<std::optional<int>> promise2 = gen2.next();
+      Promise<std::optional<unsigned>> promise1 = gen1.next();
+      Promise<std::optional<unsigned>> promise2 = gen2.next();
 
       // Ensure that all promises are awaited .Imagine the next() coroutines as
       // "background threads"; the uvco rules say that only one coroutine may
@@ -206,13 +206,13 @@ TEST(SelectTest, reliableSelectLoop) {
     constexpr unsigned count = 10;
 
     // Finely orchestrated generators, yielding one after another.
-    MultiPromise<int> gen1 = []() -> uvco::MultiPromise<int> {
+    MultiPromise<unsigned> gen1 = []() -> uvco::MultiPromise<unsigned> {
       for (unsigned i = 0; i < count; ++i) {
         co_yield i;
         co_await yield();
       }
     }();
-    MultiPromise<int> gen2 = []() -> uvco::MultiPromise<int> {
+    MultiPromise<unsigned> gen2 = []() -> uvco::MultiPromise<unsigned> {
       for (unsigned i = 0; i < count; ++i) {
         co_await yield();
         co_await yield();
@@ -220,8 +220,8 @@ TEST(SelectTest, reliableSelectLoop) {
       }
     }();
 
-    Promise<std::optional<int>> promise1 = gen1.next();
-    Promise<std::optional<int>> promise2 = gen2.next();
+    Promise<std::optional<unsigned>> promise1 = gen1.next();
+    Promise<std::optional<unsigned>> promise2 = gen2.next();
     bool promise1Done = false;
     bool promise2Done = false;
 
