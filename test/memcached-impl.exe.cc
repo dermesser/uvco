@@ -30,12 +30,15 @@
 
 using namespace uvco;
 
+namespace {
+
 struct Command {
   enum class Type { Get, Set, Delete, Unknown };
+
   Type type;
+  uint32_t flags;
   std::string key;
   std::string value;
-  uint32_t flags;
   uint64_t exp;
 
   [[nodiscard]] std::string toString() const {
@@ -47,7 +50,7 @@ struct Command {
   std::string process(std::unordered_map<std::string, std::string> &cache) {
     switch (type) {
     case Type::Get: {
-      auto it = cache.find(key);
+      const auto it = cache.find(key);
       if (it == cache.end()) {
         return "NOT_FOUND\r\n";
       }
@@ -55,11 +58,11 @@ struct Command {
                          it->second.size(), it->second);
     }
     case Type::Set: {
-      cache[key] = value;
+      cache.emplace(std::move(key), std::move(value));
       return "STORED\r\n";
     }
     case Type::Delete: {
-      auto it = cache.find(key);
+      const auto it = cache.find(key);
       if (it == cache.end()) {
         return "NOT_FOUND\r\n";
       }
@@ -100,7 +103,11 @@ std::optional<Command> parseCommand(std::string line) {
     if (it == parts.end()) {
       return std::nullopt;
     }
-    return Command{Command::Type::Get, std::string{*it}, "", 0, 0};
+    return Command{.type = Command::Type::Get,
+                   .flags = 0,
+                   .key = std::string{*it},
+                   .value = "",
+                   .exp = 0};
   }
 
   if (*it == "set") {
@@ -123,8 +130,11 @@ std::optional<Command> parseCommand(std::string line) {
     if (it == parts.end()) {
       return std::nullopt;
     }
-    return Command{Command::Type::Set, std::string{key}, std::string{value},
-                   static_cast<uint32_t>(flags), exp};
+    return Command{.type = Command::Type::Set,
+                   .flags = static_cast<uint32_t>(flags),
+                   .key = std::string{key},
+                   .value = std::string{value},
+                   .exp = exp};
   }
 
   return std::nullopt;
@@ -180,6 +190,8 @@ Promise<void> mainLoop(const Loop &loop) {
   co_await server.close();
   co_return;
 }
+
+} // namespace
 
 int main() {
   boost::log::core::get()->set_filter(boost::log::trivial::severity >=
