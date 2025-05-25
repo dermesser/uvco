@@ -24,7 +24,6 @@ Loop::Loop()
   }
 
   uv_loop_init(loop_.get());
-  uv_loop_set_data(loop_.get(), scheduler_.get());
   scheduler_->setUpLoop(loop_.get());
   defaultLoop = this;
 }
