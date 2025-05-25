@@ -58,7 +58,7 @@ void Scheduler::enqueue(std::coroutine_handle<> handle) {
   resumableActive_.push_back(handle);
 }
 
-void Scheduler::setUpLoop(uv_loop_t *loop) { uv_loop_set_data(loop, this); }
+void Scheduler::setUpLoop(uv_loop_t *loop) {}
 
 Scheduler::~Scheduler() = default;
 
