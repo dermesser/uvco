@@ -511,7 +511,7 @@ int UvCurlContext_::curlSocketFunction(CURL *easy, curl_socket_t socket,
 }
 
 Curl::Curl(const Loop &loop)
-    : context_{std::make_unique<UvCurlContext_>(loop)} {}
+    : context_{std::make_shared<UvCurlContext_>(loop)} {}
 
 Curl::~Curl() = default;
 
