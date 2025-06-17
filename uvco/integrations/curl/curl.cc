@@ -75,8 +75,8 @@ public:
   UvCurlContext_ &operator=(const UvCurlContext_ &) = delete;
   UvCurlContext_ &operator=(UvCurlContext_ &&) = delete;
   ~UvCurlContext_() {
-    uv_timer_stop(&timer_);
-    curl_multi_cleanup(multi_);
+    BOOST_ASSERT_MSG(polls_.empty(),
+                     "UvCurlContext_ must be closed before destruction");
   }
 
   /// Add a Curl easy handle to the multi handle.
@@ -150,17 +150,21 @@ public:
 
   /// Close all open sockets and the timer.
   Promise<void> close() {
+    uv_timer_stop(&timer_);
+    curl_multi_cleanup(multi_);
+
     co_await closeHandle(&timer_);
 
     std::vector<Promise<void>> promises;
     promises.reserve(polls_.size());
     for (auto &[socket, poll] : polls_) {
-      promises.push_back(closeHandle(&poll));
+      promises.push_back(closeHandle(&poll.poll));
     }
     for (auto &promise : promises) {
       co_await promise;
     }
     polls_.clear();
+    BOOST_ASSERT(polls_.empty());
   }
 
 private:
@@ -526,7 +530,7 @@ Curl::post(std::string url,
                      fields};
 }
 
-Promise<void> Curl::close() { co_await context_->close(); }
+Promise<void> Curl::close() { return context_->close(); }
 
 CurlRequest::~CurlRequest() = default;
 
