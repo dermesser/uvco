@@ -14,6 +14,15 @@
 
 namespace uvco {
 
+namespace {
+
+void handleWalkCallbackForDebug(uv_handle_t *handle, void *arg) {
+  fmt::println("A handle of type {} is still active",
+               uv_handle_type_name(handle->type));
+}
+
+} // namespace
+
 Loop::Loop()
     : loop_{std::make_unique<uv_loop_t>()},
       scheduler_{std::make_unique<Scheduler>()} {
@@ -44,6 +53,8 @@ Loop::~Loop() {
                "Loop::~Loop(): uv_loop_close() failed; there were "
                "still resources on the loop: {}\n",
                uv_strerror(status));
+    // Walk the loop and print all handles that are still active.
+    uv_walk(loop_.get(), handleWalkCallbackForDebug, nullptr);
   }
   defaultLoop = nullptr;
 }
