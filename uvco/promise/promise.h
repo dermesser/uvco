@@ -290,8 +290,23 @@ template <typename T> class Coroutine {
   using SharedCore_ = PromiseCore_ *;
 
 public:
-  /// Coroutine object lives and is pinned within the coroutine frame; copy/move
-  /// is disallowed.
+  struct FinalAwaiter {
+    explicit FinalAwaiter(Coroutine<T> &coroutine) : coroutine_{coroutine} {}
+
+    [[nodiscard]] bool await_ready() const noexcept { return false; }
+    /// Part of the coroutine protocol: called when the coroutine is finished.
+    /// This is used to resume the awaiting coroutine.
+    void await_suspend(std::coroutine_handle<> handle) const noexcept {
+      coroutine_.coroutine_finished_ = handle;
+    }
+    /// Part of the coroutine protocol: called when the coroutine is finished.
+    void await_resume() const noexcept {}
+
+    Coroutine<T> &coroutine_;
+  };
+
+  /// Coroutine object lives and is pinned within the coroutine frame;
+  /// copy/move is disallowed.
   Coroutine() : core_{makeRefCounted<PromiseCore_>()} {}
   Coroutine(const Coroutine &other) = delete;
   Coroutine &operator=(const Coroutine &other) = delete;
@@ -334,8 +349,8 @@ public:
   /// exception.
   std::suspend_never final_suspend() noexcept { return {}; }
 
-  // Part of the coroutine protocol: called upon unhandled exception leaving the
-  // coroutine.
+  // Part of the coroutine protocol: called upon unhandled exception leaving
+  // the coroutine.
   void unhandled_exception() {
     core_->except(std::current_exception());
     core_->resume();
@@ -343,6 +358,11 @@ public:
 
 protected:
   SharedCore_ core_;
+
+  // New formulation: no shared core, we're using the already allocated
+  // coroutine object.
+  std::coroutine_handle<> coroutine_finished_;
+  size_t refs_{};
 };
 
 template <> class Coroutine<void> {
@@ -367,12 +387,12 @@ public:
   /// Part of the coroutine protocol: `uvco` coroutines always run until the
   /// first suspension point.
   std::suspend_never initial_suspend() noexcept { return {}; }
-  /// Part of the coroutine protocol: nothing happens upon the final suspension
-  /// point (after `co_return`).
+  /// Part of the coroutine protocol: nothing happens upon the final
+  /// suspension point (after `co_return`).
   std::suspend_never final_suspend() noexcept { return {}; }
 
-  /// Part of the coroutine protocol: resumes an awaiting coroutine, if there is
-  /// one.
+  /// Part of the coroutine protocol: resumes an awaiting coroutine, if there
+  /// is one.
   void return_void();
   /// Part of the coroutine protocol: store exception in core and resume
   /// awaiting coroutine.

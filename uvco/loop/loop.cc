@@ -8,8 +8,7 @@
 #include "uvco/loop/loop.h"
 #include "uvco/loop/scheduler.h"
 
-#include <cstdio>
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <memory>
 
 namespace uvco {
