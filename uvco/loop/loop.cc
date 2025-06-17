@@ -16,8 +16,8 @@ namespace uvco {
 namespace {
 
 void handleWalkCallbackForDebug(uv_handle_t *handle, void *arg) {
-  fmt::println("A handle of type {} is still active",
-               uv_handle_type_name(handle->type));
+  fmt::print("A handle of type {} is still active\n",
+             uv_handle_type_name(handle->type));
 }
 
 } // namespace
