@@ -150,10 +150,7 @@ public:
 
   /// Close all open sockets and the timer.
   Promise<void> close() {
-    uv_timer_stop(&timer_);
     curl_multi_cleanup(multi_);
-
-    co_await closeHandle(&timer_);
 
     std::vector<Promise<void>> promises;
     promises.reserve(polls_.size());
@@ -164,7 +161,7 @@ public:
       co_await promise;
     }
     polls_.clear();
-    BOOST_ASSERT(polls_.empty());
+    co_await closeHandle(&timer_);
   }
 
 private:
