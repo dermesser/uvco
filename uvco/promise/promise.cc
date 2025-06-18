@@ -8,7 +8,6 @@
 #include "uvco/promise/promise_core.h"
 
 #include <coroutine>
-#include <cstdio>
 #include <exception>
 
 namespace uvco {
@@ -17,7 +16,7 @@ Promise<void>::PromiseAwaiter_::PromiseAwaiter_(PromiseCore<void> &core)
     : core_{core} {}
 
 Promise<void>::PromiseAwaiter_ Promise<void>::operator co_await() const {
-  return PromiseAwaiter_{*core_};
+  return PromiseAwaiter_{coroutine_->core()};
 }
 
 bool Promise<void>::PromiseAwaiter_::await_suspend(
@@ -44,20 +43,22 @@ void Promise<void>::PromiseAwaiter_::await_resume() const {
   BOOST_ASSERT(core_.ready_);
 }
 
-Promise<void>::Promise() : core_{makeRefCounted<PromiseCore<void>>()} {}
-Promise<void>::Promise(SharedCore_ core) : core_{core->addRef()} {}
-Promise<void>::Promise(Promise<void> &&other) noexcept : core_{other.core_} {
-  other.core_ = nullptr;
+Promise<void>::Promise() = default;
+Promise<void>::Promise(Coroutine<void> *coroutine) : coroutine_{coroutine} {}
+Promise<void>::Promise(Promise<void> &&other) noexcept
+    : coroutine_{other.coroutine_} {
+  other.coroutine_ = nullptr;
 }
 
 Promise<void> &Promise<void>::operator=(const Promise<void> &other) {
   if (this == &other) {
     return *this;
   }
-  if (core_ != nullptr) {
-    core_->delRef();
+  if (coroutine_ != nullptr) {
+    coroutine_->dropRef();
   }
-  core_ = other.core_->addRef();
+  coroutine_ = other.coroutine_;
+  coroutine_->addRef();
   return *this;
 }
 
@@ -65,29 +66,29 @@ Promise<void> &Promise<void>::operator=(Promise<void> &&other) noexcept {
   if (this == &other) {
     return *this;
   }
-  if (core_ != nullptr) {
-    core_->delRef();
+  if (coroutine_ != nullptr) {
+    coroutine_->dropRef();
   }
-  core_ = other.core_;
-  other.core_ = nullptr;
+  coroutine_ = other.coroutine_;
+  other.coroutine_ = nullptr;
   return *this;
 }
 
 Promise<void>::Promise(const Promise<void> &other)
-    : core_{other.core_->addRef()} {}
+    : coroutine_{other.coroutine_} {}
 
 Promise<void>::~Promise() {
-  if (core_ != nullptr) {
-    core_->delRef();
+  if (coroutine_ != nullptr) {
+    coroutine_->dropRef();
   }
 }
 
-bool Promise<void>::ready() const { return core_->ready_; }
+bool Promise<void>::ready() const { return coroutine_->core().ready_; }
 
 void Promise<void>::unwrap() {
   if (ready()) {
-    if (core_->exception_) {
-      std::rethrow_exception(core_->exception_.value());
+    if (coroutine_->core().exception_) {
+      std::rethrow_exception(coroutine_->core().exception_.value());
     }
   } else {
     throw UvcoException(UV_EAGAIN, "unwrap called on unfulfilled promise");
@@ -95,17 +96,17 @@ void Promise<void>::unwrap() {
 }
 
 PromiseHandle<void> Promise<void>::handle() {
-  return PromiseHandle<void>{core_};
+  return PromiseHandle<void>{&coroutine_->core()};
 }
 
 void Coroutine<void>::return_void() {
-  core_->ready_ = true;
-  core_->resume();
+  core_.ready_ = true;
+  core_.resume();
 }
 
 void Coroutine<void>::unhandled_exception() {
-  core_->except(std::current_exception());
-  core_->resume();
+  core_.except(std::current_exception());
+  core_.resume();
 }
 
 } // namespace uvco

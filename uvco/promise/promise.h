@@ -32,11 +32,7 @@ public:
   PromiseHandle(PromiseHandle &&) = delete;
   PromiseHandle &operator=(const PromiseHandle &) = delete;
   PromiseHandle &operator=(PromiseHandle &&) = delete;
-  ~PromiseHandle() {
-    if (core_ != nullptr) {
-      core_->delRef();
-    }
-  }
+  ~PromiseHandle() = default;
 
   /// Cancel the referred promise. The awaiting coroutine will receive an
   /// UvcoException with the error code UV_ECANCELED.
@@ -47,7 +43,7 @@ public:
   }
 
 private:
-  explicit PromiseHandle(PromiseCore<T> *core) : core_{core->addRef()} {}
+  explicit PromiseHandle(PromiseCore<T> *core) : core_{core} {}
 
   friend class Promise<T>;
   PromiseCore<T> *core_;
@@ -91,58 +87,58 @@ public:
   using promise_type = Coroutine<T>;
 
   /// Unfulfilled, empty promise.
-  Promise() : core_{makeRefCounted<PromiseCore_>()} {}
-  /// Fulfilled promise; resolves immediately.
-  explicit Promise(T &&result)
-      : core_{makeRefCounted<PromiseCore_>(std::move(result))} {}
-
-  Promise(Promise<T> &&other) noexcept : core_{other.core_} {
-    other.core_ = nullptr;
+  Promise() = default;
+  Promise(Promise<T> &&other) noexcept : coroutine_{other.coroutine_} {
+    other.coroutine_ = nullptr;
   }
   /// A promise can be copied at low cost.
   Promise &operator=(const Promise<T> &other) {
     if (this == &other) {
       return *this;
     }
-    core_ = other.core_->addRef();
+    coroutine_ = other.coroutine_;
+    coroutine_->addRef();
     return *this;
   }
   Promise &operator=(Promise<T> &&other) noexcept {
     if (this == &other) {
       return *this;
     }
-    if (core_ != nullptr) {
-      core_->delRef();
+    if (coroutine_ != nullptr) {
+      coroutine_->dropRef();
     }
-    core_ = other.core_;
-    other.core_ = nullptr;
+    coroutine_ = other.coroutine_;
+    other.coroutine_ = nullptr;
     return *this;
   }
   // A promise can be copied at low cost.
-  Promise(const Promise<T> &other) : core_{other.core_->addRef()} {}
+  Promise(const Promise<T> &other) : coroutine_{other.coroutine_} {
+    coroutine_->addRef();
+  }
   ~Promise() {
-    if (core_ != nullptr) {
-      core_->delRef();
-    }
+    if (coroutine_ != nullptr)
+      coroutine_->dropRef();
   }
 
   /// Return a handle that can be used to cancel the coroutine.
-  PromiseHandle<T> handle() { return PromiseHandle<T>{core_}; }
+  PromiseHandle<T> handle() { return PromiseHandle<T>{&coroutine_->core()}; }
 
   /// Part of the coroutine protocol: called by `co_await p` where `p` is a
   /// `Promise<T>`. The returned object is awaited on.
-  PromiseAwaiter_ operator co_await() const { return PromiseAwaiter_{*core_}; }
+  PromiseAwaiter_ operator co_await() const {
+    return PromiseAwaiter_{coroutine_->core()};
+  }
 
   /// Returns if promise has been fulfilled.
-  [[nodiscard]] bool ready() const { return core_->ready(); }
+  [[nodiscard]] bool ready() const { return coroutine_->core().ready(); }
 
   T unwrap() {
     if (ready()) {
-      auto &slot = core_->slot.value();
+      auto &slot = coroutine_->core().slot.value();
       switch (slot.index()) {
       case 0: {
         T value = std::move(std::get<0>(slot));
-        core_->slot.reset();
+        coroutine_->core().slot.reset();
         return std::move(value);
       }
       case 1: {
@@ -212,10 +208,9 @@ protected:
   template <typename U> friend class Coroutine;
   template <typename... Ts> friend class SelectSet;
 
-  explicit Promise(SharedCore_ core) : core_{core->addRef()} {}
-  SharedCore_ &core() { return core_; }
+  explicit Promise(Coroutine<T> *coroutine) : coroutine_{coroutine} {}
 
-  SharedCore_ core_;
+  Coroutine<T> *coroutine_{nullptr};
 };
 
 /// A void promise works slightly differently than a `Promise<T>` in that it
@@ -261,6 +256,7 @@ private:
     PromiseAwaiter_(const PromiseAwaiter_ &) = delete;
     PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
     PromiseAwaiter_ &operator=(const PromiseAwaiter_ &) = delete;
+    ~PromiseAwaiter_() = default;
 
     /// Part of the coroutine protocol: returns if the promise is already
     /// fulfilled.
@@ -273,14 +269,12 @@ private:
     PromiseCore<void> &core_;
   };
 
-  explicit Promise(SharedCore_ core);
+  explicit Promise(Coroutine<void> *coroutine);
 
   friend class Coroutine<void>;
   template <typename... Ts> friend class SelectSet;
 
-  SharedCore_ &core() { return core_; }
-
-  SharedCore_ core_;
+  Coroutine<void> *coroutine_;
 };
 
 /// A coroutine object used internally by C++20 coroutines ("promise object").
@@ -289,35 +283,54 @@ template <typename T> class Coroutine {
   using PromiseCore_ = PromiseCore<T>;
   using SharedCore_ = PromiseCore_ *;
 
+  struct FinalAwaiter_ {
+    /// The `core` is shared among all copies of this Promise and holds the
+    /// resumption handle to a waiting coroutine, as well as the ready state.
+    explicit FinalAwaiter_(Coroutine<T> &coroutine) : coroutine_{coroutine} {}
+
+    [[nodiscard]] bool await_ready() const noexcept { return false; }
+
+    [[nodiscard]] bool
+    await_suspend(std::coroutine_handle<> handle) const noexcept {
+      BOOST_ASSERT_MSG(!coroutine_.finishedCoroutine_,
+                       "Coroutine is already being awaited on!");
+      coroutine_.finishedCoroutine_ = handle;
+      coroutine_.dropRef();
+      return true;
+    }
+
+    void await_resume() const noexcept {}
+
+    Coroutine<T> &coroutine_;
+  };
+
 public:
   /// Coroutine object lives and is pinned within the coroutine frame;
   /// copy/move is disallowed.
-  Coroutine() : core_{makeRefCounted<PromiseCore_>()} {}
+  Coroutine() = default;
   Coroutine(const Coroutine &other) = delete;
   Coroutine &operator=(const Coroutine &other) = delete;
   Coroutine(Coroutine &&other) = delete;
   Coroutine &operator=(Coroutine &&other) = delete;
-
-  ~Coroutine() {
-    if (core_ != nullptr) {
-      core_->delRef();
-    }
-  }
+  ~Coroutine() = default;
 
   /// Part of the coroutine protocol: Called on first suspension point
   /// (`co_await`) or `co_return`.
-  Promise<T> get_return_object() { return Promise<T>{core_}; }
+  Promise<T> get_return_object() {
+    coreRefs_++;
+    return Promise<T>{this};
+  }
 
   /// Part of the coroutine protocol: Called by `co_return`. Schedules the
   /// awaiting coroutine for resumption.
   void return_value(T value) {
     // Probably cancelled.
-    if (core_->slot.has_value() && core_->slot->index() == 1) {
+    if (core_.slot.has_value() && core_.slot->index() == 1) {
       return;
     }
-    BOOST_ASSERT(!core_->slot);
-    core_->slot = std::move(value);
-    core_->resume();
+    BOOST_ASSERT(!core_.slot);
+    core_.slot = std::move(value);
+    core_.resume();
   }
 
   /// Part of the coroutine protocol: called after construction of Promise
@@ -332,44 +345,84 @@ public:
   std::suspend_never initial_suspend() noexcept { return {}; }
   /// Part of the coroutine protocol: called upon `co_return` or unhandled
   /// exception.
-  std::suspend_never final_suspend() noexcept { return {}; }
+  FinalAwaiter_ final_suspend() noexcept { return FinalAwaiter_{*this}; }
 
   // Part of the coroutine protocol: called upon unhandled exception leaving
   // the coroutine.
   void unhandled_exception() {
-    core_->except(std::current_exception());
-    core_->resume();
+    core_.except(std::current_exception());
+    core_.resume();
   }
 
+  void dropRef() {
+    --coreRefs_;
+    if (coreRefs_ == 0) {
+      BOOST_ASSERT(finishedCoroutine_ != nullptr);
+      // If the coroutine has finished, we can destroy it. As part of the
+      // destroy() call, this very class instance is being deallocated.
+      finishedCoroutine_.destroy();
+    }
+  }
+
+  void addRef() {
+    BOOST_ASSERT(coreRefs_ > 0);
+    ++coreRefs_;
+  }
+
+  PromiseCore_ &core() { return core_; }
+
 protected:
-  SharedCore_ core_;
+  PromiseCore_ core_;
+  std::coroutine_handle<> finishedCoroutine_{nullptr};
+  int16_t coreRefs_{1};
 };
 
 template <> class Coroutine<void> {
   using PromiseCore_ = PromiseCore<void>;
   using SharedCore_ = PromiseCore_ *;
 
+  struct FinalAwaiter_ {
+    /// The `core` is shared among all copies of this Promise and holds the
+    /// resumption handle to a waiting coroutine, as well as the ready state.
+    explicit FinalAwaiter_(Coroutine<void> &coroutine)
+        : coroutine_{coroutine} {}
+
+    [[nodiscard]] bool await_ready() const noexcept { return false; }
+
+    [[nodiscard]] bool
+    await_suspend(std::coroutine_handle<> handle) const noexcept {
+      BOOST_ASSERT_MSG(!coroutine_.finishedCoroutine_,
+                       "Coroutine is already being awaited on!");
+      coroutine_.finishedCoroutine_ = handle;
+      coroutine_.dropRef();
+      return true;
+    }
+
+    void await_resume() const noexcept {}
+
+    Coroutine<void> &coroutine_;
+  };
+
 public:
-  Coroutine() : core_{makeRefCounted<PromiseCore_>()} {}
+  Coroutine() = default;
   // Coroutine is pinned in memory and not allowed to copy/move.
   Coroutine(Coroutine<void> &&other) noexcept = delete;
   Coroutine &operator=(const Coroutine<void> &other) = delete;
   Coroutine &operator=(Coroutine<void> &&other) = delete;
   Coroutine(const Coroutine<void> &other) = delete;
-  ~Coroutine() {
-    if (core_ != nullptr) {
-      core_->delRef();
-    }
-  }
+  ~Coroutine() = default;
 
   /// Part of the coroutine protocol.
-  Promise<void> get_return_object() { return Promise<void>{core_}; }
+  Promise<void> get_return_object() {
+    coreRefs_++;
+    return Promise<void>{this};
+  }
   /// Part of the coroutine protocol: `uvco` coroutines always run until the
   /// first suspension point.
   std::suspend_never initial_suspend() noexcept { return {}; }
   /// Part of the coroutine protocol: nothing happens upon the final
   /// suspension point (after `co_return`).
-  std::suspend_never final_suspend() noexcept { return {}; }
+  FinalAwaiter_ final_suspend() noexcept { return FinalAwaiter_{*this}; }
 
   /// Part of the coroutine protocol: resumes an awaiting coroutine, if there
   /// is one.
@@ -378,8 +431,33 @@ public:
   /// awaiting coroutine.
   void unhandled_exception();
 
+  void dropRef() {
+    --coreRefs_;
+    if (coreRefs_ == 0) {
+      BOOST_ASSERT(finishedCoroutine_ != nullptr);
+      // If the coroutine has finished, we can destroy it. As part of the
+      // destroy() call, this very class instance is being deallocated.
+      finishedCoroutine_.destroy();
+    }
+  }
+
+  void addRef() {
+    BOOST_ASSERT(coreRefs_ > 0);
+    ++coreRefs_;
+  }
+
+  PromiseCore_ &core() { return core_; }
+
 private:
-  SharedCore_ core_;
+  // Contained in-line with the promise object to save an additional allocation.
+  // The coreRefs_ field counts how many additional references (in
+  // Promise<void>) exist to this core. Only when the coroutine has finished and
+  // coreRefs_ is 0, can the coroutine be destroyed through finishedCoroutine_.
+  //
+  // The coroutine itself counts as one referent.
+  PromiseCore_ core_;
+  std::coroutine_handle<> finishedCoroutine_{nullptr};
+  uint16_t coreRefs_{1};
 };
 
 /// @}

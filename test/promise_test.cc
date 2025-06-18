@@ -111,6 +111,8 @@ TEST(PromiseTest, DISABLED_multiYieldBench) {
 Promise<void> testTemporaryFunction(const Loop &loop,
                                     std::string_view message) {
   co_await yield();
+  // Access string_view after the coroutine has resumed.
+  const std::string result = fmt::format("Temporary message: {}\n", message);
   co_return;
 }
 
