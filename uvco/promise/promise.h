@@ -290,21 +290,6 @@ template <typename T> class Coroutine {
   using SharedCore_ = PromiseCore_ *;
 
 public:
-  struct FinalAwaiter {
-    explicit FinalAwaiter(Coroutine<T> &coroutine) : coroutine_{coroutine} {}
-
-    [[nodiscard]] bool await_ready() const noexcept { return false; }
-    /// Part of the coroutine protocol: called when the coroutine is finished.
-    /// This is used to resume the awaiting coroutine.
-    void await_suspend(std::coroutine_handle<> handle) const noexcept {
-      coroutine_.coroutine_finished_ = handle;
-    }
-    /// Part of the coroutine protocol: called when the coroutine is finished.
-    void await_resume() const noexcept {}
-
-    Coroutine<T> &coroutine_;
-  };
-
   /// Coroutine object lives and is pinned within the coroutine frame;
   /// copy/move is disallowed.
   Coroutine() : core_{makeRefCounted<PromiseCore_>()} {}
@@ -358,11 +343,6 @@ public:
 
 protected:
   SharedCore_ core_;
-
-  // New formulation: no shared core, we're using the already allocated
-  // coroutine object.
-  std::coroutine_handle<> coroutine_finished_;
-  size_t refs_{};
 };
 
 template <> class Coroutine<void> {
