@@ -8,6 +8,7 @@
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
 #include "uvco/timer.h"
+#include "uvco/util.h"
 
 #include <string_view>
 #include <utility>
@@ -158,7 +159,15 @@ TEST(PromiseTest, destroyWithoutResume) {
 TEST(PromiseTest, cancellation) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     auto awaited = [&loop]() -> Promise<int> {
-      co_await sleep(loop, 1);
+      bool finished = false;
+      OnExit onExit{[&finished, &loop]() {
+        if (!finished) {
+          fmt::print(stderr, "PromiseTest: cancellation: coroutine exited "
+                             "without finishing!\n");
+        }
+      }};
+      co_await sleep(loop, 10);
+      finished = true;
       co_return 3;
     };
 

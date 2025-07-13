@@ -329,7 +329,9 @@ public:
   ///
   // Note: if suspend_always is chosen, we can better control when the promise
   // will be scheduled.
-  std::suspend_never initial_suspend() noexcept { return {}; }
+  CoroutineCaptureAwaiter initial_suspend() noexcept {
+    return core_->captureCoroutine();
+  }
   /// Part of the coroutine protocol: called upon `co_return` or unhandled
   /// exception.
   std::suspend_never final_suspend() noexcept { return {}; }
@@ -366,7 +368,9 @@ public:
   Promise<void> get_return_object() { return Promise<void>{core_}; }
   /// Part of the coroutine protocol: `uvco` coroutines always run until the
   /// first suspension point.
-  std::suspend_never initial_suspend() noexcept { return {}; }
+  CoroutineCaptureAwaiter initial_suspend() noexcept {
+    return core_->captureCoroutine();
+  }
   /// Part of the coroutine protocol: nothing happens upon the final
   /// suspension point (after `co_return`).
   std::suspend_never final_suspend() noexcept { return {}; }

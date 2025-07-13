@@ -86,4 +86,8 @@ void Loop::enqueue(std::coroutine_handle<> handle) {
   uv_stop(defaultLoop->uvloop());
 }
 
+void Loop::cancel(std::coroutine_handle<> handle) {
+  currentScheduler().cancel(handle);
+}
+
 } // namespace uvco

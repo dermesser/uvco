@@ -3,6 +3,7 @@
 #pragma once
 
 #include <boost/assert.hpp>
+#include <unordered_set>
 #include <uv.h>
 
 #include <coroutine>
@@ -55,6 +56,9 @@ public:
   /// Schedule a coroutine for resumption.
   void enqueue(std::coroutine_handle<> handle);
 
+  /// Mark a coroutine as cancelled so it is not resumed anymore.
+  void cancel(std::coroutine_handle<> handle);
+
   /// Run all scheduled coroutines sequentially.
   void runAll();
 
@@ -73,6 +77,7 @@ private:
   std::vector<std::coroutine_handle<>> resumableActive_;
   // Vector of coroutines currently being resumed (while in runAll()).
   std::vector<std::coroutine_handle<>> resumableRunning_;
+  std::unordered_set<std::coroutine_handle<>> cancelled_;
 };
 
 } // namespace uvco

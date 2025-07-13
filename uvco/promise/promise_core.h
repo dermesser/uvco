@@ -46,6 +46,32 @@ enum class PromiseState {
   finished = 3,
 };
 
+template <typename T> class PromiseCore;
+
+/// Used as awaiter returned initial_suspend, recording the coroutine handle of
+/// the running coroutine.
+class CoroutineCaptureAwaiter {
+public:
+  explicit CoroutineCaptureAwaiter(std::coroutine_handle<> &handle)
+      : handle_{handle} {}
+
+  [[nodiscard]] bool await_ready() const {
+    // This is always true, because we want to capture the coroutine handle.
+    return false;
+  }
+  [[nodiscard]] bool await_suspend(std::coroutine_handle<> handle) const {
+    // Set the handle of the running coroutine, so that it can be cancelld
+    // later.
+    handle_ = handle;
+    return false;
+  }
+
+  void await_resume() const {}
+
+private:
+  std::coroutine_handle<> &handle_;
+};
+
 /// A `PromiseCore` is shared among copies of promises waiting for the same
 /// coroutine. It contains a state, a result (of type `T`), and potentially a
 /// `coroutine_handle` of the coroutine waiting on it. Only one coroutine may
@@ -69,6 +95,10 @@ public:
   PromiseCore &operator=(PromiseCore &&) = delete;
   explicit PromiseCore(T &&value)
       : slot{std::move(value)}, state_{PromiseState::finished} {}
+
+  CoroutineCaptureAwaiter captureCoroutine() {
+    return CoroutineCaptureAwaiter{running_};
+  }
 
   /// Set the coroutine to be resumed once a result is ready.
   virtual void setHandle(std::coroutine_handle<> handle) {
@@ -95,8 +125,27 @@ public:
   /// exception. The coroutine itself will keep running, however. (This may be
   /// changed later)
   void cancel() {
+    fmt::print(stderr,
+               "PromiseCore::cancel() called on promise core of type {}\n",
+               typeid(T).name());
     if (state_ == PromiseState::init || state_ == PromiseState::waitedOn) {
       BOOST_ASSERT(!ready());
+      fmt::print(stderr,
+                 "PromiseCore::cancel() called on promise core in state {}, "
+                 "handle = {}\n",
+                 static_cast<int>(state_), handle_.has_value());
+      if (running_ && !running_.done()) {
+        fmt::println("cancelling {}", running_.address());
+        Loop::cancel(running_);
+        running_.destroy();
+        running_ = nullptr;
+        if (handle_) {
+          handle_->destroy();
+          Loop::cancel(*handle_);
+          handle_.reset();
+          state_ = PromiseState::finished;
+        }
+      }
       // Fill the slot with an exception, so that the coroutine can be resumed.
       // Double-check `if` for release builds.
       if (!slot) {
@@ -124,7 +173,7 @@ public:
   ///
   /// A promise core can only be resumed once.
   void resume() {
-    if (handle_) {
+    if (handle_.has_value()) {
       BOOST_ASSERT(state_ == PromiseState::waitedOn);
       state_ = PromiseState::resuming;
       const std::coroutine_handle<> resume = *handle_;
@@ -182,7 +231,11 @@ public:
   std::optional<std::variant<T, std::exception_ptr>> slot;
 
 protected:
+  /// Handle of the coroutine to be awakened once the awaited promise has
+  /// finished.
   std::optional<std::coroutine_handle<>> handle_;
+  /// Handle of the coroutine that is being awaited.
+  std::coroutine_handle<> running_;
   PromiseState state_ = PromiseState::init;
 };
 
@@ -200,6 +253,10 @@ public:
 
   /// See `PromiseCore::cancel`.
   void cancel();
+
+  CoroutineCaptureAwaiter captureCoroutine() {
+    return CoroutineCaptureAwaiter{running_};
+  }
 
   /// See `PromiseCore::set_resume`.
   void setHandle(std::coroutine_handle<> handle);
@@ -228,6 +285,7 @@ public:
 
 private:
   std::optional<std::coroutine_handle<>> handle_;
+  std::coroutine_handle<> running_;
   PromiseState state_ = PromiseState::init;
 };
 

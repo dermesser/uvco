@@ -63,6 +63,18 @@ void PromiseCore<void>::except(std::exception_ptr exc) {
 void PromiseCore<void>::cancel() {
   if (state_ == PromiseState::waitedOn) {
     BOOST_ASSERT(!exception_);
+    if (running_ && !running_.done()) {
+      fmt::println("cancelling {}", running_.address());
+      Loop::cancel(running_);
+      running_.destroy();
+      running_ = nullptr;
+      if (handle_) {
+        handle_->destroy();
+        Loop::cancel(*handle_);
+        handle_.reset();
+        state_ = PromiseState::finished;
+      }
+    }
     if (!exception_) {
       exception_ = std::make_exception_ptr(
           UvcoException(UV_ECANCELED, "Promise cancelled"));
