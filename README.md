@@ -412,7 +412,8 @@ This will result in the following compiler invocations:
 ```
 
 Please let me know if this doesn't work for you (although I don't promise any help, I'm tired enough
-of cmake already).
+of cmake already). Please note that - as usual - the order of libraries matters a great deal!
+Link first against `libuv-co-lib`, then `-promise`, then `-base` so that all symbols can be resolved.
 
 ## Testing
 
