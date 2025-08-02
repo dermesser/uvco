@@ -39,11 +39,6 @@ void Scheduler::runAll() {
         cancelled_.erase(coro);
         continue;
       }
-      if (coro.done()) {
-        // If the coroutine is done, we don't resume it.
-        fmt::println("Coroutine {} is done, not resuming", coro.address());
-        continue;
-      }
       // Defend against resuming the same coroutine twice in the same loop pass.
       // This happens when SelectSet selects two coroutines which return at the
       // same time. Resuming the same handle twice is not good, very bad, and
@@ -54,6 +49,11 @@ void Scheduler::runAll() {
       // filter, because it takes fewer calculations and is a nice linear search
       // over a usually short vector.
       if (findFirstIndexOf(resumableRunning_, coro) == i) {
+        if (coro.done()) {
+          // If the coroutine is done, we don't resume it.
+          fmt::println("Coroutine {} is done, not resuming", coro.address());
+          continue;
+        }
         coro.resume();
       }
     }
@@ -67,11 +67,11 @@ void Scheduler::close() { BOOST_ASSERT(resumableActive_.empty()); }
 void Scheduler::enqueue(std::coroutine_handle<> handle) {
   // Use of moved-out Scheduler?
   BOOST_ASSERT(resumableActive_.capacity() > 0);
-  fmt::println("Enqueuing coroutine {}", handle.address());
   resumableActive_.push_back(handle);
 }
 
 void Scheduler::cancel(std::coroutine_handle<> handle) {
+  fmt::println("Loop cancelling {}", handle.address());
   cancelled_.insert(handle);
 }
 

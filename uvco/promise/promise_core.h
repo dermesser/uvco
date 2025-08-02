@@ -135,16 +135,9 @@ public:
                  "handle = {}\n",
                  static_cast<int>(state_), handle_.has_value());
       if (running_ && !running_.done()) {
-        fmt::println("cancelling {}", running_.address());
         Loop::cancel(running_);
         running_.destroy();
         running_ = nullptr;
-        if (handle_) {
-          handle_->destroy();
-          Loop::cancel(*handle_);
-          handle_.reset();
-          state_ = PromiseState::finished;
-        }
       }
       // Fill the slot with an exception, so that the coroutine can be resumed.
       // Double-check `if` for release builds.

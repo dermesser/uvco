@@ -166,21 +166,23 @@ TEST(PromiseTest, cancellation) {
                              "without finishing!\n");
         }
       }};
-      co_await sleep(loop, 10);
+      co_await sleep(loop, 1000);
       finished = true;
       co_return 3;
     };
 
     Promise<int> promise = awaited();
-    PromiseHandle<int> handle = promise.handle();
 
     auto awaiter = [](Promise<int> promise) -> Promise<void> {
       EXPECT_THROW({ co_await promise; }, UvcoException);
     };
 
-    Promise<void> awaiterPromise = awaiter(std::move(promise));
-    handle.cancel();
+    Promise<void> awaiterPromise = awaiter(promise);
+    promise.handle().cancel();
     co_await awaiterPromise;
+    fmt::print(stderr, "PromiseTest: cancellation: coroutine finished!\n");
+    // Bug: libuv loop keeps running with timer in background and blocks until
+    // it finishes. So the cancellation is not a real cancellation.
     co_return;
   };
 
@@ -199,8 +201,8 @@ TEST(PromiseTest, voidCancellation) {
       EXPECT_THROW({ co_await cancelVictim; }, UvcoException);
     };
 
-    Promise<void> awaiterPromise = awaiter(std::move(promise), 1);
-    handle.cancel();
+    Promise<void> awaiterPromise = awaiter(promise, 1);
+    promise.handle().cancel();
     co_await awaiterPromise;
     co_return;
   };

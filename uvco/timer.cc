@@ -123,8 +123,11 @@ void onMultiTimerFired(uv_timer_t *handle) {
 
 Promise<void> sleep(const Loop &loop, uint64_t millis) {
   TimerAwaiter awaiter{loop, millis};
-  OnExit onExit{
-      [&awaiter]() { fmt::print(stderr, "uvco::sleep: coroutine exited!\n"); }};
+  OnExit onExit{[&awaiter]() {
+    awaiter.stop();
+    awaiter.resume();
+    fmt::print(stderr, "uvco::sleep: coroutine exited!\n");
+  }};
   BOOST_VERIFY(!co_await awaiter);
   co_await awaiter.close();
   co_return;
