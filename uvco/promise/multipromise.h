@@ -214,7 +214,7 @@ protected:
     /// Part of the coroutine protocol. Always returns `true`; stores the
     /// suspension handle in the MultiPromiseCore for later resumption.
     [[nodiscard]] bool await_suspend(std::coroutine_handle<> handle) const {
-      BOOST_ASSERT_MSG(!core_->willResume(),
+      BOOST_ASSERT_MSG(!core_->isAwaited(),
                        "promise is already being waited on!\n");
       core_->setHandle(handle);
       core_->resumeGenerator();

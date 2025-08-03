@@ -23,7 +23,7 @@ void PromiseCore<void>::setHandle(std::coroutine_handle<> handle) {
   state_ = PromiseState::waitedOn;
 }
 
-bool PromiseCore<void>::willResume() const { return handle_.has_value(); }
+bool PromiseCore<void>::isAwaited() const { return handle_.has_value(); }
 bool PromiseCore<void>::ready() const { return exception_ || ready_; }
 bool PromiseCore<void>::stale() const {
   return state_ == PromiseState::finished && !ready();
@@ -45,8 +45,7 @@ void PromiseCore<void>::resume() {
 PromiseCore<void>::~PromiseCore() {
   BOOST_ASSERT(state_ != PromiseState::resuming);
   if (state_ == PromiseState::init) {
-    // Initialized but never activated; this is okay
-    return;
+    fmt::print(stderr, "void Promise not finished\n");
   }
   if (handle_) {
     fmt::print(stderr, "resumable coroutine destroyed\n");

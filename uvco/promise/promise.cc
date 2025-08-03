@@ -22,8 +22,7 @@ Promise<void>::PromiseAwaiter_ Promise<void>::operator co_await() const {
 bool Promise<void>::PromiseAwaiter_::await_suspend(
     std::coroutine_handle<> handle) const {
   BOOST_ASSERT(!core_.ready_ && !core_.exception_);
-  BOOST_ASSERT_MSG(!core_.willResume(),
-                   "promise is already being waited on!\n");
+  BOOST_ASSERT_MSG(!core_.isAwaited(), "promise is already being waited on!\n");
   core_.setHandle(handle);
   return true;
 }

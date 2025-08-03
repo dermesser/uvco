@@ -110,7 +110,8 @@ public:
   }
 
   /// Checks if a coroutine is waiting on a promise belonging to this core.
-  bool willResume() { return handle_.has_value(); }
+  bool isAwaited() { return handle_.has_value(); }
+
   /// Checks if a value is present in the slot.
   [[nodiscard]] bool ready() const { return slot.has_value(); }
   /// Checks if the coroutine has returned, and the results have been fetched
@@ -206,8 +207,8 @@ public:
 
   /// See `PromiseCore::resetHandle`.
   void resetHandle();
-  /// See `PromiseCore::willResume`.
-  [[nodiscard]] bool willResume() const;
+  /// See `PromiseCore::isAwaited`.
+  [[nodiscard]] bool isAwaited() const;
   /// See `PromiseCore::ready`.
   [[nodiscard]] bool ready() const;
   /// See `PromiseCore::stale`.

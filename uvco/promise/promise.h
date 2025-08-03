@@ -137,7 +137,7 @@ protected:
     /// Part of the coroutine protocol: returns if suspension is desired (always
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
     [[nodiscard]] bool await_suspend(std::coroutine_handle<> handle) const {
-      BOOST_ASSERT_MSG(!core_.willResume(),
+      BOOST_ASSERT_MSG(!core_.isAwaited(),
                        "promise is already being waited on!");
       core_.setHandle(handle);
       return true;
