@@ -28,13 +28,13 @@ TEST(SelectTest, selectBasic) {
     auto selectSet = SelectSet{promise1, promise2};
     auto selected = co_await selectSet;
     EXPECT_EQ(selected.size(), 1);
-    EXPECT_EQ(co_await std::get<0>(selected[0]), 123);
+    EXPECT_EQ(co_await *std::get<0>(selected[0]), 123);
 
     // Selecting an already finished promise is okay.
     auto selectSet2 = SelectSet{promise1, promise2};
     auto selected2 = co_await selectSet2;
     EXPECT_EQ(selected2.size(), 1);
-    EXPECT_EQ(co_await std::get<1>(selected2[0]), 234);
+    EXPECT_EQ(co_await *std::get<1>(selected2[0]), 234);
   };
 
   run_loop(setup);
@@ -57,8 +57,8 @@ TEST(SelectTest, selectReturnsSimultaneously) {
     auto selectSet = SelectSet{promiseObject1, promiseObject2};
     auto selected = co_await selectSet;
     EXPECT_EQ(selected.size(), 2);
-    EXPECT_EQ(co_await std::get<0>(selected[0]), 1);
-    EXPECT_EQ(co_await std::get<1>(selected[1]), 2);
+    EXPECT_EQ(co_await *std::get<0>(selected[0]), 1);
+    EXPECT_EQ(co_await *std::get<1>(selected[1]), 2);
     co_return;
   };
 
@@ -101,8 +101,8 @@ TEST(SelectTest, selectSetMany) {
         promiseObject1a, promiseObject2a, promiseObject3a, promiseObject4a};
     const auto selected = co_await selectSet;
     EXPECT_EQ(selected.size(), 2);
-    EXPECT_EQ(co_await std::get<0>(selected[0]), 1);
-    EXPECT_EQ(co_await std::get<4>(selected[1]), 1);
+    EXPECT_EQ(co_await *std::get<0>(selected[0]), 1);
+    EXPECT_EQ(co_await *std::get<4>(selected[1]), 1);
     co_return;
   };
 
@@ -128,7 +128,7 @@ TEST(SelectTest, onlyCheckOne) {
     auto selectSet = SelectSet{promiseObject1, promiseObject2};
     auto selected = co_await selectSet;
     EXPECT_EQ(selected.size(), 1);
-    co_await std::get<0>(selected[0]);
+    co_await *std::get<0>(selected[0]);
     // The second promise is not checked; it is finished anyway after co_return,
     // in order to free the loop.
     co_return;
@@ -151,7 +151,7 @@ TEST(SelectTest, selectVoid) {
     auto selectSet = SelectSet{promiseObject1, promiseObject2};
     auto selected = co_await selectSet;
     EXPECT_EQ(selected.size(), 1);
-    co_await std::get<0>(selected[0]);
+    co_await *std::get<0>(selected[0]);
     co_return;
   };
 
@@ -177,8 +177,8 @@ TEST(SelectTest, DISABLED_benchmark) {
       }
     }();
 
-    // Each iteration takes about 500 ns on my unsignedel Core i5-7300U @ 2.6 GHz
-    // (your machine is likely faster).
+    // Each iteration takes about 500 ns on my unsignedel Core i5-7300U @ 2.6
+    // GHz (your machine is likely faster).
     for (unsigned i = 0; i < count; ++i) {
       Promise<std::optional<unsigned>> promise1 = gen1.next();
       Promise<std::optional<unsigned>> promise2 = gen2.next();
@@ -189,10 +189,10 @@ TEST(SelectTest, DISABLED_benchmark) {
       // `MultiPromise::next()` right after another.
       auto result1 = co_await SelectSet{promise1, promise2};
       EXPECT_EQ(result1.size(), 1);
-      EXPECT_EQ(co_await std::get<0>(result1[0]), i);
+      EXPECT_EQ(co_await *std::get<0>(result1[0]), i);
       auto result2 = co_await SelectSet{promise1, promise2};
       EXPECT_EQ(result2.size(), 1);
-      EXPECT_EQ(co_await std::get<1>(result2[0]), i);
+      EXPECT_EQ(co_await *std::get<1>(result2[0]), i);
     }
 
     co_return;
@@ -233,14 +233,14 @@ TEST(SelectTest, reliableSelectLoop) {
       for (auto &promise : result) {
         switch (promise.index()) {
         case 0:
-          if (co_await std::get<0>(promise) == std::nullopt) {
+          if (co_await *std::get<0>(promise) == std::nullopt) {
             promise1Done = true;
           } else {
             promise1 = gen1.next();
           }
           break;
         case 1:
-          if (co_await std::get<1>(promise) == std::nullopt) {
+          if (co_await *std::get<1>(promise) == std::nullopt) {
             promise2Done = true;
           } else {
             promise2 = gen2.next();

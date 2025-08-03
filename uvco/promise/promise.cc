@@ -8,7 +8,6 @@
 #include "uvco/promise/promise_core.h"
 
 #include <coroutine>
-#include <cstdio>
 #include <exception>
 
 namespace uvco {
@@ -50,17 +49,6 @@ Promise<void>::Promise(Promise<void> &&other) noexcept : core_{other.core_} {
   other.core_ = nullptr;
 }
 
-Promise<void> &Promise<void>::operator=(const Promise<void> &other) {
-  if (this == &other) {
-    return *this;
-  }
-  if (core_ != nullptr) {
-    core_->delRef();
-  }
-  core_ = other.core_->addRef();
-  return *this;
-}
-
 Promise<void> &Promise<void>::operator=(Promise<void> &&other) noexcept {
   if (this == &other) {
     return *this;
@@ -72,9 +60,6 @@ Promise<void> &Promise<void>::operator=(Promise<void> &&other) noexcept {
   other.core_ = nullptr;
   return *this;
 }
-
-Promise<void>::Promise(const Promise<void> &other)
-    : core_{other.core_->addRef()} {}
 
 Promise<void>::~Promise() {
   if (core_ != nullptr) {

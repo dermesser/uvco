@@ -147,13 +147,11 @@ TEST(ChannelTest, blockingRead) {
     Promise<void> drainer = drain(chan);
 
     Promise<void> put1 = chan.put(1);
-    Promise<void> put1b;
-    Promise<void> put1c;
-    // Test copy and move assignment.
-    put1b = put1;
-    put1c = std::move(put1b);
+    Promise<void> put1New;
+    // Test move assignment.
+    put1New = std::move(put1);
 
-    co_await put1c;
+    co_await put1New;
     co_await chan.put(2);
     co_await chan.put(3);
     co_await chan.put(4);

@@ -68,13 +68,7 @@ public:
     other.core_ = nullptr;
   }
   /// A promise can be copied at low cost.
-  Promise &operator=(const Promise<T> &other) {
-    if (this == &other) {
-      return *this;
-    }
-    core_ = other.core_->addRef();
-    return *this;
-  }
+  Promise &operator=(const Promise<T> &other) = delete;
   Promise &operator=(Promise<T> &&other) noexcept {
     if (this == &other) {
       return *this;
@@ -87,7 +81,7 @@ public:
     return *this;
   }
   // A promise can be copied at low cost.
-  Promise(const Promise<T> &other) : core_{other.core_->addRef()} {}
+  Promise(const Promise<T> &other) = delete;
   ~Promise() {
     if (core_ != nullptr) {
       core_->delRef();
@@ -198,9 +192,9 @@ public:
   /// Promise ready to be awaited or fulfilled.
   Promise();
   Promise(Promise<void> &&other) noexcept;
-  Promise &operator=(const Promise<void> &other);
+  Promise &operator=(const Promise<void> &other) = delete;
   Promise &operator=(Promise<void> &&other) noexcept;
-  Promise(const Promise<void> &other);
+  Promise(const Promise<void> &other) = delete;
   ~Promise();
 
   /// Returns an awaiter object for the promise, handling actual suspension and

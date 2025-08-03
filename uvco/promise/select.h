@@ -38,24 +38,23 @@ namespace uvco {
 /// that you can handle an empty result vector.
 template <typename... Ts> class SelectSet {
 public:
-  using Variant = std::variant<Promise<Ts>...>;
-  using Tuple = std::tuple<Promise<Ts>...>;
+  using Variant = std::variant<Promise<Ts> *...>;
+  using Tuple = std::tuple<Promise<Ts> *...>;
 
-  explicit SelectSet(Promise<Ts>... promises)
-      : promises_{std::move(promises)...} {}
+  explicit SelectSet(Promise<Ts> &...promises) : promises_{&promises...} {}
 
   ~SelectSet() {
     if (!resumed_) {
       std::apply(
-          [](auto &&...promise) { (promise.core()->resetHandle(), ...); },
+          [](auto *...promise) { (promise->core()->resetHandle(), ...); },
           promises_);
     }
   }
 
   [[nodiscard]] bool await_ready() const noexcept {
     return resumed_ || std::apply(
-                           [](auto &&...promise) -> bool {
-                             return (promise.ready() || ...);
+                           [](auto *...promise) -> bool {
+                             return (promise->ready() || ...);
                            },
                            promises_);
   }
@@ -65,9 +64,9 @@ public:
   void await_suspend(std::coroutine_handle<> handle) {
     BOOST_ASSERT_MSG(!resumed_, "A select set can only be used once");
     std::apply(
-        [handle](auto &&...promise) {
-          ((!promise.core()->stale() ? promise.core()->setHandle(handle)
-                                     : (void)0),
+        [handle](auto *...promise) {
+          ((!promise->core()->stale() ? promise->core()->setHandle(handle)
+                                      : (void)0),
            ...);
         },
         promises_);
@@ -91,12 +90,12 @@ private:
   template <size_t Ix = 0>
   void checkPromises(std::vector<Variant> &readyPromises) {
     if constexpr (Ix < sizeof...(Ts)) {
-      using PromiseType = std::tuple_element_t<Ix, Tuple>;
-      PromiseType &promise = std::get<Ix>(promises_);
-      if (promise.ready()) {
-        readyPromises.emplace_back(std::in_place_index<Ix>, std::move(promise));
+      using PromisePtr = std::tuple_element_t<Ix, Tuple>;
+      PromisePtr promise = std::get<Ix>(promises_);
+      if (promise->ready()) {
+        readyPromises.emplace_back(std::in_place_index<Ix>, promise);
       } else {
-        promise.core()->resetHandle();
+        promise->core()->resetHandle();
       }
       checkPromises<Ix + 1>(readyPromises);
     }
