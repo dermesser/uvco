@@ -145,8 +145,8 @@ public:
   /// An unfulfilled `MultiPromise`.
   MultiPromise(MultiPromise<T> &&) noexcept = default;
   MultiPromise &operator=(const MultiPromise<T> &) = delete;
-  MultiPromise &operator=(MultiPromise<T> &&) noexcept = delete;
-  MultiPromise(const MultiPromise<T> &other) = default;
+  MultiPromise &operator=(MultiPromise<T> &&) noexcept = default;
+  MultiPromise(const MultiPromise<T> &other) = delete;
   ~MultiPromise() {
     // Us and the coroutine frame; but we're about to be destroyed
     if (core_.use_count() == 2) {

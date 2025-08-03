@@ -346,7 +346,7 @@ TEST(UdpTest, closeWhileReceivingInOtherCoroutine) {
     Udp udp{loop};
     co_await udp.bind("::1", 9999);
     auto receiver = udp.receiveMany();
-    Promise<void> waiter = co_waiter(receiver);
+    Promise<void> waiter = co_waiter(std::move(receiver));
     co_await udp.close();
   };
 
