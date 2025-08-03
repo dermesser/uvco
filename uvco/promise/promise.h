@@ -21,38 +21,6 @@ namespace uvco {
 template <typename T> class Coroutine;
 template <typename T> class Promise;
 
-/// A PromiseHandle allows you to cancel a coroutine. This will wake up the
-/// current awaiter with an exception (UV_ECANCELED). However, the coroutine
-/// itself will keep running in the background until it finishes normally.
-///
-/// This is not optimal, but a stop-gap until a better solution is implemented.
-template <typename T> class PromiseHandle {
-public:
-  PromiseHandle(const PromiseHandle &) = delete;
-  PromiseHandle(PromiseHandle &&) = delete;
-  PromiseHandle &operator=(const PromiseHandle &) = delete;
-  PromiseHandle &operator=(PromiseHandle &&) = delete;
-  ~PromiseHandle() {
-    if (core_ != nullptr) {
-      core_->delRef();
-    }
-  }
-
-  /// Cancel the referred promise. The awaiting coroutine will receive an
-  /// UvcoException with the error code UV_ECANCELED.
-  void cancel() {
-    if (core_ != nullptr) {
-      core_->cancel();
-    }
-  }
-
-private:
-  explicit PromiseHandle(PromiseCore<T> *core) : core_{core->addRef()} {}
-
-  friend class Promise<T>;
-  PromiseCore<T> *core_;
-};
-
 /// A `Promise` is the core type of `uvco`, and returned from coroutines. A
 /// coroutine is a function containing either of `co_await`, `co_yield`, or
 /// `co_return`. The `Promise` type defines `Coroutine` to be the promise type
@@ -125,9 +93,6 @@ public:
       core_->delRef();
     }
   }
-
-  /// Return a handle that can be used to cancel the coroutine.
-  PromiseHandle<T> handle() { return PromiseHandle<T>{core_}; }
 
   /// Part of the coroutine protocol: called by `co_await p` where `p` is a
   /// `Promise<T>`. The returned object is awaited on.
@@ -237,8 +202,6 @@ public:
   Promise &operator=(Promise<void> &&other) noexcept;
   Promise(const Promise<void> &other);
   ~Promise();
-
-  PromiseHandle<void> handle();
 
   /// Returns an awaiter object for the promise, handling actual suspension and
   /// resumption.

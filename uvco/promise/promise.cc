@@ -94,10 +94,6 @@ void Promise<void>::unwrap() {
   }
 }
 
-PromiseHandle<void> Promise<void>::handle() {
-  return PromiseHandle<void>{core_};
-}
-
 void Coroutine<void>::return_void() {
   core_->ready_ = true;
   core_->resume();
