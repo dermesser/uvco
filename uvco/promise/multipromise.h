@@ -126,7 +126,7 @@ template <typename T> class Generator;
 ///
 /// NOTE: currently uses a `shared_ptr` PromiseCore, due to issues with
 /// inheritance. It is expected that normal `Promise<T>` will be used most
-/// frequently, therefore the lack of optimization is not as grave.
+/// frequently, therefore the slight overhead of using shared_ptr is accepted.
 template <typename T> class MultiPromise {
 protected:
   struct MultiPromiseAwaiter_;

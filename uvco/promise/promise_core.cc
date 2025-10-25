@@ -8,7 +8,6 @@
 #include <uv.h>
 
 #include <coroutine>
-#include <cstdio>
 #include <exception>
 #include <utility>
 
@@ -19,23 +18,23 @@ void PromiseCore<void>::setHandle(std::coroutine_handle<> handle) {
     throw UvcoException("PromiseCore is already awaited or has finished");
   }
   BOOST_ASSERT(state_ == PromiseState::init);
-  handle_ = handle;
+  waitingHandle_ = handle;
   state_ = PromiseState::waitedOn;
 }
 
-bool PromiseCore<void>::isAwaited() const { return handle_.has_value(); }
+bool PromiseCore<void>::isAwaited() const { return waitingHandle_ != nullptr; }
 bool PromiseCore<void>::ready() const { return exception_ || ready_; }
 bool PromiseCore<void>::stale() const {
   return state_ == PromiseState::finished && !ready();
 }
 
 void PromiseCore<void>::resume() {
-  if (handle_) {
+  if (waitingHandle_) {
     BOOST_ASSERT(state_ == PromiseState::waitedOn);
     state_ = PromiseState::resuming;
-    auto resumeHandle = *handle_;
-    handle_.reset();
-    Loop::enqueue(resumeHandle);
+    auto waitingHandle = waitingHandle_;
+    waitingHandle_ = nullptr;
+    Loop::enqueue(waitingHandle);
   } else {
     // If a coroutine returned immediately, or nobody is co_awaiting the result.
   }
@@ -47,9 +46,9 @@ PromiseCore<void>::~PromiseCore() {
   if (state_ == PromiseState::init) {
     fmt::print(stderr, "void Promise not finished\n");
   }
-  if (handle_) {
+  if (waitingHandle_) {
     fmt::print(stderr, "resumable coroutine destroyed\n");
-    handle_->destroy();
+    waitingHandle_.destroy();
   }
 }
 
@@ -72,9 +71,9 @@ void PromiseCore<void>::cancel() {
 }
 
 void PromiseCore<void>::resetHandle() {
-  BOOST_ASSERT((state_ == PromiseState::waitedOn && handle_) ||
-               (state_ == PromiseState::finished && !handle_));
-  handle_.reset();
+  BOOST_ASSERT((state_ == PromiseState::waitedOn && waitingHandle_) ||
+               (state_ == PromiseState::finished && !waitingHandle_));
+  waitingHandle_ = nullptr;
   if (state_ == PromiseState::waitedOn) {
     state_ = PromiseState::init;
   }

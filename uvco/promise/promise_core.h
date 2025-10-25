@@ -11,7 +11,6 @@
 #include <fmt/format.h>
 
 #include <coroutine>
-#include <cstdio>
 #include <exception>
 #include <optional>
 #include <typeinfo>
@@ -86,7 +85,7 @@ public:
                  (state_ == PromiseState::finished && !handle_) ||
                  (state_ == PromiseState::init && !handle_));
     if (state_ == PromiseState::waitedOn) {
-      handle_.reset();
+      handle_ = nullptr;
       state_ = PromiseState::init;
     }
   }
@@ -110,7 +109,7 @@ public:
   }
 
   /// Checks if a coroutine is waiting on a promise belonging to this core.
-  bool isAwaited() { return handle_.has_value(); }
+  bool isAwaited() { return handle_ != nullptr; }
 
   /// Checks if a value is present in the slot.
   [[nodiscard]] bool ready() const { return slot.has_value(); }
@@ -128,8 +127,8 @@ public:
     if (handle_) {
       BOOST_ASSERT(state_ == PromiseState::waitedOn);
       state_ = PromiseState::resuming;
-      const std::coroutine_handle<> resume = *handle_;
-      handle_.reset();
+      const std::coroutine_handle<> resume = handle_;
+      handle_ = nullptr;
       Loop::enqueue(resume);
     } else {
       // This occurs if no co_await has occured until resume. Either the
@@ -173,7 +172,7 @@ public:
     // ~PromiseCore()). Important: we may only destroy a suspended coroutine,
     // not a finished one.
     if (handle_) {
-      handle_->destroy();
+      handle_.destroy();
     }
   }
 
@@ -183,7 +182,7 @@ public:
   std::optional<std::variant<T, std::exception_ptr>> slot;
 
 protected:
-  std::optional<std::coroutine_handle<>> handle_;
+  std::coroutine_handle<> handle_;
   PromiseState state_ = PromiseState::init;
 };
 
@@ -228,7 +227,7 @@ public:
   std::optional<std::exception_ptr> exception_;
 
 private:
-  std::optional<std::coroutine_handle<>> handle_;
+  std::coroutine_handle<> waitingHandle_;
   PromiseState state_ = PromiseState::init;
 };
 
