@@ -31,6 +31,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <uv.h>
 #include <vector>
 
 using namespace uvco;
@@ -38,9 +39,9 @@ using namespace uvco;
 struct Options {
   const Loop &loop;
 
-  std::string listenAddress = "0.0.0.0";
-  std::string multicastAddress = "239.253.1.1";
-  uint16_t port = 8012;
+  std::string listenAddress = "ff02::fb%wlp1s0";
+  std::string multicastAddress = "ff02::fb";
+  uint16_t port = 5353;
 };
 
 Options parseOptions(const Loop &loop, int argc, const char **argv) {
@@ -59,12 +60,14 @@ Options parseOptions(const Loop &loop, int argc, const char **argv) {
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
   if (help) {
-    std::cerr << desc << std::endl;
+    std::cerr << desc << '\n';
     std::exit(0);
   }
   return options;
 }
 
+// Currently not used, but depending on the applicationi you can choose to reply
+// to incoming multicast packets.
 Promise<void> sendSome(const Options &opt, AddressHandle dst,
                        size_t packets = 5, int interval = 1) {
   Udp udp{opt.loop};
@@ -82,21 +85,15 @@ Promise<void> printPackets(Options opt) {
   std::vector<Promise<void>> active;
 
   try {
-    co_await udp.bind(opt.multicastAddress, opt.port);
+    co_await udp.bind(opt.listenAddress, opt.port, UV_UDP_IPV6ONLY);
 
     udp.joinMulticast(opt.multicastAddress, opt.listenAddress);
     udp.setMulticastLoop(false);
-
-    // Send initial message to multicast group.
-    AddressHandle dst{opt.multicastAddress, opt.port};
-    // constexpr static std::string_view hello = "hello first";
-    // udp.send(hello, dst);
 
     fmt::print(stderr, "waiting for packets\n");
     while (true) {
       const auto [packet, from] = co_await udp.receiveOneFrom();
       fmt::print("Received packet: {} from {}\n", packet, from.toString());
-      // sendSome(opt, from);
     }
   } catch (const UvcoException &e) {
     fmt::print(stderr, "exception: {}\n", e.what());
