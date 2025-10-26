@@ -136,6 +136,7 @@ TEST(SelectTest, onlyCheckOne) {
       auto selectSet = SelectSet{promiseObject1, promiseObject2};
       auto selected = co_await selectSet;
       EXPECT_EQ(selected.size(), 1);
+      co_await *std::get<1>(selected[0]);
     }
 
     // The second promise is not checked; it is finished anyway after co_return,
