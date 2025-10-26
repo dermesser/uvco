@@ -116,13 +116,9 @@ TEST(SelectTest, onlyCheckOne) {
       co_return;
     };
     auto promise2 = []() -> uvco::Promise<void> {
-      fmt::println("yield 1");
       co_await yield();
-      fmt::println("yield 2");
       co_await yield();
-      fmt::println("yield 3");
       co_await yield();
-      fmt::println("yield 4");
       co_return;
     };
 
