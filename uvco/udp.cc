@@ -44,7 +44,7 @@ Udp::~Udp() {
                        "this will leak memory. "
                        "Please co_await udp.close() if possible.\n");
     udpStopReceive();
-    uv_close((uv_handle_t *)udp_.get(), nullptr);
+    uv_close((uv_handle_t *)udp_.release(), nullptr);
   }
 }
 
@@ -185,7 +185,9 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
 }
 
 Promise<void> Udp::close() {
-  BOOST_ASSERT(udp_);
+  if (!udp_) {
+    co_return;
+  }
   if (!dataIsNull(udp_.get())) {
     auto *const awaiter = getData<RecvAwaiter_>(udp_.get());
     fmt::print(stderr, "Udp::close(): stopping receiving. Please instead use "

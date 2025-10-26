@@ -33,7 +33,7 @@ StreamBase::~StreamBase() {
                        "Please co_await stream.close() if possible.\n");
     // Asynchronously close handle. It's better to leak memory than file
     // descriptors.
-    uv_close((uv_handle_t *)stream_.get(), nullptr);
+    uv_close((uv_handle_t*)stream_.release(), nullptr);
   }
   BOOST_ASSERT_MSG(
       !reader_,
@@ -83,7 +83,7 @@ Promise<size_t> StreamBase::writeBorrowed(std::span<const char> buffer) {
   uv_status status = uv_try_write(&stream(), bufs.data(), bufs.size());
   if (status > 0) {
     // Already done, nothing had to be queued.
-    co_return status;
+    co_return static_cast<size_t>(status);
   }
 
   status = uv_write(&awaiter.write_, &stream(), bufs.data(), bufs.size(),

@@ -58,7 +58,7 @@ public:
                  "TimerAwaiter::~TimerAwaiter(): closing timer in dtor; "
                  "this will leak memory. "
                  "Please co_await timer.close() if possible.\n");
-      closeHandle(timer_.release());
+      uv_close((uv_handle_t *)timer_.release(), nullptr);
     }
   }
 
