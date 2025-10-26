@@ -20,8 +20,14 @@ bool CloseAwaiter::await_ready() const { return closed_; }
 
 void CloseAwaiter::await_resume() {}
 
-void onCloseCallback(uv_handle_t *stream) {
-  auto *awaiter = getData<CloseAwaiter>(stream);
+void onCloseCallback(uv_handle_t *handle) {
+  auto *awaiter = getDataOrNull<CloseAwaiter>(handle);
+  if (awaiter == nullptr) {
+    fmt::print(stderr,
+               "onCloseCallback: no CloseAwaiter associated with handle\n");
+    UvHandleDeleter::del(handle);
+    return;
+  }
   awaiter->closed_ = true;
   if (awaiter->handle_) {
     auto handle = *awaiter->handle_;

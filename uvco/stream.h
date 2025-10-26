@@ -106,6 +106,7 @@ protected:
 
 private:
   std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
+
   // Currently suspended readers/writers to be notified on close().
   std::optional<std::coroutine_handle<>> reader_;
   std::optional<std::coroutine_handle<>> writer_;

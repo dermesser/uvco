@@ -207,6 +207,10 @@ public:
 
   // Managing coroutine state.
   void setRunning(std::coroutine_handle<> handle);
+
+  // Destroy the coroutine state associated with this core. Must be routinely
+  // invoked after coroutine completion (due to suspend_always returned from
+  // final_suspend).
   void destroyCoroutine() {
     if (coroutine_) {
       Loop::cancel(coroutine_);

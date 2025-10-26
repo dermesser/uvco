@@ -31,9 +31,7 @@ StreamBase::~StreamBase() {
     fmt::print(stderr, "StreamBase::~StreamBase(): closing stream in dtor; "
                        "this will leak memory. "
                        "Please co_await stream.close() if possible.\n");
-    // Asynchronously close handle. It's better to leak memory than file
-    // descriptors.
-    uv_close((uv_handle_t*)stream_.release(), nullptr);
+    closeHandle(stream_.release());
   }
   BOOST_ASSERT_MSG(
       !reader_,

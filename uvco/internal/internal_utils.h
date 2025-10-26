@@ -44,6 +44,12 @@ template <typename Into, typename Handle> Into *getData(const Handle *handle) {
   return (Into *)data;
 }
 
+template <typename Into, typename Handle>
+Into *getDataOrNull(const Handle *handle) {
+  const void *data = uv_handle_get_data((const uv_handle_t *)handle);
+  return (Into *)data;
+}
+
 template <typename Into, typename Request>
 Into *getRequestData(const Request *req) {
   const void *data = uv_req_get_data((const uv_req_t *)req);

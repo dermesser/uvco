@@ -48,10 +48,11 @@ threw one.
 A `Promise<T>` is a coroutine promise, and can be awaited. It is the basic unit, and only access to
 concurrency; there is no `Task` or such. Awaiting a promise will save the current execution state,
 and resume it as soon as the promise is ready. A single coroutine is represented by a single
-`Promise` object. Dropping the `Promise` will destroy (cancel) the coroutine, although - due to the
-way libuv works - for many kinds of handles (UDP sockets, timers, etc.) this will leak memory, as
-libuv uses asynchronous close operations. uvco will print a warning in the case that a pending
-coroutine is dropped and handles are leaked in this way.
+`Promise` object. Dropping the `Promise` will destroy (cancel) the coroutine. Some handles, like UDP
+and stream sockets as well as timers have asynchronous close methods. It's best practice to `co_await` the
+returned `Promise<void>`. If those handles are dropped, or inside a coroutine that has been
+cancelled, the close operation will proceed asynchronously, and uvco will ensure that no memory is
+leaked.
 
 When in doubt, refer to the examples in `test/`; they are actively maintained.
 

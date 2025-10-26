@@ -44,7 +44,7 @@ Udp::~Udp() {
                        "this will leak memory. "
                        "Please co_await udp.close() if possible.\n");
     udpStopReceive();
-    uv_close((uv_handle_t *)udp_.release(), nullptr);
+    closeHandle(udp_.release());
   }
 }
 

@@ -54,11 +54,7 @@ public:
   ~TimerAwaiter() {
     stop();
     if (!closed_ && timer_) {
-      fmt::print(stderr,
-                 "TimerAwaiter::~TimerAwaiter(): closing timer in dtor; "
-                 "this will leak memory. "
-                 "Please co_await timer.close() if possible.\n");
-      uv_close((uv_handle_t *)timer_.release(), nullptr);
+      closeHandle(timer_.release());
     }
   }
 

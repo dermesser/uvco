@@ -30,8 +30,8 @@ namespace uvco {
 AddressHandle::AddressHandle(std::span<const uint8_t> ipv4_or_6, uint16_t port,
                              uint32_t v6scope) {
   if (ipv4_or_6.size() == ipv4Length) {
-    struct sockaddr_in addr {};
-    struct in_addr ipAddr {};
+    struct sockaddr_in addr{};
+    struct in_addr ipAddr{};
     ipAddr.s_addr = *(uint32_t *)ipv4_or_6.data();
 
     addr.sin_family = AF_INET;
@@ -39,8 +39,8 @@ AddressHandle::AddressHandle(std::span<const uint8_t> ipv4_or_6, uint16_t port,
     addr.sin_addr = ipAddr;
     addr_ = addr;
   } else if (ipv4_or_6.size() == ipv6Length) {
-    struct sockaddr_in6 addr {};
-    struct in6_addr ipAddr {};
+    struct sockaddr_in6 addr{};
+    struct in6_addr ipAddr{};
 
     std::copy(ipv4_or_6.begin(), ipv4_or_6.end(),
               static_cast<uint8_t *>(ipAddr.s6_addr));
@@ -91,13 +91,13 @@ const struct sockaddr *AddressHandle::sockaddr() const {
 AddressHandle::AddressHandle(std::string_view ip, uint16_t port,
                              uint32_t v6scope) {
   if (ip.contains(':')) {
-    struct in6_addr ipAddr {};
+    struct in6_addr ipAddr{};
     uv_status status = inet_pton(AF_INET6, ip.data(), &ipAddr);
     if (status != 1) {
       throw UvcoException(fmt::format("invalid IPv6 address: {}", ip));
     }
 
-    struct sockaddr_in6 addr {};
+    struct sockaddr_in6 addr{};
     addr.sin6_family = AF_INET6;
     addr.sin6_addr = ipAddr;
     addr.sin6_port = htons(port);
@@ -110,7 +110,7 @@ AddressHandle::AddressHandle(std::string_view ip, uint16_t port,
       throw UvcoException(fmt::format("invalid IPv4 address: {}", ip));
     }
 
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr = ipAddr;
     addr.sin_port = htons(port);
@@ -154,7 +154,7 @@ Promise<AddressHandle> Resolver::gai(std::string_view host,
                                      std::string_view port, int af_hint) {
   AddrinfoAwaiter_ awaiter;
   awaiter.req_.data = &awaiter;
-  struct addrinfo hints {};
+  struct addrinfo hints{};
   hints.ai_family = af_hint;
   hints.ai_socktype = SOCK_STREAM;
 

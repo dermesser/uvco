@@ -14,13 +14,21 @@
 
 namespace uvco {
 
+namespace {
+
+void wrap_uv_tcp_close_reset(uv_tcp_t *handle, void (*cb)(uv_handle_t *)) {
+  uv_tcp_close_reset(handle, cb);
+}
+
+} // namespace
+
 Promise<void> TcpStream::closeReset() {
-  co_await closeHandle((uv_tcp_t *)&stream(), uv_tcp_close_reset);
+  co_await closeHandle((uv_tcp_t *)&stream(), wrap_uv_tcp_close_reset);
   destroyStream();
 }
 
 AddressHandle TcpStream::getSockName() const {
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   int namelen = sizeof(addr);
   uv_tcp_getsockname((const uv_tcp_t *)underlying(), (struct sockaddr *)&addr,
                      &namelen);
@@ -29,7 +37,7 @@ AddressHandle TcpStream::getSockName() const {
 }
 
 AddressHandle TcpStream::getPeerName() const {
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   int namelen = sizeof(addr);
   uv_tcp_getpeername((const uv_tcp_t *)underlying(), (struct sockaddr *)&addr,
                      &namelen);
