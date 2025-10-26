@@ -82,24 +82,6 @@ public:
     }
   }
 
-  /// Cancel a promise. The awaiter, if present, will immediately receive an
-  /// exception. The coroutine itself will keep running, however. (This may be
-  /// changed later)
-  void cancel() {
-    if (state_ == PromiseState::init || state_ == PromiseState::waitedOn) {
-      BOOST_ASSERT(!ready());
-      // Fill the slot with an exception, so that the coroutine can be resumed.
-      // Double-check `if` for release builds.
-      if (!slot) {
-        slot = std::make_exception_ptr(
-            UvcoException(UV_ECANCELED, "Promise cancelled"));
-      }
-      resume();
-    }
-    // else: the underlying coroutine has already returned, so there is no need
-    // to cancel it.
-  }
-
   /// Checks if a coroutine is waiting on a promise belonging to this core.
   bool isAwaited() { return handle_ != nullptr; }
 
@@ -204,9 +186,6 @@ public:
   PromiseCore<void> &operator=(const PromiseCore &) = delete;
   PromiseCore<void> &operator=(PromiseCore &&) = delete;
   ~PromiseCore();
-
-  /// See `PromiseCore::cancel`.
-  void cancel();
 
   /// See `PromiseCore::set_resume`.
   void setHandle(std::coroutine_handle<> handle);
