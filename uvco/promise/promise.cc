@@ -39,6 +39,7 @@ void Promise<void>::PromiseAwaiter_::await_resume() const {
     std::rethrow_exception(core_.exception_.value());
   }
   BOOST_ASSERT(core_.ready_);
+  core_.ready_ = false;
 }
 
 Promise<void>::Promise(PromiseCore<void> &core) : core_{&core} {}

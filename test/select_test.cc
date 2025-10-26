@@ -125,10 +125,19 @@ TEST(SelectTest, onlyCheckOne) {
     auto promiseObject1 = promise1();
     auto promiseObject2 = promise2();
 
-    auto selectSet = SelectSet{promiseObject1, promiseObject2};
-    auto selected = co_await selectSet;
-    EXPECT_EQ(selected.size(), 1);
-    co_await *std::get<0>(selected[0]);
+    {
+      auto selectSet = SelectSet{promiseObject1, promiseObject2};
+      auto selected = co_await selectSet;
+      EXPECT_EQ(selected.size(), 1);
+      co_await *std::get<0>(selected[0]);
+    }
+
+    {
+      auto selectSet = SelectSet{promiseObject1, promiseObject2};
+      auto selected = co_await selectSet;
+      EXPECT_EQ(selected.size(), 1);
+    }
+
     // The second promise is not checked; it is finished anyway after co_return,
     // in order to free the loop.
     co_return;
