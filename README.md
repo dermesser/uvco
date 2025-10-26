@@ -26,16 +26,17 @@ Supported functionality:
 Promises (backed by coroutines) are run eagerly; you don't have to schedule or await them for the
 underlying coroutine to run.
 
-Where I/O or other activity causes a coroutine to be resumed, the coroutine
-will typically be run by the scheduler, which you don't need to care about.
-Pending coroutines are resumed once per event loop turn.
+Where I/O or other activity causes a coroutine to be resumed, the coroutine will typically be run by
+the scheduler, which you don't need to care about. Pending coroutines are resumed once per event
+loop turn.
 
 Some types - like buffers filled by sockets - use simple types like strings, which are easy to
 handle but not super efficient. This may need to be generalized.
 
 ## Goal
 
-Provide ergonomic asynchronous abstractions of all libuv functionality, at satisfactory performance.
+uvco's goal is to provide ergonomic asynchronous abstractions of all libuv functionality, at
+satisfactory performance.
 
 ## Examples
 
@@ -46,10 +47,11 @@ threw one.
 
 A `Promise<T>` is a coroutine promise, and can be awaited. It is the basic unit, and only
 access to concurrency; there is no `Task` or such. Awaiting a promise will save the current
-execution state, and resume it as soon as the promise is ready. Currently, promises cannot
-be properly cancelled; however, suspended coroutines can be cancelled - although the coroutine
-they're waiting on will still run to completion (that's the downside of not having a `Task`
-primitive).
+execution state, and resume it as soon as the promise is ready. A single coroutine is represented by
+a single `Promise` object. Dropping the `Promise` will destroy the coroutine, although - due to the
+way libuv works - for many kinds of handles (UDP sockets, timers, etc.) this will leak memory, as
+libuv uses asynchronous close operations. uvco will print a warning in the case that a pending
+coroutine is dropped and handles are leaked in this way.
 
 When in doubt, refer to the examples in `test/`; they are actively maintained.
 
