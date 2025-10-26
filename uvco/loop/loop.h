@@ -57,8 +57,8 @@ private:
 
   // Loop and scheduler should be kept at the same
   // place in memory.
-  std::unique_ptr<uv_loop_t> loop_;
-  std::unique_ptr<Scheduler> scheduler_;
+  mutable uv_loop_t loop_;
+  Scheduler scheduler_;
 };
 
 /// @}

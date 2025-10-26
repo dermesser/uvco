@@ -1,7 +1,6 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
 #include <boost/assert.hpp>
-#include <fmt/format.h>
 #include <uv.h>
 #include <uv/unix.h>
 
@@ -57,7 +56,7 @@ Promise<void> Udp::bind(std::string_view address, uint16_t port,
     hint = AF_INET6;
   }
   AddressHandle addressHandle =
-      co_await resolver.gai(address, fmt::format("{}", port), hint);
+      co_await resolver.gai(address, std::to_string(port), hint);
 
   co_await bind(addressHandle, flag);
 }

@@ -180,6 +180,11 @@ protected:
 /// A void promise works slightly differently than a `Promise<T>` in that it
 /// doesn't return a value. However, aside from `return_void()` being
 /// implemented instead of `return_value()`, the mechanics are identical.
+///
+/// NOTE: for a transition period, Promise<void> is more efficient than
+/// Promise<T>: it does not allocate a separate PromiseCore. Instead, the
+/// PromiseCore<void> is placed in the Coroutine<void> frame, which itself is
+/// allocated anyway.
 template <> class Promise<void> {
   struct PromiseAwaiter_;
   using SharedCore_ = PromiseCore<void> *;
