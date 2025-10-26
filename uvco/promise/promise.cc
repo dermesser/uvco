@@ -50,6 +50,7 @@ Promise<void> &Promise<void>::operator=(Promise<void> &&other) noexcept {
   if (this == &other) {
     return *this;
   }
+  core_->destroyCoroutine();
   core_ = other.core_;
   other.core_ = nullptr;
   return *this;

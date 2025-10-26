@@ -3,7 +3,6 @@
 #pragma once
 
 #include "uvco/exception.h"
-#include "uvco/internal/internal_utils.h"
 #include "uvco/loop/loop.h"
 
 #include <boost/assert.hpp>
@@ -45,27 +44,16 @@ enum class PromiseState {
   finished = 3,
 };
 
-/// A `PromiseCore` is shared among copies of promises waiting for the same
-/// coroutine. It contains a state, a result (of type `T`), and potentially a
-/// `coroutine_handle` of the coroutine waiting on it. Only one coroutine may
-/// await a promise, this is enforced here.
-///
-/// A PromiseCore is `RefCounted`; this reduces the overhead of `shared_ptr` by
-/// as much as 50% in Debug mode and 30% in clang Release mode. However, this is
-/// only expected to occur in promise-heavy code without involvement of libuv
-/// (such as pure channels).
-///
-/// The canonical way would be just using `shared_ptr`, which is likely fast
-/// enough. But we're experimenting, so let's have fun.
-template <typename T> class PromiseCore : public RefCounted<PromiseCore<T>> {
+/// A `PromiseCore` is part of the Coroutine<T> frame; a reference to it is held
+/// by the Promise referring to the coroutine.
+template <typename T> class PromiseCore {
 public:
   PromiseCore() = default;
-
-  // The promise core is pinned in memory until the coroutine has finished.
   PromiseCore(const PromiseCore &) = delete;
   PromiseCore(PromiseCore &&) = delete;
   PromiseCore &operator=(const PromiseCore &) = delete;
   PromiseCore &operator=(PromiseCore &&) = delete;
+
   explicit PromiseCore(T &&value)
       : slot{std::move(value)}, state_{PromiseState::finished} {}
 
@@ -76,6 +64,10 @@ public:
     }
     handle_ = handle;
     state_ = PromiseState::waitedOn;
+  }
+  void setRunning(std::coroutine_handle<> handle) {
+    BOOST_ASSERT(state_ == PromiseState::init);
+    coroutine_ = handle;
   }
 
   /// Reset the handle, so that the coroutine is not resumed anymore. This is
@@ -157,6 +149,13 @@ public:
     }
   }
 
+  void destroyCoroutine() {
+    if (coroutine_) {
+      Loop::cancel(coroutine_);
+      coroutine_.destroy();
+    }
+  }
+
   /// Destroys a promise core. Also destroys a coroutine if there is one
   /// suspended and has not been resumed yet. In that case, a warning is
   /// emitted ("PromiseCore destroyed without ever being resumed").
@@ -182,7 +181,12 @@ public:
   std::optional<std::variant<T, std::exception_ptr>> slot;
 
 protected:
+  // May be nullptr. Set to the coroutine awaiting this promise.
   std::coroutine_handle<> handle_;
+  // Set to the coroutine producing this promise.
+  std::coroutine_handle<> coroutine_;
+  static_assert(sizeof(std::coroutine_handle<>) <= sizeof(void *),
+                "coroutine_handle is too large");
   PromiseState state_ = PromiseState::init;
 };
 

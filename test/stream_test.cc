@@ -48,8 +48,10 @@ TEST(TtyTest, DISABLED_stdioTest) {
 
 TEST(TtyTest, stdoutNoClose) {
   uint64_t counter = 0;
-  auto setup = [&counter](const Loop &loop) -> uvco::Promise<void> {
+  const uv_tty_t *underlying{};
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     TtyStream stdout = TtyStream::stdout(loop);
+    underlying = (const uv_tty_t *)(stdout.underlying());
 
     co_await stdout.write(" ");
     ++counter;
@@ -57,6 +59,9 @@ TEST(TtyTest, stdoutNoClose) {
 
   run_loop(setup);
   EXPECT_EQ(counter, 1);
+  // The test case above would otherwise leak memory. We free it in order to
+  // satisfy asan.
+  delete underlying;
 }
 
 TEST(TtyTest, invalidFd) {

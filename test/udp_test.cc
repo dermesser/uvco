@@ -288,8 +288,10 @@ TEST(UdpTest, simultaneousReceiveOneDies) {
 
 TEST(UdpTest, udpNoClose) {
   uint64_t counter = 0;
-  auto setup = [&counter](const Loop &loop) -> uvco::Promise<void> {
+  uv_udp_t *underlying{};
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     Udp udp{loop};
+    underlying = udp.underlying();
     const AddressHandle dest{"::1", 38212};
 
     std::string message = "Hello";
@@ -303,6 +305,7 @@ TEST(UdpTest, udpNoClose) {
   // This test checks what happens if a coroutine finishes without closing the
   // stream. In order to satisfy asan, we still need to free the memory in the
   // end.
+  delete underlying;
 }
 
 TEST(UdpTest, sendNoAddress) {
