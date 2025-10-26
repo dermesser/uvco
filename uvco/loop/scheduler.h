@@ -5,6 +5,7 @@
 #include <boost/assert.hpp>
 #include <uv.h>
 
+#include <array>
 #include <coroutine>
 #include <vector>
 
@@ -54,6 +55,8 @@ public:
 
   /// Schedule a coroutine for resumption.
   void enqueue(std::coroutine_handle<> handle);
+
+  void cancel(std::coroutine_handle<> handle);
 
   /// Run all scheduled coroutines sequentially.
   void runAll();

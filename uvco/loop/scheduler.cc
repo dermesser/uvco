@@ -5,22 +5,9 @@
 
 #include "uvco/loop/scheduler.h"
 
-#include <algorithm>
 #include <coroutine>
-#include <span>
 
 namespace uvco {
-
-namespace {
-
-unsigned findFirstIndexOf(std::span<const std::coroutine_handle<>> handles,
-                          std::coroutine_handle<> handle) {
-  return std::ranges::find_if(
-             handles, [&handle](const auto &h) { return h == handle; }) -
-         handles.begin();
-}
-
-} // namespace
 
 void Scheduler::runAll() {
   // In order to not delay checking for new I/O in the UV loop, we only run up
@@ -30,20 +17,11 @@ void Scheduler::runAll() {
 
   while (!resumableActive_.empty() && turns < maxTurnsBeforeReturning) {
     resumableRunning_.swap(resumableActive_);
-    for (unsigned i = 0; i < resumableRunning_.size(); ++i) {
-      auto &coro = resumableRunning_[i];
-      // Defend against resuming the same coroutine twice in the same loop pass.
-      // This happens when SelectSet selects two coroutines which return at the
-      // same time. Resuming the same handle twice is not good, very bad, and
-      // will usually at least cause a heap use-after-free.
-
-      // Check if this coroutine handle has already been resumed. This has
-      // quadratic complexity, but appears to be faster than e.g. a Bloom
-      // filter, because it takes fewer calculations and is a nice linear search
-      // over a usually short vector.
-      if (findFirstIndexOf(resumableRunning_, coro) == i) {
-        coro.resume();
+    for (auto &coro : resumableRunning_) {
+      if (coro == nullptr || coro.done()) {
+        continue;
       }
+      coro.resume();
     }
     resumableRunning_.clear();
     ++turns;
@@ -65,6 +43,17 @@ Scheduler::~Scheduler() = default;
 Scheduler::Scheduler() {
   resumableActive_.reserve(16);
   resumableRunning_.reserve(16);
+}
+
+void Scheduler::cancel(std::coroutine_handle<> handle) {
+  for (auto &resumable :
+       std::to_array({&resumableActive_, &resumableRunning_})) {
+    for (auto &it : *resumable) {
+      if (it == handle) {
+        it = nullptr;
+      }
+    }
+  }
 }
 
 } // namespace uvco

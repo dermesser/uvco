@@ -189,14 +189,17 @@ protected:
 /// A `void` PromiseCore works like a normal `PromiseCore`, but with the
 /// specialization of not transferring values - only control is switched from
 /// the yielding to the awaiting coroutine.
-template <> class PromiseCore<void> : public RefCounted<PromiseCore<void>> {
+///
+/// Contrary to PromiseCore<T>, this is embedded in the coroutine frame itself,
+/// saving an allocation.
+template <> class PromiseCore<void> {
 public:
   PromiseCore() = default;
   PromiseCore(const PromiseCore &) = delete;
   PromiseCore(PromiseCore &&) = delete;
   PromiseCore<void> &operator=(const PromiseCore &) = delete;
   PromiseCore<void> &operator=(PromiseCore &&) = delete;
-  ~PromiseCore() override;
+  ~PromiseCore();
 
   /// See `PromiseCore::cancel`.
   void cancel();
@@ -219,6 +222,15 @@ public:
   /// See `PromiseCore::except`.
   void except(std::exception_ptr exc);
 
+  // Managing coroutine state.
+  void setRunning(std::coroutine_handle<> handle);
+  void destroyCoroutine() {
+    if (coroutine_) {
+      Loop::cancel(coroutine_);
+      coroutine_.destroy();
+    }
+  }
+
   /// In a void promise, we only track *if* the coroutine has finished, because
   /// it doesn't return anything.
   bool ready_ = false;
@@ -228,6 +240,7 @@ public:
 
 private:
   std::coroutine_handle<> waitingHandle_;
+  std::coroutine_handle<> coroutine_;
   PromiseState state_ = PromiseState::init;
 };
 

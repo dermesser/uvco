@@ -36,9 +36,11 @@ public:
   /// Get a non-owned pointer to the loop.
   [[nodiscard]] uv_loop_t *uvloop() const;
 
-  // Retrieve the currently active global scheduler associated with the default
-  // loop.
+  // Enqueue a suspended coroutine_handle for later resumption.
   static void enqueue(std::coroutine_handle<> handle);
+  // Remove a handle from the event loop. Note: if the same handle is posted
+  // again later, it may still be resumed.
+  static void cancel(std::coroutine_handle<> handle);
 
 private:
   // The default loop is the only loop that can be created. It is set/unset by

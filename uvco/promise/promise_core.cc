@@ -44,11 +44,10 @@ void PromiseCore<void>::resume() {
 PromiseCore<void>::~PromiseCore() {
   BOOST_ASSERT(state_ != PromiseState::resuming);
   if (state_ == PromiseState::init) {
-    fmt::print(stderr, "void Promise not finished\n");
+    fmt::print(stderr, "Promise<void> not finished\n");
   }
   if (waitingHandle_) {
     fmt::print(stderr, "resumable coroutine destroyed\n");
-    waitingHandle_.destroy();
   }
 }
 
@@ -79,4 +78,7 @@ void PromiseCore<void>::resetHandle() {
   }
 }
 
+void PromiseCore<void>::setRunning(std::coroutine_handle<> handle) {
+  coroutine_ = handle;
+}
 } // namespace uvco

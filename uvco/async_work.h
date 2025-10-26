@@ -17,7 +17,7 @@ namespace uvco {
 /// @addtogroup threadpool
 /// @{
 
-/// Do not use; instead, use submitWork<void>().
+/// Do not use; instead, usetubmitWork<void>().
 Promise<void> innerSubmitWork(const Loop &loop, std::function<void()> work);
 
 /// Submit a function to be run on the libuv threadpool. The promise will return

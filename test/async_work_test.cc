@@ -128,7 +128,7 @@ TEST(AsyncWorkTest, workNotAwaited) {
   };
 
   run_loop(setup);
-  EXPECT_TRUE(workRan);
+  EXPECT_FALSE(workRan);
 }
 
 } // namespace

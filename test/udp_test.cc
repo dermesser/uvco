@@ -129,7 +129,7 @@ Promise<void> udpSource(const Loop &loop, unsigned send, unsigned &sent) {
 
   for (uint32_t i = 0; i < send / 2; ++i) {
     // This exercises the packet queue.
-    client.send(msg, dst);
+    co_await client.send(msg, dst);
     ++sent;
     co_await client.send(msg, dst);
     ++sent;
@@ -288,12 +288,9 @@ TEST(UdpTest, simultaneousReceiveOneDies) {
 
 TEST(UdpTest, udpNoClose) {
   uint64_t counter = 0;
-  const uv_udp_t *underlying{};
-  auto setup = [&counter,
-                &underlying](const Loop &loop) -> uvco::Promise<void> {
-    Udp udp = Udp{loop};
+  auto setup = [&counter](const Loop &loop) -> uvco::Promise<void> {
+    Udp udp{loop};
     const AddressHandle dest{"::1", 38212};
-    underlying = udp.underlying();
 
     std::string message = "Hello";
     co_await udp.send(message, dest);
@@ -306,7 +303,6 @@ TEST(UdpTest, udpNoClose) {
   // This test checks what happens if a coroutine finishes without closing the
   // stream. In order to satisfy asan, we still need to free the memory in the
   // end.
-  delete underlying;
 }
 
 TEST(UdpTest, sendNoAddress) {

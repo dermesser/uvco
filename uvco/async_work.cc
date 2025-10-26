@@ -28,7 +28,7 @@ public:
   AsyncWorkAwaiter_(AsyncWorkAwaiter_ &&) = delete;
   AsyncWorkAwaiter_ &operator=(const AsyncWorkAwaiter_ &) = delete;
   AsyncWorkAwaiter_ &operator=(AsyncWorkAwaiter_ &&) = delete;
-  ~AsyncWorkAwaiter_() = default;
+  ~AsyncWorkAwaiter_() { uv_cancel((uv_req_t *)&work_); }
 
   static void onDoWork(uv_work_t *work) {
     auto *awaiter = getRequestData<AsyncWorkAwaiter_>(work);
@@ -36,6 +36,10 @@ public:
   }
 
   static void onWorkDone(uv_work_t *work, uv_status status) {
+    if (status == UV_ECANCELED) {
+      // Work was cancelled; do not resume the coroutine.
+      return;
+    }
     auto *awaiter = getRequestData<AsyncWorkAwaiter_>(work);
     awaiter->status_ = status;
     awaiter->schedule();
@@ -85,7 +89,7 @@ private:
 } // namespace
 
 Promise<void> innerSubmitWork(const Loop &loop, std::function<void()> work) {
-  AsyncWorkAwaiter_ awaiter{work};
+  AsyncWorkAwaiter_ awaiter{std::move(work)};
   uv_queue_work(loop.uvloop(), &awaiter.work(), AsyncWorkAwaiter_::onDoWork,
                 AsyncWorkAwaiter_::onWorkDone);
   co_await awaiter;
@@ -96,14 +100,14 @@ template <>
 Promise<void> submitWork(const Loop &loop, std::function<void()> work) {
   std::optional<std::exception_ptr> result;
   // Erase return type and use generic submitWork().
-  std::function<void()> agnosticWork = [&result, work]() {
+  std::function<void()> agnosticWork = [&result, work = std::move(work)]() {
     try {
       work();
     } catch (...) {
       result = std::current_exception();
     }
   };
-  co_await innerSubmitWork(loop, agnosticWork);
+  co_await innerSubmitWork(loop, std::move(agnosticWork));
   if (result.has_value()) {
     std::rethrow_exception(result.value());
   }

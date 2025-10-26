@@ -190,7 +190,6 @@ public:
   using promise_type = Coroutine<void>;
 
   /// Promise ready to be awaited or fulfilled.
-  Promise();
   Promise(Promise<void> &&other) noexcept;
   Promise &operator=(const Promise<void> &other) = delete;
   Promise &operator=(Promise<void> &&other) noexcept;
@@ -230,14 +229,17 @@ private:
     PromiseCore<void> &core_;
   };
 
-  explicit Promise(SharedCore_ core);
+  explicit Promise(PromiseCore<void> &core);
 
   friend class Coroutine<void>;
   template <typename... Ts> friend class SelectSet;
 
-  SharedCore_ &core() { return core_; }
+  PromiseCore<void> *core() {
+    BOOST_ASSERT(core_ != nullptr);
+    return core_;
+  }
 
-  SharedCore_ core_;
+  PromiseCore<void> *core_;
 };
 
 /// A coroutine object used internally by C++20 coroutines ("promise object").
@@ -307,26 +309,26 @@ template <> class Coroutine<void> {
   using SharedCore_ = PromiseCore_ *;
 
 public:
-  Coroutine() : core_{makeRefCounted<PromiseCore_>()} {}
+  Coroutine() = default;
   // Coroutine is pinned in memory and not allowed to copy/move.
   Coroutine(Coroutine<void> &&other) noexcept = delete;
   Coroutine &operator=(const Coroutine<void> &other) = delete;
   Coroutine &operator=(Coroutine<void> &&other) = delete;
   Coroutine(const Coroutine<void> &other) = delete;
-  ~Coroutine() {
-    if (core_ != nullptr) {
-      core_->delRef();
-    }
-  }
+  ~Coroutine() = default;
 
   /// Part of the coroutine protocol.
   Promise<void> get_return_object() { return Promise<void>{core_}; }
   /// Part of the coroutine protocol: `uvco` coroutines always run until the
   /// first suspension point.
-  std::suspend_never initial_suspend() noexcept { return {}; }
+  std::suspend_never initial_suspend() noexcept {
+    core_.setRunning(
+        std::coroutine_handle<Coroutine<void>>::from_promise(*this));
+    return {};
+  }
   /// Part of the coroutine protocol: nothing happens upon the final
   /// suspension point (after `co_return`).
-  std::suspend_never final_suspend() noexcept { return {}; }
+  std::suspend_always final_suspend() noexcept { return {}; }
 
   /// Part of the coroutine protocol: resumes an awaiting coroutine, if there
   /// is one.
@@ -336,7 +338,7 @@ public:
   void unhandled_exception();
 
 private:
-  SharedCore_ core_;
+  PromiseCore_ core_;
 };
 
 /// @}

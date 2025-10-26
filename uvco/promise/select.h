@@ -83,6 +83,10 @@ public:
     resumed_ = true;
     std::vector<Variant> readyPromises;
     checkPromises(readyPromises);
+    // Prevent the current coroutine from being resumed again, if another
+    // promise in the SelectSet became ready in the meantime.
+    Loop::cancel(suspended_);
+    suspended_ = nullptr;
     return readyPromises;
   }
 
@@ -102,6 +106,7 @@ private:
   }
 
   Tuple promises_;
+  std::coroutine_handle<> suspended_;
   bool resumed_ = false;
 };
 

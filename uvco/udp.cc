@@ -45,7 +45,7 @@ Udp::~Udp() {
                        "this will leak memory. "
                        "Please co_await udp.close() if possible.\n");
     udpStopReceive();
-    closeHandle(udp_.release());
+    uv_close((uv_handle_t *)udp_.get(), nullptr);
   }
 }
 
@@ -326,7 +326,7 @@ void Udp::leaveMulticast(const std::string &address,
 }
 
 AddressHandle Udp::getSockname() const {
-  struct sockaddr_storage address {};
+  struct sockaddr_storage address{};
   int ss_size = sizeof(struct sockaddr_storage);
   const uv_status status =
       uv_udp_getsockname(udp_.get(), (struct sockaddr *)&address, &ss_size);
@@ -338,7 +338,7 @@ AddressHandle Udp::getSockname() const {
 }
 
 std::optional<AddressHandle> Udp::getPeername() const {
-  struct sockaddr_storage address {};
+  struct sockaddr_storage address{};
   int ss_size = sizeof(struct sockaddr_storage);
   const uv_status status =
       uv_udp_getpeername(udp_.get(), (struct sockaddr *)&address, &ss_size);

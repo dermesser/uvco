@@ -3,7 +3,6 @@
 #include <uv.h>
 
 #include "uvco/exception.h"
-#include "uvco/internal/internal_utils.h"
 #include "uvco/promise/promise.h"
 #include "uvco/promise/promise_core.h"
 
@@ -42,8 +41,7 @@ void Promise<void>::PromiseAwaiter_::await_resume() const {
   BOOST_ASSERT(core_.ready_);
 }
 
-Promise<void>::Promise() : core_{makeRefCounted<PromiseCore<void>>()} {}
-Promise<void>::Promise(SharedCore_ core) : core_{core->addRef()} {}
+Promise<void>::Promise(PromiseCore<void> &core) : core_{&core} {}
 Promise<void>::Promise(Promise<void> &&other) noexcept : core_{other.core_} {
   other.core_ = nullptr;
 }
@@ -52,9 +50,6 @@ Promise<void> &Promise<void>::operator=(Promise<void> &&other) noexcept {
   if (this == &other) {
     return *this;
   }
-  if (core_ != nullptr) {
-    core_->delRef();
-  }
   core_ = other.core_;
   other.core_ = nullptr;
   return *this;
@@ -62,7 +57,7 @@ Promise<void> &Promise<void>::operator=(Promise<void> &&other) noexcept {
 
 Promise<void>::~Promise() {
   if (core_ != nullptr) {
-    core_->delRef();
+    core_->destroyCoroutine();
   }
 }
 
@@ -79,13 +74,13 @@ void Promise<void>::unwrap() {
 }
 
 void Coroutine<void>::return_void() {
-  core_->ready_ = true;
-  core_->resume();
+  core_.ready_ = true;
+  core_.resume();
 }
 
 void Coroutine<void>::unhandled_exception() {
-  core_->except(std::current_exception());
-  core_->resume();
+  core_.except(std::current_exception());
+  core_.resume();
 }
 
 } // namespace uvco
