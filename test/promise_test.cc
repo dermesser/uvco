@@ -143,16 +143,40 @@ TEST(PromiseTest, movePromiseBetweenFunctions) {
 }
 
 TEST(PromiseTest, destroyWithoutResume) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
-    Promise<int> promise = []() -> Promise<int> {
+  bool initialized = false;
+  bool ran = false;
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    Promise<int> promise = [&]() -> Promise<int> {
+      initialized = true;
       co_await yield();
-      // Will put promise core in state finished, all good.
+      ran = true;
       co_return 1;
     }();
+
     co_return;
   };
 
   run_loop(setup);
+  EXPECT_TRUE(initialized);
+  EXPECT_FALSE(ran);
+}
+
+TEST(PromiseTest, destroyVoidWithoutResume) {
+  bool initialized = false;
+  bool ran = false;
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    Promise<void> promise = [&]() -> Promise<void> {
+      initialized = true;
+      co_await yield();
+      ran = true;
+    }();
+
+    co_return;
+  };
+
+  run_loop(setup);
+  EXPECT_TRUE(initialized);
+  EXPECT_FALSE(ran);
 }
 
 } // namespace

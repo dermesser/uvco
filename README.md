@@ -45,10 +45,10 @@ callable taking a single `const Loop&` argument and returns a `uvco::Promise<T>`
 returns the resulting value after the event loop has finished, or throws an exception if a coroutine
 threw one.
 
-A `Promise<T>` is a coroutine promise, and can be awaited. It is the basic unit, and only
-access to concurrency; there is no `Task` or such. Awaiting a promise will save the current
-execution state, and resume it as soon as the promise is ready. A single coroutine is represented by
-a single `Promise` object. Dropping the `Promise` will destroy the coroutine, although - due to the
+A `Promise<T>` is a coroutine promise, and can be awaited. It is the basic unit, and only access to
+concurrency; there is no `Task` or such. Awaiting a promise will save the current execution state,
+and resume it as soon as the promise is ready. A single coroutine is represented by a single
+`Promise` object. Dropping the `Promise` will destroy (cancel) the coroutine, although - due to the
 way libuv works - for many kinds of handles (UDP sockets, timers, etc.) this will leak memory, as
 libuv uses asynchronous close operations. uvco will print a warning in the case that a pending
 coroutine is dropped and handles are leaked in this way.
