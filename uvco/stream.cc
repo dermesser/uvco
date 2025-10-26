@@ -26,11 +26,8 @@
 namespace uvco {
 
 StreamBase::~StreamBase() {
-  // close() MUST be called and awaited before dtor.
   if (stream_) {
-    fmt::print(stderr, "StreamBase::~StreamBase(): closing stream in dtor; "
-                       "this will leak memory. "
-                       "Please co_await stream.close() if possible.\n");
+    // stream_ will be deleted by closeHandle() mechanics.
     closeHandle(stream_.release());
   }
   BOOST_ASSERT_MSG(
@@ -125,6 +122,8 @@ Promise<void> StreamBase::close() {
   }
 }
 
+StreamBase::InStreamAwaiter_::~InStreamAwaiter_() { stop_read(); }
+
 bool StreamBase::InStreamAwaiter_::await_ready() {
   uv_status state = uv_is_readable(&stream_.stream());
   if (state == 1) {
@@ -184,7 +183,10 @@ void StreamBase::InStreamAwaiter_::start_read() {
 }
 
 void StreamBase::InStreamAwaiter_::stop_read() {
-  uv_read_stop(&stream_.stream());
+  // stream_.stream_ may be null if the stream has been closed in the meantime.
+  if (stream_.stream_) {
+    uv_read_stop(&stream_.stream());
+  }
 }
 
 // buf is not used, because it is an alias to awaiter->buffer_.
@@ -278,5 +280,4 @@ void StreamBase::ShutdownAwaiter_::onShutdown(uv_shutdown_t *req,
     Loop::enqueue(handle);
   }
 }
-
 } // namespace uvco

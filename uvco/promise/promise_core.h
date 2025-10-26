@@ -53,6 +53,14 @@ public:
   PromiseCore(PromiseCore &&) = delete;
   PromiseCore &operator=(const PromiseCore &) = delete;
   PromiseCore &operator=(PromiseCore &&) = delete;
+  virtual ~PromiseCore() {
+    if (state_ != PromiseState::finished) {
+      fmt::print(stderr,
+                 "PromiseCore destroyed without ever being resumed ({}, state "
+                 "= {}) (dropped by accident?)\n",
+                 typeid(T).name(), static_cast<int>(state_));
+    }
+  }
 
   explicit PromiseCore(T &&value)
       : slot{std::move(value)}, state_{PromiseState::finished} {}
@@ -135,25 +143,6 @@ public:
     if (coroutine_) {
       Loop::cancel(coroutine_);
       coroutine_.destroy();
-    }
-  }
-
-  /// Destroys a promise core. Also destroys a coroutine if there is one
-  /// suspended and has not been resumed yet. In that case, a warning is
-  /// emitted ("PromiseCore destroyed without ever being resumed").
-  virtual ~PromiseCore() {
-    if (state_ != PromiseState::finished) {
-      fmt::print(
-          stderr,
-          "PromiseCore destroyed without ever being resumed ({}, state = {})\n",
-          typeid(T).name(), static_cast<int>(state_));
-    }
-    // This only happens if the awaiting coroutine has never been resumed, but
-    // the last promise provided by it is gone (in turn calling
-    // ~PromiseCore()). Important: we may only destroy a suspended coroutine,
-    // not a finished one.
-    if (handle_) {
-      handle_.destroy();
     }
   }
 

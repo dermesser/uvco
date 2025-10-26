@@ -37,9 +37,14 @@ public:
   StreamBase(StreamBase &&) = default;
   StreamBase &operator=(const StreamBase &) = delete;
   StreamBase &operator=(StreamBase &&) = default;
+
+  /// Closes the stream if not already closed. It's always best to explicitly
+  /// call `co_await stream.close()`, but as a backup, the destructor will close
+  /// the stream if still open. To do so, it will schedule a callback on the
+  /// libuv loop.
   virtual ~StreamBase();
 
-  static constexpr size_t defaultMaxReadSize = 4096;
+  static constexpr size_t defaultMaxReadSize = 4095;
 
   /// Read available data (up to `maxSize` bytes) from stream. Returns
   /// `std::nullopt` on EOF or closed handle (`close()`).
@@ -126,6 +131,7 @@ private:
   struct InStreamAwaiter_ {
     explicit InStreamAwaiter_(StreamBase &stream, std::span<char> buffer)
         : stream_{stream}, buffer_{buffer} {}
+    ~InStreamAwaiter_();
 
     bool await_ready();
     bool await_suspend(std::coroutine_handle<> handle);

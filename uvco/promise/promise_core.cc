@@ -44,7 +44,8 @@ void PromiseCore<void>::resume() {
 PromiseCore<void>::~PromiseCore() {
   BOOST_ASSERT(state_ != PromiseState::resuming);
   if (state_ == PromiseState::init) {
-    fmt::print(stderr, "Promise<void> not finished\n");
+    fmt::print(stderr,
+               "Promise<void> not finished (dropped Promise by accident?)\n");
   }
   if (waitingHandle_) {
     fmt::print(stderr, "resumable coroutine destroyed\n");

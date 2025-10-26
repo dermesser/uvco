@@ -40,9 +40,6 @@ Udp::~Udp() {
                        "before dropping Udp instance.\n");
   }
   if (udp_) {
-    fmt::print(stderr, "Udp::~Udp(): closing UDP socket in dtor; "
-                       "this will leak memory. "
-                       "Please co_await udp.close() if possible.\n");
     udpStopReceive();
     closeHandle(udp_.release());
   }

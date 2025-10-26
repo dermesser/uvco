@@ -101,13 +101,14 @@ Promise<void> server(const Options &opt) {
   Hub hub;
 
   MultiPromise<TcpStream> listener = server.listen();
+  std::vector<Promise<void>> promises;
 
   while (true) {
     std::optional<TcpStream> maybeStream = co_await listener;
     if (!maybeStream) {
       break;
     }
-    handleConnection(hub, std::move(*maybeStream));
+    promises.push_back(handleConnection(hub, std::move(*maybeStream)));
   }
   co_await server.close();
 }
@@ -136,7 +137,7 @@ Promise<void> client(Options opt) {
   auto conn = std::make_shared<TcpStream>(co_await tcpCl.connect());
 
   Promise<void> copier = copyIncomingToStdout(*opt.loop, conn);
-  while (true) {
+  while (!copier.ready()) {
     std::optional<std::string> maybeChunk = co_await input.read();
     if (!maybeChunk) {
       fmt::print(stderr, "> EOF from stdin\n");
@@ -144,7 +145,7 @@ Promise<void> client(Options opt) {
     }
     co_await conn->write(std::move(*maybeChunk));
   }
-  fmt::print(stderr, "> loop left\n");
+  fmt::print(stderr, "> loop left due to remote close or EOF\n");
   co_await conn->close();
   fmt::print(stderr, "> conn closed\n");
   co_await copier;

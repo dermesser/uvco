@@ -38,18 +38,21 @@ R callWithNullTerminated(std::string_view view, F &&f) {
   return f(str.c_str());
 }
 
+/// Obtain data pointer set on handle with nullptr check and type cast.
 template <typename Into, typename Handle> Into *getData(const Handle *handle) {
   const void *data = uv_handle_get_data((const uv_handle_t *)handle);
   BOOST_ASSERT(nullptr != data);
   return (Into *)data;
 }
-
+/// Obtain data pointer set on handle with type cast. Returns nullptr if no data
+/// is set.
 template <typename Into, typename Handle>
 Into *getDataOrNull(const Handle *handle) {
   const void *data = uv_handle_get_data((const uv_handle_t *)handle);
   return (Into *)data;
 }
 
+/// Obtain data pointer set on request with nullptr check and type cast.
 template <typename Into, typename Request>
 Into *getRequestData(const Request *req) {
   const void *data = uv_req_get_data((const uv_req_t *)req);
@@ -57,22 +60,26 @@ Into *getRequestData(const Request *req) {
   return (Into *)data;
 }
 
+/// Obtain data pointer set on request with type cast. Data may be nullptr.
 template <typename Handle, typename Data>
 void setData(Handle *handle, Data *data) {
   BOOST_ASSERT(handle != nullptr);
   uv_handle_set_data((uv_handle_t *)handle, (void *)data);
 }
 
+/// Set data pointer on request.
 template <typename Request, typename Data>
 void setRequestData(Request *req, Data *data) {
   BOOST_ASSERT(req != nullptr);
   uv_req_set_data((uv_req_t *)req, (void *)data);
 }
 
+/// Check if handle data is null.
 template <typename Handle> bool dataIsNull(Handle *handle) {
   return nullptr == uv_handle_get_data((const uv_handle_t *)handle);
 }
 
+/// Check if request data is null.
 template <typename Request> bool requestDataIsNull(Request *req) {
   return nullptr == uv_req_get_data((const uv_req_t *)req);
 }
@@ -101,6 +108,9 @@ struct UvHandleDeleter {
 /// This type currently doesn't work well with inheritance: only a class
 /// directly inheriting from `RefCounted` can be managed. This is caused by the
 /// current API approach.
+///
+/// NOTE: currently not used, as `PromiseCore` objects are now stored inline in
+/// the `Coroutine` object, and `MultiPromise` uses `shared_ptr` for simplicity.
 template <typename T> class RefCounted {
 public:
   // Assignment doesn't change count.

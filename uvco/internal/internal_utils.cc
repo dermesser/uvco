@@ -24,11 +24,13 @@ void allocator(uv_handle_t * /*unused*/, size_t sugg, uv_buf_t *buf) {
 }
 
 void freeUvBuf(const uv_buf_t *buf) {
-  if (buf)
+  if (buf) {
     delete[] buf->base;
+  }
 }
 
 void UvHandleDeleter::del(uv_handle_t *handle) {
+  // Use dynamic type info tracked by libuv to delete the handle correctly.
   switch (handle->type) {
   case UV_TCP:
     delete (uv_tcp_t *)handle;

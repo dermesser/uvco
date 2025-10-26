@@ -8,6 +8,7 @@ use. Eventually, all of `libuv`'s functionality should be available with low ove
 
 Supported functionality:
 
+* `Promise`s and generators (`MultiPromise`) as elementary coroutine abstractions
 * Name resolution (via `getaddrinfo`)
 * UDP client/server, multicast, broadcast
 * TCP client/server
@@ -18,8 +19,9 @@ Supported functionality:
 * File functionality (`read`, `write`, `mkdir`, `unlink`, ...)
 * A libcurl integration, allowing e.g. HTTP(S) downloads.
 * A libpqxx integration, for asynchronous interaction with PostgreSQL databases.
-* A threadpool for synchronous or CPU-bound tasks
+* A threadpool for running synchronous or CPU-bound tasks
 * A `SelectSet` for polling multiple promises at once
+* Cancellation safety: dropped promises will cancel the underlying coroutine.
 
 ## Context
 
