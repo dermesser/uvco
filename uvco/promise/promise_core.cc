@@ -31,7 +31,6 @@ bool PromiseCore<void>::stale() const {
 void PromiseCore<void>::resume() {
   if (waitingHandle_) {
     BOOST_ASSERT(state_ == PromiseState::waitedOn);
-    state_ = PromiseState::resuming;
     auto waitingHandle = waitingHandle_;
     waitingHandle_ = nullptr;
     Loop::enqueue(waitingHandle);
@@ -42,7 +41,6 @@ void PromiseCore<void>::resume() {
 }
 
 PromiseCore<void>::~PromiseCore() {
-  BOOST_ASSERT(state_ != PromiseState::resuming);
   if (state_ == PromiseState::init) {
     fmt::print(stderr,
                "Promise<void> not finished (dropped Promise by accident?)\n");

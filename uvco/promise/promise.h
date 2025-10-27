@@ -131,6 +131,7 @@ protected:
     /// Part of the coroutine protocol: returns `true` if the promise is already
     /// fulfilled.
     [[nodiscard]] bool await_ready() const { return core_.ready(); }
+
     /// Part of the coroutine protocol: returns if suspension is desired (always
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
     [[nodiscard]] bool await_suspend(std::coroutine_handle<> handle) const {
@@ -153,8 +154,11 @@ protected:
           core_.slot.reset();
           return std::move(result);
         }
-        case 1:
-          std::rethrow_exception(std::get<1>(core_.slot.value()));
+        case 1: {
+          const auto exc = std::get<1>(core_.slot.value());
+          core_.slot.reset();
+          std::rethrow_exception(exc);
+        }
         default:
           throw UvcoException("PromiseAwaiter_::await_resume: invalid slot");
         }
@@ -221,6 +225,7 @@ private:
     PromiseAwaiter_(const PromiseAwaiter_ &) = delete;
     PromiseAwaiter_ &operator=(PromiseAwaiter_ &&) = delete;
     PromiseAwaiter_ &operator=(const PromiseAwaiter_ &) = delete;
+    ~PromiseAwaiter_() = default;
 
     /// Part of the coroutine protocol: returns if the promise is already
     /// fulfilled.
@@ -247,6 +252,9 @@ private:
 };
 
 /// A coroutine object used internally by C++20 coroutines ("promise object").
+/// This is the coroutine's "promise_type", i.e. one instance will be allocated
+/// for every coroutine invocation, and be part of the coroutine frame. The
+/// coroutine frame will be stack-allocated if we're lucky.
 template <typename T> class Coroutine {
   /// PromiseCore_ handles the inner mechanics of resumption and suspension.
   using PromiseCore_ = PromiseCore<T>;

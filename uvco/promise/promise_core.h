@@ -36,12 +36,9 @@ enum class PromiseState {
   /// After the coroutine has reached a suspension point and another coroutine
   /// has started co_awaiting it.
   waitedOn = 1,
-  /// After the coroutine has been resumed, and is scheduled to be run on the
-  /// next Loop turn.
-  resuming = 2,
   /// A coroutine has returned the value and the promise is either ready to be
   /// resolved, or has already been resolved (ready() vs stale()).
-  finished = 3,
+  finished = 2,
 };
 
 /// A `PromiseCore` is part of the Coroutine<T> frame; a reference to it is held
@@ -53,6 +50,7 @@ public:
   PromiseCore(PromiseCore &&) = delete;
   PromiseCore &operator=(const PromiseCore &) = delete;
   PromiseCore &operator=(PromiseCore &&) = delete;
+
   virtual ~PromiseCore() {
     if (state_ != PromiseState::finished) {
       fmt::print(stderr,
@@ -70,9 +68,11 @@ public:
     if (state_ != PromiseState::init) {
       throw UvcoException("PromiseCore is already awaited or has finished");
     }
-    handle_ = handle;
+    waitingHandle_ = handle;
     state_ = PromiseState::waitedOn;
   }
+
+  /// Used by `Coroutine<T>` to set the producing coroutine handle.
   void setRunning(std::coroutine_handle<> handle) {
     BOOST_ASSERT(state_ == PromiseState::init);
     coroutine_ = handle;
@@ -81,22 +81,23 @@ public:
   /// Reset the handle, so that the coroutine is not resumed anymore. This is
   /// required for SelectSet.
   void resetHandle() {
-    BOOST_ASSERT((state_ == PromiseState::waitedOn && handle_) ||
-                 (state_ == PromiseState::finished && !handle_) ||
-                 (state_ == PromiseState::init && !handle_));
+    BOOST_ASSERT((state_ == PromiseState::waitedOn && waitingHandle_) ||
+                 (state_ == PromiseState::finished && !waitingHandle_) ||
+                 (state_ == PromiseState::init && !waitingHandle_));
     if (state_ == PromiseState::waitedOn) {
-      handle_ = nullptr;
+      waitingHandle_ = nullptr;
       state_ = PromiseState::init;
     }
   }
 
   /// Checks if a coroutine is waiting on a promise belonging to this core.
-  bool isAwaited() { return handle_ != nullptr; }
+  bool isAwaited() { return waitingHandle_ != nullptr; }
 
   /// Checks if a value is present in the slot.
   [[nodiscard]] bool ready() const { return slot.has_value(); }
-  /// Checks if the coroutine has returned, and the results have been fetched
-  /// (i.e. after co_return -> co_await).
+
+  /// Returns true if the promise has completed, and its results have been
+  /// fetched.
   [[nodiscard]] bool stale() const {
     return state_ == PromiseState::finished && !ready();
   }
@@ -106,37 +107,17 @@ public:
   ///
   /// A promise core can only be resumed once.
   void resume() {
-    if (handle_) {
+    if (waitingHandle_) {
       BOOST_ASSERT(state_ == PromiseState::waitedOn);
-      state_ = PromiseState::resuming;
-      const std::coroutine_handle<> resume = handle_;
-      handle_ = nullptr;
+      const std::coroutine_handle<> resume = waitingHandle_;
+      waitingHandle_ = nullptr;
       Loop::enqueue(resume);
     } else {
       // This occurs if no co_await has occured until resume. Either the
       // promise was not co_awaited, or the producing coroutine immediately
       // returned a value. (await_ready() == true)
     }
-
-    switch (state_) {
-      // Coroutine returns but nobody has awaited yet. This is fine.
-    case PromiseState::init:
-      // Not entirely correct, but the resumed awaiting coroutine is not coming
-      // back to us.
-    case PromiseState::resuming:
-      state_ = PromiseState::finished;
-      break;
-    case PromiseState::waitedOn:
-      // state is waitedOn, but no handle is set - that's an error.
-      BOOST_ASSERT_MSG(
-          false,
-          "PromiseCore::resume() called without handle in state waitedOn");
-      break;
-    case PromiseState::finished:
-      // Happens in MultiPromiseCore on co_return if the co_awaiter has lost
-      // interest. Harmless if !handle_ (asserted above).
-      break;
-    }
+    state_ = PromiseState::finished;
   }
 
   void destroyCoroutine() {
@@ -152,12 +133,14 @@ public:
   std::optional<std::variant<T, std::exception_ptr>> slot;
 
 protected:
-  // May be nullptr. Set to the coroutine awaiting this promise.
-  std::coroutine_handle<> handle_;
-  // Set to the coroutine producing this promise.
+  /// Set to the coroutine producing this promise. Used to destroy it after
+  /// completion or when the associated Promise is dropped.
   std::coroutine_handle<> coroutine_;
+  /// Set to the coroutine awaiting this promise if state_ ==
+  /// awaitedOn. May be nullptr.
+  std::coroutine_handle<> waitingHandle_;
   static_assert(sizeof(std::coroutine_handle<>) <= sizeof(void *),
-                "coroutine_handle is too large");
+                "coroutine_handle is unusually large");
   PromiseState state_ = PromiseState::init;
 };
 
@@ -215,8 +198,8 @@ public:
   std::optional<std::exception_ptr> exception_;
 
 private:
-  std::coroutine_handle<> waitingHandle_;
   std::coroutine_handle<> coroutine_;
+  std::coroutine_handle<> waitingHandle_;
   PromiseState state_ = PromiseState::init;
 };
 

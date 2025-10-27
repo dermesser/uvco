@@ -49,9 +49,9 @@ public:
     // stack originating at resume()).
     BOOST_ASSERT_MSG(PromiseCore<T>::state_ != PromiseState::waitedOn,
                      "MultiPromise must be co_awaited before next yield");
-    BOOST_ASSERT_MSG(!PromiseCore<T>::handle_,
+    BOOST_ASSERT_MSG(!PromiseCore<T>::waitingHandle_,
                      "MultiPromise must be co_awaited before next yield");
-    PromiseCore<T>::handle_ = handle;
+    PromiseCore<T>::waitingHandle_ = handle;
     PromiseCore<T>::state_ = PromiseState::waitedOn;
   }
 
