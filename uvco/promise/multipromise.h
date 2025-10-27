@@ -62,9 +62,9 @@ public:
   /// `co_await`ed, after a value has been successfully awaited.
   void resumeGenerator() {
     BOOST_ASSERT(PromiseCore<T>::state_ != PromiseState::finished);
-    if (generatorHandle_) {
-      const auto generatorHandle = generatorHandle_.value();
-      generatorHandle_.reset();
+    if (generatorHandle_ != nullptr) {
+      const auto generatorHandle = generatorHandle_;
+      generatorHandle_ = nullptr;
       Loop::enqueue(generatorHandle);
     }
   }
@@ -88,9 +88,9 @@ public:
   /// Called by tje `MultiPromise` destructor and `MultiPromise::cancel()`.
   void cancelGenerator() {
     terminated();
-    if (generatorHandle_) {
-      const std::coroutine_handle<> generatorHandle = generatorHandle_.value();
-      generatorHandle_.reset();
+    if (generatorHandle_ != nullptr) {
+      const std::coroutine_handle<> generatorHandle = generatorHandle_;
+      generatorHandle_ = nullptr;
       // Careful: within this function, this class' dtor is called!
       generatorHandle.destroy();
     }
@@ -107,7 +107,7 @@ public:
 
 private:
   /// Coroutine handle referring to the suspended generator.
-  std::optional<std::coroutine_handle<>> generatorHandle_;
+  std::coroutine_handle<> generatorHandle_;
   /// Set to true once the generator coroutine has returned or has been
   /// cancelled.
   bool terminated_ = false;
