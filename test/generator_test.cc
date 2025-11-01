@@ -111,4 +111,28 @@ TEST(MultiPromiseTest, nextValue) {
   run_loop(setup);
 }
 
+TEST(MultiPromiseTest, DISABLED_benchmarkYield) {
+  static constexpr unsigned count = 1'000'000;
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    MultiPromise<unsigned> ticker = yield(count);
+    for (unsigned i = 0; i < count; ++i) {
+      EXPECT_EQ(co_await ticker, i);
+    }
+  };
+
+  run_loop(setup);
+}
+
+TEST(MultiPromiseTest, DISABLED_benchmarkYieldNext) {
+  static constexpr unsigned count = 1'000'000;
+  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+    MultiPromise<unsigned> ticker = yield(count);
+    for (unsigned i = 0; i < count; ++i) {
+      EXPECT_EQ((co_await ticker.next()).value(), i);
+    }
+  };
+
+  run_loop(setup);
+}
+
 } // namespace
