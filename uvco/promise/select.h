@@ -99,6 +99,8 @@ private:
       if (promise->ready()) {
         readyPromises.emplace_back(std::in_place_index<Ix>, promise);
       } else {
+        // Reset promises to `init` state and remove the current coroutine's
+        // handle from them so they don't resume us later.
         promise->core()->resetHandle();
       }
       checkPromises<Ix + 1>(readyPromises);

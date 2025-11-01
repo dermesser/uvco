@@ -23,8 +23,8 @@ void CloseAwaiter::await_resume() {}
 void onCloseCallback(uv_handle_t *handle) {
   auto *awaiter = getDataOrNull<CloseAwaiter>(handle);
   if (awaiter == nullptr) {
-    fmt::print(stderr,
-               "onCloseCallback: no CloseAwaiter associated with handle\n");
+    // no CloseAwaiter associated with handle. This means that nobody is
+    // awaiting the close, i.e. `co_await X.close()` was not used.
     UvHandleDeleter::del(handle);
     return;
   }
