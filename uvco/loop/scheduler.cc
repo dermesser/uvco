@@ -10,12 +10,7 @@
 namespace uvco {
 
 void Scheduler::runAll() {
-  // In order to not delay checking for new I/O in the UV loop, we only run up
-  // to a fixed number of times.
-  static constexpr unsigned maxTurnsBeforeReturning = 5;
-  unsigned turns = 0;
-
-  while (!resumableActive_.empty() && turns < maxTurnsBeforeReturning) {
+  while (!resumableActive_.empty()) {
     resumableRunning_.swap(resumableActive_);
     for (auto &coro : resumableRunning_) {
       if (coro == nullptr || coro.done()) {
@@ -24,7 +19,6 @@ void Scheduler::runAll() {
       coro.resume();
     }
     resumableRunning_.clear();
-    ++turns;
   }
 }
 
