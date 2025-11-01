@@ -54,6 +54,34 @@ TEST(CurlTest, simpleDownload) {
   run_loop(setup);
 }
 
+TEST(CurlTest, cancel1) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Curl curl{loop};
+    CurlRequest req = curl.get("https://borgac.net/");
+    MultiPromise<std::string> gen = req.start();
+
+    EXPECT_TRUE((co_await gen).has_value());
+
+    co_await curl.close();
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(CurlTest, cancel2) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Curl curl{loop};
+    CurlRequest req = curl.get("https://borgac.net/");
+    MultiPromise<std::string> gen = req.start();
+
+    co_await curl.close();
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
 Promise<void> provokeError(const Loop &loop, std::string url) {
   Curl curl{loop};
   auto req = curl.get(url);
