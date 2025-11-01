@@ -8,6 +8,7 @@
 #include "uvco/promise/promise.h"
 #include "uvco/promise/select.h"
 #include "uvco/run.h"
+#include "uvco/timer.h"
 
 using namespace uvco;
 
@@ -63,6 +64,37 @@ TEST(SelectTest, selectReturnsSimultaneously) {
   };
 
   run_loop(simultaneousSelect);
+}
+
+TEST(SelectTest, selectLateReady) {
+  auto lateReady = [](const Loop &loop) -> Promise<void> {
+    auto inner = [&loop]() -> uvco::Promise<void> {
+      auto fast = []() -> uvco::Promise<int> {
+        co_await yield();
+        co_return 42;
+      };
+      auto slow = [&loop]() -> uvco::Promise<int> {
+        co_await sleep(loop, 100);
+        co_return 84;
+      };
+
+      auto promise1 = fast();
+      auto promise2 = slow();
+
+      auto selectSet = SelectSet{promise1, promise2};
+      auto selected = co_await selectSet;
+      EXPECT_EQ(selected.size(), 1);
+      EXPECT_EQ(co_await *std::get<0>(selected[0]), 42);
+      co_return;
+
+      // now the other coroutine might still be running, and wake up the
+      // non-existing coroutine inner().
+    };
+
+    co_await inner();
+  };
+
+  run_loop(lateReady);
 }
 
 TEST(SelectTest, selectSetMany) {
