@@ -32,6 +32,36 @@ void freeUvBuf(const uv_buf_t *buf) {
 void UvHandleDeleter::del(uv_handle_t *handle) {
   // Use dynamic type info tracked by libuv to delete the handle correctly.
   switch (handle->type) {
+  case UV_ASYNC:
+    delete (uv_async_t *)handle;
+    break;
+  case UV_CHECK:
+    delete (uv_check_t *)handle;
+    break;
+  case UV_FS_EVENT:
+    delete (uv_fs_event_t *)handle;
+    break;
+  case UV_FS_POLL:
+    delete (uv_fs_poll_t *)handle;
+    break;
+  case UV_HANDLE:
+    delete handle;
+    break;
+  case UV_IDLE:
+    delete (uv_idle_t *)handle;
+    break;
+  case UV_POLL:
+    delete (uv_poll_t *)handle;
+    break;
+  case UV_PREPARE:
+    delete (uv_prepare_t *)handle;
+    break;
+  case UV_PROCESS:
+    delete (uv_process_t *)handle;
+    break;
+  case UV_STREAM:
+    delete (uv_stream_t *)handle;
+    break;
   case UV_TCP:
     delete (uv_tcp_t *)handle;
     break;
@@ -49,7 +79,7 @@ void UvHandleDeleter::del(uv_handle_t *handle) {
     break;
   default:
     fmt::print("WARN: unhandled handle type {}\n", (int)handle->type);
-    delete handle;
+    BOOST_ASSERT_MSG(false, "unhandled handle type");
   }
 }
 
