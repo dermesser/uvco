@@ -22,6 +22,8 @@ namespace uvco {
 /// yield more than one value. It is used by `MultiPromise`, a
 /// generator-like type.
 template <typename T> class MultiPromiseCore : public PromiseCore<T> {
+  using PromiseCore<T>::coroutine_;
+
 public:
   MultiPromiseCore() = default;
   MultiPromiseCore(const MultiPromiseCore &) = delete;
@@ -62,10 +64,10 @@ public:
   /// `co_await`ed, after a value has been successfully awaited.
   void resumeGenerator() {
     BOOST_ASSERT(PromiseCore<T>::state_ != PromiseState::finished);
-    if (generatorHandle_ != nullptr) {
-      const auto generatorHandle = generatorHandle_;
-      generatorHandle_ = nullptr;
-      Loop::enqueue(generatorHandle);
+    if (suspended_) {
+      BOOST_ASSERT(coroutine_ != nullptr);
+      suspended_ = false;
+      Loop::enqueue(coroutine_);
     }
   }
 
@@ -74,11 +76,9 @@ public:
   ///
   /// Called by the `MultiPromise<...>::yield_value` method when `co_yield` is
   /// invoked inside the generator.
-  void suspendGenerator(std::coroutine_handle<> handle) {
-    BOOST_ASSERT_MSG(!generatorHandle_,
-                     "MultiPromiseCore::suspendGenerator: generatorHandle_ is "
-                     "already set");
-    generatorHandle_ = handle;
+  void suspendGenerator() {
+    BOOST_ASSERT(!suspended_);
+    suspended_ = true;
   }
 
   /// Cancel the generator coroutine. This will drop all stack variables inside
@@ -88,11 +88,11 @@ public:
   /// Called by tje `MultiPromise` destructor and `MultiPromise::cancel()`.
   void cancelGenerator() {
     terminated();
-    if (generatorHandle_ != nullptr) {
-      const std::coroutine_handle<> generatorHandle = generatorHandle_;
-      generatorHandle_ = nullptr;
+    if (coroutine_ != nullptr) {
+      const std::coroutine_handle<> coroutine = coroutine_;
+      coroutine_ = nullptr;
       // Careful: within this function, this class' dtor is called!
-      generatorHandle.destroy();
+      coroutine.destroy();
     }
   }
 
@@ -106,8 +106,8 @@ public:
   [[nodiscard]] bool isTerminated() const { return terminated_; }
 
 private:
-  /// Coroutine handle referring to the suspended generator.
-  std::coroutine_handle<> generatorHandle_;
+  /// True if the generator is suspended at a co_yield point.
+  bool suspended_ = false;
   /// Set to true once the generator coroutine has returned or has been
   /// cancelled.
   bool terminated_ = false;
@@ -285,7 +285,11 @@ public:
   /// Part of the coroutine protocol (see `Promise`).
   // Note: if suspend_always is chosen, we can better control when the
   // MultiPromise will be scheduled.
-  std::suspend_never initial_suspend() noexcept { return {}; }
+  std::suspend_never initial_suspend() noexcept {
+    core_->setRunning(std::coroutine_handle<Generator<T>>::from_promise(*this));
+    return {};
+  }
+
   /// Part of the coroutine protocol (see `Promise`).
   std::suspend_never final_suspend() noexcept { return {}; }
 
@@ -322,8 +326,9 @@ private:
 
     [[nodiscard]] bool await_ready() const { return !core_.slot.has_value(); }
 
-    bool await_suspend(std::coroutine_handle<> handle) {
-      core_.suspendGenerator(handle);
+    bool await_suspend(std::coroutine_handle<> /* handle */) {
+      // The core_ already knows our handle from initial_suspend().
+      core_.suspendGenerator();
       return true;
     }
 

@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include <cstdio>
 #include <uv.h>
 
 #include "uvco/promise/promise.h"

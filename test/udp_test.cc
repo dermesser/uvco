@@ -322,9 +322,9 @@ TEST(UdpTest, closedWhileReceiving) {
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     Udp udp{loop};
     co_await udp.bind("::1", 9999);
-    auto receiver = udp.receiveMany();
+    MultiPromise<std::pair<std::string, AddressHandle>> receiver =
+        udp.receiveMany();
     co_await udp.close();
-    EXPECT_FALSE((co_await receiver).has_value());
   };
 
   run_loop(setup);

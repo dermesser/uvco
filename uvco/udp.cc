@@ -185,17 +185,6 @@ Promise<void> Udp::close() {
   if (!udp_) {
     co_return;
   }
-  if (!dataIsNull(udp_.get())) {
-    auto *const awaiter = getData<RecvAwaiter_>(udp_.get());
-    fmt::print(stderr, "Udp::close(): stopping receiving. Please instead use "
-                       "Udp::stopReceivingMany() explicitly.\n");
-    // Force return from receiveMany() generator.
-    if (awaiter->handle_) {
-      const std::coroutine_handle<void> resumeHandle = awaiter->handle_.value();
-      awaiter->handle_.reset();
-      resumeHandle.resume();
-    }
-  }
   co_await closeHandle(udp_.get());
   udp_.reset();
   connected_ = false;
@@ -206,19 +195,6 @@ void Udp::stopReceiveMany(
   udpStopReceive();
   // Cancel receiving generator if currently suspended by co_yield.
   packets.cancel();
-  if (dataIsNull(udp_.get())) {
-    return;
-  }
-  auto *const currentAwaiter = getData<RecvAwaiter_>(udp_.get());
-  // If generator is suspended on co_await, resume it synchronously so it can
-  // exit before the Udp instance is possibly destroyed.
-  if (currentAwaiter->handle_) {
-    // Don't schedule this on the event loop: we must synchronously terminate
-    // the onReceiveMany() loop, otherwise it will exist after destruction of
-    // the Udp instance and read invalid memory.
-    currentAwaiter->handle_->resume();
-    // Don't touch currentAwaiter after this!!
-  }
 }
 
 void Udp::udpStopReceive() {
