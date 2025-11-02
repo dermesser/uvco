@@ -1,7 +1,6 @@
 import asyncio
 import aiomcache
 import time
-import random
 
 async def main():
     client = aiomcache.Client("::1", 9999)

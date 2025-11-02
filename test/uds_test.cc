@@ -4,6 +4,7 @@
 
 #include "test_util.h"
 
+#include "uvco/combinators.h"
 #include "uvco/exception.h"
 #include "uvco/loop/loop.h"
 #include "uvco/promise/promise.h"
@@ -15,7 +16,6 @@
 #include <fmt/format.h>
 #include <gtest/gtest.h>
 
-#include <cstdio>
 #include <optional>
 #include <string>
 #include <string_view>

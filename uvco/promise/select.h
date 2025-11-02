@@ -23,6 +23,9 @@ namespace uvco {
 /// first promise that is ready is returned. If no promise is ready, the
 /// coroutine is suspended until one of the promises is ready.
 ///
+/// See also `waitAny()` for a more convenient approach that internally utilizes
+/// this class.
+///
 /// The SelectSet is directly awaitable. For example:
 ///
 /// ```cpp
@@ -30,6 +33,14 @@ namespace uvco {
 /// Promise<int> promise2 = []() -> Promise<int> { co_return 2; }();
 /// std::vector<std::variant<Promise<int>, Promise<int>>> results = co_await
 /// SelectSet{promise1, promise2};
+/// ASSERT_EQ(2, results.size());
+/// EXPECT_EQ(0, results[0].index()); // Order is unspecified usually
+/// EXPECT_EQ(1, std::get<0>(results[0]).unwrap()); // or co_await
+///
+/// // Easy approach, no second co_await:
+/// std::vector<std::variant<int, int>> results2 = co_await waitAny(promise1,
+/// promise2); ASSERT_EQ(2, results.size()); EXPECT_EQ(0, results[0].index());
+/// // Order is unspecified usually
 /// ```
 ///
 /// It is okay to add an already finished promise to a SelectSet.

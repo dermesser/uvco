@@ -87,6 +87,7 @@ add_library(uv-co-lib STATIC
     uvco/async_work.cc
     uvco/channel.cc
     uvco/close.cc
+    uvco/combinators.cc
     uvco/fs.cc
     uvco/name_resolution.cc
     uvco/pipe.cc
@@ -100,6 +101,7 @@ add_library(uv-co-lib STATIC
     uvco/uds.cc
     uvco/uds_stream.cc
 )
+
 target_sources(uv-co-lib INTERFACE
     FILE_SET HEADERS
     TYPE HEADERS
@@ -107,6 +109,7 @@ target_sources(uv-co-lib INTERFACE
     uvco/async_work.h
     uvco/channel.h
     uvco/close.h
+    uvco/combinators.h
     uvco/fs.h
     uvco/name_resolution.h
     uvco/pipe.h
@@ -130,6 +133,7 @@ target_link_libraries(uv-co-lib
     ${UV_LIBRARIES}
     ${FMT_LIBRARIES}
 )
+
 target_include_directories(uv-co-lib PRIVATE ${UV_INCLUDEDIR} ${FMT_INCLUDEDIR} .)
 install(TARGETS uv-co-lib EXPORT uvco FILE_SET HEADERS DESTINATION include)
 
@@ -188,7 +192,7 @@ if(GTest_FOUND)
   target_include_directories(test-util PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(test-util PRIVATE uv-co-lib)
 
-  foreach(TESTCASE IN ITEMS async_work channel fs generator loop name_resolution promise select stream timer udp uds tcp misc)
+  foreach(TESTCASE IN ITEMS async_work channel combinators fs generator loop name_resolution promise select stream timer udp uds tcp misc)
     add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
     target_link_libraries(${TESTCASE}-test PRIVATE uv-co-lib test-util GTest::gtest_main)
     add_test(NAME ${TESTCASE}-test COMMAND ${TESTCASE}-test)

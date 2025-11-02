@@ -3,7 +3,6 @@
 #pragma once
 
 #include "uvco/loop/loop.h"
-#include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 
 namespace uvco {
@@ -12,12 +11,6 @@ namespace uvco {
 /// @{
 
 class Loop;
-
-/// Suspend current coroutine until next event loop iteration.
-Promise<void> yield();
-
-/// Generate `count` values from 0 to `count - 1`.
-MultiPromise<unsigned> yield(unsigned count);
 
 // Forward declaration only for friend declaration.
 template <typename F, typename R>

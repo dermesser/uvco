@@ -3,6 +3,7 @@
 #include <optional>
 
 #include "test_util.h"
+#include "uvco/combinators.h"
 #include "uvco/loop/loop.h"
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"

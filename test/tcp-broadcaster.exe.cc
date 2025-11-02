@@ -7,6 +7,7 @@
 #include <fmt/core.h>
 #include <fmt/format.h>
 
+#include "uvco/combinators.h"
 #include "uvco/name_resolution.h"
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
@@ -143,12 +144,6 @@ Promise<void> sendLocalInput(TtyStream &input, TcpStream &conn) {
   }
 }
 
-Promise<void> waitEither(Promise<void> p1, Promise<void> p2) {
-  SelectSet<void, void> s{p1, p2};
-
-  co_await s;
-}
-
 Promise<void> client(Options opt) {
   TtyStream input = TtyStream::stdin(*opt.loop);
   TcpClient tcpCl{*opt.loop, opt.address, opt.port};
@@ -156,7 +151,7 @@ Promise<void> client(Options opt) {
 
   Promise<void> copier = copyIncomingToStdout(*opt.loop, conn);
   Promise<void> sender = sendLocalInput(input, *conn);
-  co_await waitEither(std::move(copier), std::move(sender));
+  co_await raceIgnore(std::move(copier), std::move(sender));
 
   fmt::print(stderr, "> loop left due to remote close or EOF\n");
   co_await conn->close();

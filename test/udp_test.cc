@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 #include <uv.h>
 
+#include "uvco/combinators.h"
 #include "uvco/exception.h"
 #include "uvco/loop/loop.h"
 #include "uvco/name_resolution.h"

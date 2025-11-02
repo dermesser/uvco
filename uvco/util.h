@@ -3,7 +3,12 @@
 #pragma once
 
 #include <functional>
+
 namespace uvco {
+
+/// @addtogroup Utilities
+/// Basic utilities useful within uvco and in user code.
+/// @{
 
 class OnExit {
 public:
@@ -24,5 +29,7 @@ public:
 private:
   std::function<void()> func_;
 };
+
+/// @}
 
 } // namespace uvco
