@@ -154,7 +154,12 @@ Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
 MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
   RecvAwaiter_ awaiter{};
   awaiter.stop_receiving_ = false;
-  const OnExit onExit{[udp = udp_.get()] { setData(udp, (void *)nullptr); }};
+  const OnExit onExit{[this] {
+    if (udp_) {
+      udpStopReceive();
+      setData(udp_.get(), (void *)nullptr);
+    }
+  }};
   BOOST_ASSERT(dataIsNull(udp_.get()));
   setData(udp_.get(), &awaiter);
 
@@ -177,7 +182,6 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
     BOOST_ASSERT(dataIsNull(udp_.get()));
     setData(udp_.get(), &awaiter);
   }
-  udpStopReceive();
   co_return;
 }
 
@@ -185,8 +189,21 @@ Promise<void> Udp::close() {
   if (!udp_) {
     co_return;
   }
-  co_await closeHandle(udp_.get());
-  udp_.reset();
+  if (!dataIsNull(udp_.get())) {
+    auto *const awaiter = getData<RecvAwaiter_>(udp_.get());
+    awaiter->buffer_.put(uv_status{UV_ECANCELED});
+    if (awaiter->handle_) {
+      // Loop::enqueue(awaiter->handle_.value());
+      const std::coroutine_handle<> h = awaiter->handle_.value();
+      awaiter->handle_.reset();
+      // This immediately resumes the receiveMany generator which will get the
+      // ECANCELED exception, store it, and make it available to anyone waiting
+      // on it.
+      h.resume();
+    }
+  }
+  auto udp{std::move(udp_)};
+  co_await closeHandle(udp.get());
   connected_ = false;
 }
 

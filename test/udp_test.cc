@@ -324,6 +324,39 @@ TEST(UdpTest, closedWhileReceiving) {
     MultiPromise<std::pair<std::string, AddressHandle>> receiver =
         udp.receiveMany();
     co_await udp.close();
+
+    try {
+      // We cannot use receiver afterwards anymore.
+      co_await receiver;
+      EXPECT_TRUE(false) << "receiver did not throw after close";
+    } catch (const UvcoException &e) {
+      BOOST_ASSERT(e.status.has_value());
+      EXPECT_EQ(UV_ECANCELED, e.status.value());
+    }
+  };
+
+  run_loop(setup);
+}
+
+TEST(UdpTest, closedWhileReceiving2) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Udp udp{loop};
+    co_await udp.bind("::1", 9999);
+    MultiPromise<std::pair<std::string, AddressHandle>> receiver =
+        udp.receiveMany();
+    co_await udp.close();
+
+    Promise<std::optional<std::pair<std::string, uvco::AddressHandle>>> next =
+        receiver.next();
+
+    try {
+      // We cannot use receiver afterwards anymore.
+      co_await next;
+      EXPECT_TRUE(false) << "receiver did not throw after close";
+    } catch (const UvcoException &e) {
+      BOOST_ASSERT(e.status.has_value());
+      EXPECT_EQ(UV_ECANCELED, e.status.value());
+    }
   };
 
   run_loop(setup);
