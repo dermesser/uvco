@@ -8,6 +8,7 @@
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
+#include "uvco/util.h"
 
 #include <coroutine>
 #include <optional>
@@ -109,6 +110,28 @@ TEST(MultiPromiseTest, nextValue) {
   };
 
   run_loop(setup);
+}
+
+TEST(MultiPromiseTest, cancel) {
+  bool cancelled = false;
+  bool finished = false;
+  auto setup = [&cancelled,
+                &finished](const Loop &loop) -> uvco::Promise<void> {
+    MultiPromise<int> gen = [&cancelled,
+                             &finished]() -> uvco::MultiPromise<int> {
+      const OnExit onExit{[&] { cancelled = true; }};
+      co_yield 1;
+      co_yield 2;
+      co_yield 3;
+      finished = true;
+    }();
+
+    EXPECT_EQ(co_await gen, 1);
+  };
+
+  run_loop(setup);
+  EXPECT_FALSE(finished);
+  EXPECT_TRUE(cancelled);
 }
 
 TEST(MultiPromiseTest, DISABLED_benchmarkYield) {
