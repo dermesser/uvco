@@ -7,7 +7,6 @@
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
-#include "uvco/timer.h"
 
 #include <string_view>
 #include <utility>
@@ -21,6 +20,43 @@ TEST(PromiseTest, moveCtor) {
     Promise<int> promise1 = []() -> Promise<int> { co_return 1; }();
     Promise<int> promise2 = std::move(promise1);
     EXPECT_EQ(co_await promise2, 1);
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, moveCtor2) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Promise<int> promise1 = []() -> Promise<int> { co_return 1; }();
+    Promise<int> promise2 = std::move(promise1);
+    promise1 = std::move(promise2);
+    EXPECT_EQ(co_await promise1, 1);
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, moveCtorVoid) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Promise<void> promise1 = []() -> Promise<void> { co_return; }();
+    Promise<void> promise2 = std::move(promise1);
+    promise1 = std::move(promise2);
+    co_await promise1;
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, moveCtorVoid2) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Promise<void> promise1 = []() -> Promise<void> { co_return; }();
+    Promise<void> promise2 = std::move(promise1);
+    promise1 = []() -> Promise<void> {
+      co_await yield();
+      co_return;
+    }();
+    promise1 = std::move(promise2);
+    co_await promise1;
   };
 
   run_loop(setup);

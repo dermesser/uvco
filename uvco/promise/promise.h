@@ -72,7 +72,9 @@ public:
     if (this == &other) {
       return *this;
     }
-    core_->destroyCoroutine();
+    if (core_ != nullptr) {
+      core_->destroyCoroutine();
+    }
     core_ = other.core_;
     other.core_ = nullptr;
     return *this;
