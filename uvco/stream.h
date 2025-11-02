@@ -153,6 +153,7 @@ private:
 
   struct OutStreamAwaiter_ {
     OutStreamAwaiter_(StreamBase &stream, std::span<const char> buffer);
+    ~OutStreamAwaiter_();
 
     [[nodiscard]] std::array<uv_buf_t, 1> prepare_buffers() const;
 

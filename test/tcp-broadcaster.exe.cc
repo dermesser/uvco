@@ -10,6 +10,7 @@
 #include "uvco/name_resolution.h"
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
+#include "uvco/promise/select.h"
 #include "uvco/run.h"
 #include "uvco/stream.h"
 #include "uvco/tcp.h"
@@ -131,25 +132,35 @@ Promise<void> copyIncomingToStdout(const Loop &loop,
   fmt::print(stderr, "> copier really done\n");
 }
 
+Promise<void> sendLocalInput(TtyStream &input, TcpStream &conn) {
+  while (true) {
+    std::optional<std::string> maybeChunk = co_await input.read();
+    if (!maybeChunk) {
+      fmt::print(stderr, "> EOF from stdin\n");
+      break;
+    }
+    co_await conn.write(std::move(*maybeChunk));
+  }
+}
+
+Promise<void> waitEither(Promise<void> p1, Promise<void> p2) {
+  SelectSet<void, void> s{p1, p2};
+
+  co_await s;
+}
+
 Promise<void> client(Options opt) {
   TtyStream input = TtyStream::stdin(*opt.loop);
   TcpClient tcpCl{*opt.loop, opt.address, opt.port};
   auto conn = std::make_shared<TcpStream>(co_await tcpCl.connect());
 
   Promise<void> copier = copyIncomingToStdout(*opt.loop, conn);
-  while (!copier.ready()) {
-    std::optional<std::string> maybeChunk = co_await input.read();
-    if (!maybeChunk) {
-      fmt::print(stderr, "> EOF from stdin\n");
-      break;
-    }
-    co_await conn->write(std::move(*maybeChunk));
-  }
+  Promise<void> sender = sendLocalInput(input, *conn);
+  co_await waitEither(std::move(copier), std::move(sender));
+
   fmt::print(stderr, "> loop left due to remote close or EOF\n");
   co_await conn->close();
   fmt::print(stderr, "> conn closed\n");
-  co_await copier;
-  fmt::print(stderr, "> copier caught\n");
   co_await input.close();
   fmt::print(stderr, "> client done\n");
 }

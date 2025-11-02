@@ -16,6 +16,7 @@ void Scheduler::runAll() {
       if (coro == nullptr || coro.done()) {
         continue;
       }
+
       coro.resume();
     }
     resumableRunning_.clear();

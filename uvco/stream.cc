@@ -111,18 +111,25 @@ Promise<void> StreamBase::close() {
   auto stream = std::move(stream_);
   co_await closeHandle(stream.get());
   if (reader_) {
-    const std::coroutine_handle<void> reader = *reader_;
+    Loop::enqueue(*reader_);
     reader_.reset();
-    Loop::enqueue(reader);
   }
   if (writer_) {
-    const std::coroutine_handle<void> writer = *writer_;
+    Loop::enqueue(*writer_);
     writer_.reset();
-    Loop::enqueue(writer);
   }
 }
 
-StreamBase::InStreamAwaiter_::~InStreamAwaiter_() { stop_read(); }
+// Especially important for cancelled reads.
+StreamBase::InStreamAwaiter_::~InStreamAwaiter_() {
+  stop_read();
+  // A cancelled read is signalled to the callback by a nullptr.
+  // // A cancelled read is signalled to the callback by a nullptr.
+  if (stream_.stream_ != nullptr) {
+    setData(&stream_.stream(), (void *)nullptr);
+  }
+  stream_.reader_.reset();
+}
 
 bool StreamBase::InStreamAwaiter_::await_ready() {
   uv_status state = uv_is_readable(&stream_.stream());
@@ -210,6 +217,8 @@ StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream,
                                                  std::span<const char> buffer)
     : buffer_{buffer}, write_{}, stream_{stream} {}
 
+StreamBase::OutStreamAwaiter_::~OutStreamAwaiter_() { stream_.writer_.reset(); }
+
 std::array<uv_buf_t, 1> StreamBase::OutStreamAwaiter_::prepare_buffers() const {
   std::array<uv_buf_t, 1> bufs{};
   bufs[0] = uv_buf_init(const_cast<char *>(buffer_.data()), buffer_.size());
@@ -280,4 +289,5 @@ void StreamBase::ShutdownAwaiter_::onShutdown(uv_shutdown_t *req,
     Loop::enqueue(handle);
   }
 }
+
 } // namespace uvco
