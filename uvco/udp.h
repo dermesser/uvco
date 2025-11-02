@@ -124,7 +124,7 @@ private:
     using QueueItem_ =
         std::variant<std::pair<std::string, AddressHandle>, uv_status>;
 
-    RecvAwaiter_();
+    RecvAwaiter_(size_t queueSize = packetQueueSize);
     [[nodiscard]] bool await_ready() const;
     bool await_suspend(std::coroutine_handle<> handle);
     std::optional<std::pair<std::string, AddressHandle>> await_resume();

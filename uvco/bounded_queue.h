@@ -22,7 +22,7 @@ namespace uvco {
 /// of `Channel<T>`.
 template <typename T> class BoundedQueue {
 public:
-  explicit BoundedQueue(unsigned capacity) { queue_.reserve(capacity); }
+  explicit BoundedQueue(size_t capacity) { queue_.reserve(capacity); }
 
   /// Push an item to the queue.
   template <typename U>

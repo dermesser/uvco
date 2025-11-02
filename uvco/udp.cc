@@ -129,7 +129,7 @@ Promise<std::string> Udp::receiveOne() {
 }
 
 Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
-  RecvAwaiter_ awaiter{};
+  RecvAwaiter_ awaiter{1};
   BOOST_ASSERT(dataIsNull(udp_.get()));
   setData(udp_.get(), &awaiter);
   const uv_status status = udpStartReceive();
@@ -339,7 +339,7 @@ std::optional<AddressHandle> Udp::getPeername() const {
   return addressHandle;
 }
 
-Udp::RecvAwaiter_::RecvAwaiter_() : buffer_{packetQueueSize} {}
+Udp::RecvAwaiter_::RecvAwaiter_(size_t queueSize) : buffer_{queueSize} {}
 
 bool Udp::RecvAwaiter_::await_suspend(std::coroutine_handle<> handle) {
   BOOST_ASSERT(!handle_);
