@@ -108,14 +108,10 @@ public:
   /// is fully closed.
   Promise<void> close();
 
-  [[nodiscard]] uv_udp_t *underlying() const;
-
 private:
   const Loop *loop_;
   std::unique_ptr<uv_udp_t> udp_;
   bool connected_ = false;
-
-  bool is_receiving_ = false;
 
   int udpStartReceive();
   void udpStopReceive();

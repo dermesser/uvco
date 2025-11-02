@@ -36,10 +36,6 @@ Udp::Udp(const Loop &loop) : loop_{&loop}, udp_{std::make_unique<uv_udp_t>()} {
 }
 
 Udp::~Udp() {
-  if (is_receiving_) {
-    fmt::print(stderr, "Udp::~Udp(): please co_await udp.stopReceiveMany() "
-                       "before dropping Udp instance.\n");
-  }
   if (udp_) {
     udpStopReceive();
     closeHandle(udp_.release());
@@ -342,8 +338,6 @@ std::optional<AddressHandle> Udp::getPeername() const {
   AddressHandle addressHandle{(struct sockaddr *)&address};
   return addressHandle;
 }
-
-uv_udp_t *Udp::underlying() const { return udp_.get(); }
 
 Udp::RecvAwaiter_::RecvAwaiter_() : buffer_{packetQueueSize} {}
 

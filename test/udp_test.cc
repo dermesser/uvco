@@ -211,6 +211,20 @@ TEST(UdpTest, testDropReceiver) {
   run_loop(setup);
 }
 
+TEST(UdpTest, dropWhileReceiving) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Udp server{loop};
+    co_await server.bind("::1", 9999, 0);
+
+    MultiPromise<std::pair<std::string, AddressHandle>> packets =
+        server.receiveMany();
+
+    co_await server.close();
+  };
+
+  run_loop(setup);
+}
+
 TEST(UdpTest, cancelWhileReceiving) {
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     Udp server{loop};
@@ -285,7 +299,7 @@ TEST(UdpTest, simultaneousReceiveOneDies) {
   run_loop(setup);
 }
 
-TEST(UdpTest, udpNoClose) {
+TEST(UdpTest, noClose) {
   uint64_t counter = 0;
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     Udp udp{loop};
@@ -298,6 +312,18 @@ TEST(UdpTest, udpNoClose) {
 
   run_loop(setup);
   EXPECT_EQ(counter, 1);
+}
+
+TEST(UdpTest, noClose2) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Udp server{loop};
+    co_await server.bind("::1", 9999, 0);
+
+    MultiPromise<std::pair<std::string, AddressHandle>> packets =
+        server.receiveMany();
+  };
+
+  run_loop(setup);
 }
 
 TEST(UdpTest, sendNoAddress) {

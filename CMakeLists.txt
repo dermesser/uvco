@@ -233,8 +233,10 @@ endif()
 add_custom_target(coverage
     COMMAND mkdir -p coverage
     COMMAND gcovr --html-nested -o coverage/uvco.html --gcov-executable ${GCOV_BINARY} -r ..
+    COMMAND find . -name *.gcda -delete
 )
 add_custom_target(grcov
     COMMAND mkdir -p grcov
     COMMAND grcov . -s .. --binary-path . -t html --branch --ignore-not-existing -o grcov
+    COMMAND find . -name *.gcda -delete
 )
