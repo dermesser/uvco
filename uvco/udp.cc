@@ -90,9 +90,8 @@ Promise<void> Udp::connect(const AddressHandle &address) {
 
 Promise<void> Udp::send(std::span<char> buffer,
                         std::optional<AddressHandle> address) {
-  SendAwaiter_ sendAwaiter{};
   uv_udp_send_t req{};
-  setRequestData(&req, &sendAwaiter);
+  SendAwaiter_ sendAwaiter{req};
 
   std::array<uv_buf_t, 1> bufs{};
   // The buffer is never written to, so this is necessary to interface
@@ -107,17 +106,13 @@ Promise<void> Udp::send(std::span<char> buffer,
   const uv_status status =
       uv_udp_send(&req, udp_.get(), bufs.begin(), 1, addr, onSendDone);
   if (status != 0) {
-    setRequestData(&req, (void *)nullptr);
     throw UvcoException{status, "uv_udp_send() failed immediately"};
   }
 
   const uv_status status_done = co_await sendAwaiter;
   if (status_done != 0) {
-    setRequestData(&req, (void *)nullptr);
     throw UvcoException{status_done, "uv_udp_send() failed while sending"};
   }
-
-  setRequestData(&req, (void *)nullptr);
 
   co_return;
 }
@@ -129,9 +124,7 @@ Promise<std::string> Udp::receiveOne() {
 }
 
 Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
-  RecvAwaiter_ awaiter{1};
-  BOOST_ASSERT(dataIsNull(udp_.get()));
-  setData(udp_.get(), &awaiter);
+  RecvAwaiter_ awaiter{*udp_, 1};
   const uv_status status = udpStartReceive();
   if (status != 0) {
     setData(udp_.get(), (void *)nullptr);
@@ -148,7 +141,7 @@ Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
 }
 
 MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
-  RecvAwaiter_ awaiter{};
+  RecvAwaiter_ awaiter{*udp_};
   awaiter.stop_receiving_ = false;
   const OnExit onExit{[this] {
     if (udp_) {
@@ -156,8 +149,6 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
       setData(udp_.get(), (void *)nullptr);
     }
   }};
-  BOOST_ASSERT(dataIsNull(udp_.get()));
-  setData(udp_.get(), &awaiter);
 
   const uv_status status = udpStartReceive();
   if (status != 0) {
@@ -171,12 +162,7 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
     if (!buffer) {
       break;
     }
-    // It's possible that co_yield doesn't resume anymore, therefore clear
-    // reference to local awaiter.
-    setData(udp_.get(), (void *)nullptr);
     co_yield std::move(buffer.value());
-    BOOST_ASSERT(dataIsNull(udp_.get()));
-    setData(udp_.get(), &awaiter);
   }
   co_return;
 }
@@ -198,7 +184,7 @@ Promise<void> Udp::close() {
       h.resume();
     }
   }
-  auto udp{std::move(udp_)};
+  const std::unique_ptr<uv_udp_t> udp{std::move(udp_)};
   co_await closeHandle(udp.get());
   connected_ = false;
 }
@@ -339,7 +325,13 @@ std::optional<AddressHandle> Udp::getPeername() const {
   return addressHandle;
 }
 
-Udp::RecvAwaiter_::RecvAwaiter_(size_t queueSize) : buffer_{queueSize} {}
+Udp::RecvAwaiter_::RecvAwaiter_(uv_udp_t &udp, size_t queueSize)
+    : udp_{udp}, buffer_{queueSize} {
+  BOOST_ASSERT(dataIsNull(&udp_));
+  setData(&udp_, this);
+}
+
+Udp::RecvAwaiter_::~RecvAwaiter_() { resetData(&udp_); }
 
 bool Udp::RecvAwaiter_::await_suspend(std::coroutine_handle<> handle) {
   BOOST_ASSERT(!handle_);
@@ -364,7 +356,11 @@ Udp::RecvAwaiter_::await_resume() {
 }
 
 void Udp::onSendDone(uv_udp_send_t *req, uv_status status) {
-  auto *const awaiter = getRequestData<SendAwaiter_>(req);
+  auto *const awaiter = getRequestDataOrNull<SendAwaiter_>(req);
+  if (awaiter == nullptr) {
+    // Send request cancelled/dropped.
+    return;
+  }
   awaiter->status_ = status;
   if (awaiter->handle_) {
     std::coroutine_handle<void> resumeHandle = *awaiter->handle_;
@@ -376,6 +372,7 @@ void Udp::onSendDone(uv_udp_send_t *req, uv_status status) {
 bool Udp::SendAwaiter_::await_ready() const { return status_.has_value(); }
 
 bool Udp::SendAwaiter_::await_suspend(std::coroutine_handle<> handle) {
+  setData(&req_, this);
   BOOST_ASSERT(!handle_);
   handle_ = handle;
   return true;
@@ -385,4 +382,5 @@ int Udp::SendAwaiter_::await_resume() {
   BOOST_ASSERT(status_);
   return *status_;
 }
+
 } // namespace uvco

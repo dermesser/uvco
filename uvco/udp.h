@@ -30,8 +30,7 @@ namespace uvco {
 /// @addtogroup UDP
 /// @{
 
-/// Interface to UDP functionality: can be connected or disconnected datagram
-/// client/server.
+/// A UDP socket.
 class Udp {
 public:
   /// Set up a UDP object.
@@ -124,11 +123,18 @@ private:
     using QueueItem_ =
         std::variant<std::pair<std::string, AddressHandle>, uv_status>;
 
-    RecvAwaiter_(size_t queueSize = packetQueueSize);
+    explicit RecvAwaiter_(uv_udp_t &udp, size_t queueSize = packetQueueSize);
+    RecvAwaiter_(const RecvAwaiter_ &) = default;
+    RecvAwaiter_(RecvAwaiter_ &&) = delete;
+    RecvAwaiter_ &operator=(const RecvAwaiter_ &) = delete;
+    RecvAwaiter_ &operator=(RecvAwaiter_ &&) = delete;
+    ~RecvAwaiter_();
+
     [[nodiscard]] bool await_ready() const;
     bool await_suspend(std::coroutine_handle<> handle);
     std::optional<std::pair<std::string, AddressHandle>> await_resume();
 
+    uv_udp_t &udp_;
     BoundedQueue<QueueItem_> buffer_;
     std::optional<std::coroutine_handle<>> handle_;
     bool stop_receiving_ = true;
@@ -137,10 +143,19 @@ private:
   static void onSendDone(uv_udp_send_t *req, uv_status status);
 
   struct SendAwaiter_ {
+    explicit SendAwaiter_(uv_udp_send_t &req) : req_{req} {
+    }
+    SendAwaiter_(const SendAwaiter_ &) = default;
+    SendAwaiter_(SendAwaiter_ &&) = delete;
+    SendAwaiter_ &operator=(const SendAwaiter_ &) = delete;
+    SendAwaiter_ &operator=(SendAwaiter_ &&) = delete;
+    ~SendAwaiter_() { resetData(&req_); }
+
     [[nodiscard]] bool await_ready() const;
     bool await_suspend(std::coroutine_handle<> h);
     int await_resume();
 
+    uv_udp_send_t &req_;
     std::optional<std::coroutine_handle<>> handle_;
     std::optional<int> status_;
   };

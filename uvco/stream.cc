@@ -27,7 +27,7 @@ namespace uvco {
 
 StreamBase::~StreamBase() {
   if (stream_) {
-    // stream_ will be deleted by closeHandle() mechanics.
+    // stream_ will be freed by closeHandle() mechanics.
     closeHandle(stream_.release());
   }
   BOOST_ASSERT_MSG(
@@ -126,7 +126,7 @@ StreamBase::InStreamAwaiter_::~InStreamAwaiter_() {
   // A cancelled read is signalled to the callback by a nullptr.
   // // A cancelled read is signalled to the callback by a nullptr.
   if (stream_.stream_ != nullptr) {
-    setData(&stream_.stream(), (void *)nullptr);
+    resetData(&stream_.stream());
   }
   stream_.reader_.reset();
 }
@@ -232,8 +232,8 @@ bool StreamBase::OutStreamAwaiter_::await_ready() {
 
 bool StreamBase::OutStreamAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
-  BOOST_ASSERT(write_.data == nullptr);
-  write_.data = this;
+  BOOST_ASSERT(dataIsNull(&write_));
+  setData(&write_, this);
   handle_ = handle;
   // For resumption during close.
   stream_.writer_ = handle;
@@ -248,6 +248,7 @@ uv_status StreamBase::OutStreamAwaiter_::await_resume() {
   }
   BOOST_ASSERT(status_);
   stream_.writer_.reset();
+  setData(&write_, (void *)nullptr);
   return *status_;
 }
 

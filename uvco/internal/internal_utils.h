@@ -60,11 +60,25 @@ Into *getRequestData(const Request *req) {
   return (Into *)data;
 }
 
+/// Obtain data pointer set on request with type cast. Returns nullptr if data
+/// is nullptr.
+template <typename Into, typename Request>
+Into *getRequestDataOrNull(const Request *req) {
+  const void *data = uv_req_get_data((const uv_req_t *)req);
+  return (Into *)data;
+}
+
 /// Obtain data pointer set on request with type cast. Data may be nullptr.
 template <typename Handle, typename Data>
 void setData(Handle *handle, Data *data) {
   BOOST_ASSERT(handle != nullptr);
   uv_handle_set_data((uv_handle_t *)handle, (void *)data);
+}
+
+/// Reset data pointer on handle to nullptr.
+template <typename Handle> void resetData(Handle *handle) {
+  BOOST_ASSERT(handle != nullptr);
+  uv_handle_set_data((uv_handle_t *)handle, nullptr);
 }
 
 /// Set data pointer on request.

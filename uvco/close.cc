@@ -11,13 +11,14 @@
 
 namespace uvco {
 
+CloseAwaiter::~CloseAwaiter() { setData(uvHandle_, (void *)nullptr); }
+
 bool CloseAwaiter::await_suspend(std::coroutine_handle<> handle) {
   handle_ = handle;
   return true;
 }
 
 bool CloseAwaiter::await_ready() const { return closed_; }
-
 void CloseAwaiter::await_resume() {}
 
 void onCloseCallback(uv_handle_t *handle) {

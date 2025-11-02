@@ -13,6 +13,8 @@
 namespace uvco {
 
 /// @addtogroup Close
+/// Internally used by various classes to safely close and deallocate libuv
+/// handles.
 /// @{
 
 /// An awaiter for closing a libuv handle.
@@ -22,7 +24,7 @@ struct CloseAwaiter {
   CloseAwaiter(CloseAwaiter &&) = delete;
   CloseAwaiter &operator=(const CloseAwaiter &) = delete;
   CloseAwaiter &operator=(CloseAwaiter &&) = delete;
-  ~CloseAwaiter() { setData(uvHandle_, (void *)nullptr); }
+  ~CloseAwaiter();
 
   [[nodiscard]] bool await_ready() const;
   bool await_suspend(std::coroutine_handle<> handle);
@@ -42,6 +44,12 @@ void onCloseCallback(uv_handle_t *handle);
 ///
 /// The template types and arguments are expressed as they are to support, e.g.,
 /// `uv_tcp_close_reset`.
+///
+/// closeHandle() has an intricate implementation which allows a safe
+/// synchronous call, e.g. from destructors: In that case, the handle will still
+/// be closed correctly, but the `handle` itself will also be freed. This is
+/// always done when it detects that the closeHandle coroutine has been
+/// cancelled (due to the returned promise having been dropped).
 template <typename Handle, typename CloserArg>
 Promise<void> closeHandle(Handle *handle,
                           void (*closer)(CloserArg *,
