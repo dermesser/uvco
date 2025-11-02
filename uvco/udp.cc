@@ -12,6 +12,7 @@
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
 #include "uvco/udp.h"
+#include "uvco/util.h"
 
 #include <array>
 #include <coroutine>
@@ -153,12 +154,12 @@ Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
 MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
   RecvAwaiter_ awaiter{};
   awaiter.stop_receiving_ = false;
+  const OnExit onExit{[udp = udp_.get()] { setData(udp, (void *)nullptr); }};
   BOOST_ASSERT(dataIsNull(udp_.get()));
   setData(udp_.get(), &awaiter);
 
   const uv_status status = udpStartReceive();
   if (status != 0) {
-    setData(udp_.get(), (void *)nullptr);
     throw UvcoException(status, "receiveMany(): uv_udp_recv_start()");
   }
 
@@ -176,7 +177,6 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
     BOOST_ASSERT(dataIsNull(udp_.get()));
     setData(udp_.get(), &awaiter);
   }
-  setData(udp_.get(), (void *)nullptr);
   udpStopReceive();
   co_return;
 }

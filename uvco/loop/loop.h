@@ -7,7 +7,6 @@
 #include "uvco/loop/scheduler.h"
 
 #include <coroutine>
-#include <memory>
 
 namespace uvco {
 

@@ -49,6 +49,8 @@ template <typename R, MainFunction<R> F> R runMain(F main) {
   Loop loop;
   Promise<R> promise = main(loop);
   runLoop(loop);
+  // Returns when libuv does not see any handles left, and neither
+  // are any promises ready.
   return promise.unwrap();
 }
 
