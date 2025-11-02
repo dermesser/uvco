@@ -85,15 +85,6 @@ TEST(PromiseTest, awaitTwiceImmediateReturn) {
   run_loop(setup);
 }
 
-TEST(PromiseTest, yield) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
-    co_await yield();
-    co_return;
-  };
-
-  run_loop(setup);
-}
-
 // Only run this test with --gtest_filter=PromiseTest.yieldBench in Release
 // builds
 //
@@ -102,7 +93,7 @@ TEST(PromiseTest, yield) {
 // Intel Core i5-7300U @ 2.6 GHz: 15 million iterations per second / 70 ns per
 // iteration
 TEST(PromiseTest, DISABLED_yieldBench) {
-  static constexpr unsigned iterations = 1000000;
+  static constexpr unsigned iterations = 1'000'000;
   auto setup = [](const Loop &loop) -> Promise<void> {
     for (unsigned i = 0; i < iterations; ++i) {
       co_await yield();
@@ -113,11 +104,54 @@ TEST(PromiseTest, DISABLED_yieldBench) {
   run_loop(setup);
 }
 
+// yieldIntBench: everything inline - 31% faster
+
+struct YieldAwaiter_ {
+  [[nodiscard]] static bool await_ready() noexcept { return false; }
+  bool await_suspend(std::coroutine_handle<> handle) noexcept {
+    Loop::enqueue(handle);
+    return true;
+  }
+  [[nodiscard]] int await_resume() const noexcept { return 1; }
+};
+
+Promise<int> yieldInt() { co_return (co_await YieldAwaiter_{}); }
+
+TEST(PromiseTest, DISABLED_yieldIntBench) {
+  static constexpr unsigned iterations = 1'000'000;
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    for (unsigned i = 0; i < iterations; ++i) {
+      co_await yieldInt();
+    }
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, yield) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    co_await yield();
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, yieldInt) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    BOOST_VERIFY(1 == co_await yieldInt());
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
 // Same as above, but with a separate coroutine, i.e. two levels of awaiting.
 // Intel Core i5-7300U @ 2.6 GHz: 8.3 million iterations per second / 120 ns per
 // iteration
 TEST(PromiseTest, DISABLED_yieldCallBench) {
-  static constexpr unsigned iterations = 1000000;
+  static constexpr unsigned iterations = 1'000'000;
   auto coroutine = [](const Loop &loop) -> Promise<void> { co_await yield(); };
   auto setup = [&](const Loop &loop) -> Promise<void> {
     for (unsigned i = 0; i < iterations; ++i) {
@@ -132,7 +166,7 @@ TEST(PromiseTest, DISABLED_yieldCallBench) {
 // This appears especially efficient; back-and-forth yielding occurs
 // at only 32 ns overhead (that's 31 million iterations per second).
 TEST(PromiseTest, DISABLED_multiYieldBench) {
-  static constexpr unsigned iterations = 1000000;
+  static constexpr unsigned iterations = 1'000'000;
   auto setup = [](const Loop &loop) -> Promise<void> {
     MultiPromise<unsigned> multi = yield(iterations);
     for (unsigned i = 0; i < iterations; ++i) {

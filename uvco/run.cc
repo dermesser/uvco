@@ -11,7 +11,7 @@ namespace uvco {
 namespace {
 
 struct YieldAwaiter_ {
-  [[nodiscard]] bool await_ready() const noexcept { return false; }
+  [[nodiscard]] static bool await_ready() noexcept { return false; }
   bool await_suspend(std::coroutine_handle<> handle) noexcept {
     Loop::enqueue(handle);
     return true;
