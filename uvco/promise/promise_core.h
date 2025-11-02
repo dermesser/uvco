@@ -50,19 +50,7 @@ public:
   PromiseCore(PromiseCore &&) = delete;
   PromiseCore &operator=(const PromiseCore &) = delete;
   PromiseCore &operator=(PromiseCore &&) = delete;
-
-  virtual ~PromiseCore() {
-    if (state_ != PromiseState::finished) {
-      // This note means that a promise and its coroutine were destroyed
-      // (cancelled) before ever finishing. This is valid in principle, but may
-      // be unexpected. For our unit tests, we want to know when this happens so
-      // we can react to it.
-      fmt::print(stderr,
-                 "PromiseCore destroyed without ever being resumed ({}, state "
-                 "= {}) (dropped by accident?)\n",
-                 typeid(T).name(), static_cast<int>(state_));
-    }
-  }
+  virtual ~PromiseCore() = default;
 
   explicit PromiseCore(T &&value)
       : slot{std::move(value)}, state_{PromiseState::finished} {}
@@ -161,7 +149,7 @@ public:
   PromiseCore(PromiseCore &&) = delete;
   PromiseCore<void> &operator=(const PromiseCore &) = delete;
   PromiseCore<void> &operator=(PromiseCore &&) = delete;
-  ~PromiseCore();
+  ~PromiseCore() = default;
 
   /// See `PromiseCore::set_resume`.
   void setHandle(std::coroutine_handle<> handle);

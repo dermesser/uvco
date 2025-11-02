@@ -40,22 +40,6 @@ void PromiseCore<void>::resume() {
   state_ = PromiseState::finished;
 }
 
-PromiseCore<void>::~PromiseCore() {
-  if (state_ == PromiseState::init) {
-    // This notice means that a Promise returned by a coroutine was never even
-    // awaited.
-    fmt::print(stderr,
-               "Promise<void> not finished (dropped Promise by accident?)\n");
-  }
-  if (waitingHandle_) {
-    // This notice means that a coroutine was being awaited, but is being
-    // destroyed. Therefore a task was potentially not completed. This is
-    // harmless in most cases: it just means that a coroutine waiting on another
-    // coroutine has been destroyed (cancelled).
-    fmt::print(stderr, "awaited coroutine destroyed\n");
-  }
-}
-
 void PromiseCore<void>::except(std::exception_ptr exc) {
   BOOST_ASSERT(state_ == PromiseState::init ||
                state_ == PromiseState::waitedOn);
