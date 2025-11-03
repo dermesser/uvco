@@ -241,6 +241,6 @@ add_custom_target(coverage
 )
 add_custom_target(grcov
     COMMAND mkdir -p grcov
-    COMMAND grcov . -s .. --binary-path . -t html --branch --ignore-not-existing -o grcov
+    COMMAND grcov . -s .. --binary-path . -t html --branch --ignore-not-existing -o grcov --llvm
     COMMAND find . -name *.gcda -delete
 )
