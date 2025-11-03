@@ -39,7 +39,7 @@ TEST(FsTest, FileNotFound) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     try {
       co_await File::open(loop, "/dev/does_not_exist", O_RDONLY);
-      EXPECT_FALSE(true);
+      EXPECT_FALSE(true) << "reached unexpected point - should have thrown";
     } catch (const UvcoException &e) {
       EXPECT_EQ(e.status, UV_ENOENT);
     }
@@ -50,8 +50,7 @@ TEST(FsTest, FileNotFound) {
 
 TEST(FsTest, forgetClose) {
   auto setup = [](const Loop &loop) -> Promise<void> {
-    // At the moment this works without crashing asan.
-    auto file = co_await File::open(loop, "/dev/null", O_RDONLY);
+    const File file = co_await File::open(loop, "/dev/null", O_RDONLY);
     EXPECT_GT(file.file(), 0);
   };
 
@@ -73,10 +72,30 @@ TEST(FsTest, simpleRead) {
 
     EXPECT_EQ(bufSize, read);
     EXPECT_EQ(bufSize, buffer.size());
-    EXPECT_TRUE(std::all_of(buffer.begin(), buffer.end(),
-                            [](char c) { return c == 0; }));
+    EXPECT_TRUE(std::ranges::all_of(buffer, [](char c) { return c == 0; }));
 
     co_await file.close();
+  };
+
+  run_loop(setup);
+}
+
+TEST(FsTest, dropRead) {
+  static constexpr size_t bufSize = 32;
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto file = co_await File::open(loop, "/dev/zero", O_RDONLY);
+    EXPECT_GT(file.file(), 0);
+
+    std::string buffer(bufSize, 'x');
+    EXPECT_EQ(bufSize, buffer.size());
+
+    // Read request is dropped immediately. If not handled properly, Address
+    // Sanitizer would complain.
+    file.read(buffer);
+
+    // Later read still works
+    size_t read = co_await file.read(buffer);
+    EXPECT_EQ(bufSize, read);
   };
 
   run_loop(setup);
@@ -99,7 +118,7 @@ TEST(FsTest, simpleReadWriteUnlink) {
 
     co_await file.close();
 
-    co_await File::unlink(loop, fileName);
+    co_await File::unlink(loop, std::string{fileName});
   };
 
   run_loop(setup);
@@ -176,7 +195,7 @@ TEST(FsWatchTest, basicFileWatch) {
     co_await watch.stopWatch(std::move(watcher));
     co_await watch.close();
     co_await file.close();
-    co_await File::unlink(loop, filename);
+    co_await File::unlink(loop, std::string{filename});
     co_return;
   };
 
@@ -214,8 +233,8 @@ TEST(FsWatchTest, basicDirWatch) {
     co_await watch.close();
     co_await file.close();
     co_await file2.close();
-    co_await File::unlink(loop, filename);
-    co_await File::unlink(loop, filename2);
+    co_await File::unlink(loop, std::string{filename});
+    co_await File::unlink(loop, std::string{filename2});
     co_await Directory::rmdir(loop, dirName2);
     co_await Directory::rmdir(loop, dirName);
     co_return;
@@ -251,7 +270,7 @@ TEST(DISABLED_FsWatchTest, watchRecursive) {
     co_await watch.stopWatch(std::move(watcher));
     co_await watch.close();
     co_await file.close();
-    co_await File::unlink(loop, filename);
+    co_await File::unlink(loop, std::string{filename});
     co_await Directory::rmdir(loop, subdirName);
     co_await Directory::rmdir(loop, dirName);
     co_return;
@@ -297,7 +316,7 @@ TEST(FsWatchTest, repeatedWatchFails) {
     co_await watch.stopWatch(std::move(watcher));
     co_await watch.close();
     co_await file.close();
-    co_await File::unlink(loop, filename);
+    co_await File::unlink(loop, std::string{filename});
     co_return;
   };
 

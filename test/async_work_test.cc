@@ -84,9 +84,9 @@ TEST(AsyncWorkTest, resultReturned) {
 }
 
 TEST(AsyncWorkTest, cancelled) {
-  std::atomic<bool> started, ended;
+  std::atomic<bool> started;
 
-  auto work = [&started, &ended]() -> void {
+  auto work = [&started]() -> void {
     started.store(true);
     std::this_thread::sleep_for(std::chrono::milliseconds{10});
   };
@@ -99,7 +99,6 @@ TEST(AsyncWorkTest, cancelled) {
 
   run_loop(setup);
   EXPECT_TRUE(started);
-  EXPECT_FALSE(ended);
 }
 
 TEST(AsyncWorkTest, exceptionThrown) {

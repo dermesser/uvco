@@ -73,7 +73,7 @@ public:
   /// `open(2)`.
   static Promise<File> open(const Loop &loop, std::string_view path,
                             int flags = 0, int mode = 0644);
-  static Promise<void> unlink(const Loop &loop, std::string_view path);
+  static Promise<void> unlink(const Loop &loop, const std::string &path);
 
   /// Read up to `buffer.size()` bytes into that buffer, starting at `offset`
   /// (if `offset >= 0`) or at the current file position.

@@ -32,7 +32,11 @@ namespace {
 
 class FileOpAwaiter_ {
   static void onFileOpDone(uv_fs_t *req) {
-    auto *awaiter = getRequestData<FileOpAwaiter_>(req);
+    auto *awaiter = getRequestDataOrNull<FileOpAwaiter_>(req);
+    if (awaiter == nullptr) {
+      // cancelled
+      return;
+    }
     awaiter->result_ = req->result;
     awaiter->schedule();
   }
@@ -46,7 +50,11 @@ public:
   FileOpAwaiter_ &operator=(const FileOpAwaiter_ &) = delete;
   FileOpAwaiter_ &operator=(FileOpAwaiter_ &&) = delete;
 
-  ~FileOpAwaiter_() { uv_fs_req_cleanup(&req_); }
+  ~FileOpAwaiter_() {
+    resetRequestData(&req_);
+    uv_cancel((uv_req_t *)&req_);
+    uv_fs_req_cleanup(&req_);
+  }
 
   /// Obtain the `uv_fs_t` struct to fill in before starting the operation.
   [[nodiscard]] uv_fs_t &req() { return req_; }
@@ -59,6 +67,7 @@ public:
   bool await_suspend(std::coroutine_handle<> handle) {
     BOOST_ASSERT(!result_);
     BOOST_ASSERT_MSG(!handle_, "FileOpAwaiter_ can only be awaited once");
+    BOOST_ASSERT(requestDataIsNull(&req_));
     setRequestData(&req_, this);
     handle_ = handle;
     return true;
@@ -68,6 +77,7 @@ public:
   /// is resumed.
   void await_resume() {
     BOOST_ASSERT(result_);
+    BOOST_ASSERT(!requestDataIsNull(&req_));
     if (result_ && result_.value() < 0) {
       throw UvcoException(static_cast<uv_status>(result_.value()),
                           "file operation failed");
@@ -79,14 +89,13 @@ public:
 
 private:
   uv_fs_t req_ = {};
-  std::optional<std::coroutine_handle<>> handle_;
+  std::coroutine_handle<> handle_;
   std::optional<ssize_t> result_ = std::nullopt;
 
   void schedule() {
     if (handle_) {
-      const std::coroutine_handle<void> handle = handle_.value();
-      handle_ = std::nullopt;
-      Loop::enqueue(handle);
+      Loop::enqueue(handle_);
+      handle_ = nullptr;
     }
   }
 };
@@ -163,7 +172,7 @@ Promise<std::vector<Directory::DirEnt>> Directory::read(unsigned count) {
 Promise<unsigned int> Directory::read(std::span<DirEnt> buffer) {
   // dirents vector must be declared before awaiter, because awaiter will free
   // contents of dirents.
-  std::vector<uv_dirent_t> dirents{buffer.size()};
+  std::vector<uv_dirent_t> dirents(buffer.size());
   dir_->dirents = dirents.data();
   dir_->nentries = dirents.size();
 
@@ -192,7 +201,7 @@ MultiPromise<Directory::DirEnt> Directory::readAll(const Loop &loop,
 
   co_await awaiter;
   while (UV_EOF != uv_fs_scandir_next(&awaiter.req(), &dirent)) {
-    co_yield DirEnt{dirent.name, dirent.type};
+    co_yield DirEnt{.name = dirent.name, .type = dirent.type};
   }
 }
 
@@ -218,10 +227,10 @@ Promise<File> File::open(const Loop &loop, std::string_view path, int flags,
   co_return File{loop.uvloop(), fileDesc};
 }
 
-Promise<void> File::unlink(const Loop &loop, std::string_view path) {
+Promise<void> File::unlink(const Loop &loop, const std::string &path) {
   FileOpAwaiter_ awaiter;
 
-  uv_fs_unlink(loop.uvloop(), &awaiter.req(), path.data(),
+  uv_fs_unlink(loop.uvloop(), &awaiter.req(), std::string{path}.data(),
                FileOpAwaiter_::uvCallback());
 
   co_await awaiter;
