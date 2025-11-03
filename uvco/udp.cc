@@ -88,7 +88,7 @@ Promise<void> Udp::connect(const AddressHandle &address) {
   connected_ = true;
 }
 
-Promise<void> Udp::send(std::span<char> buffer,
+Promise<void> Udp::send(std::span<const char> buffer,
                         std::optional<AddressHandle> address) {
   uv_udp_send_t req{};
   SendAwaiter_ sendAwaiter{req};
@@ -213,12 +213,11 @@ int Udp::udpStartReceive() {
 
 void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
                        const struct sockaddr *addr, unsigned int flags) {
-
   auto *awaiter = getDataOrNull<RecvAwaiter_>(handle);
-  BOOST_ASSERT(!dataIsNull(handle));
+  // cancelled?
   if (awaiter == nullptr) {
-    // cancelled?
     uv_udp_recv_stop(handle);
+    freeUvBuf(buf);
     return;
   }
 

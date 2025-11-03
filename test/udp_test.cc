@@ -228,14 +228,34 @@ TEST(UdpTest, dropWhileReceiving) {
 
 TEST(UdpTest, dropWhileReceivingWithNewPacket) {
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    static constexpr std::string_view buffer{"hello"};
+
     Udp server{loop};
     Udp client{loop};
     co_await server.bind("::1", 9999, 0);
     const AddressHandle serverAddr{"::1", 9999};
     co_await client.connect(serverAddr);
 
+    co_await client.send(buffer);
+    {
+      // Test receiving and dropping receiver once before
+      MultiPromise<std::pair<std::string, AddressHandle>> packets =
+          server.receiveMany();
+    }
+
+    co_await client.send(buffer);
+
     MultiPromise<std::pair<std::string, AddressHandle>> packets =
         server.receiveMany();
+
+    co_await client.send(buffer);
+    co_await client.send(buffer);
+    co_await client.send(buffer);
+
+    EXPECT_EQ(buffer, (co_await packets).value().first);
+
+    // Here somewhere, the onReceiveOne handler will be called despite the
+    // `packets` coroutine having already been dropped.
 
     co_await server.close();
   };

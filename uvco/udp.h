@@ -53,7 +53,7 @@ public:
 
   /// Send to address, or send to connected peer. Must be a mutable
   /// buffer because libuv requires it - the buffer will not be modified.
-  Promise<void> send(std::span<char> buffer,
+  Promise<void> send(std::span<const char> buffer,
                      std::optional<AddressHandle> address = {});
 
   /// Receive a single UDP packet.

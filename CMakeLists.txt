@@ -236,7 +236,7 @@ endif()
 
 add_custom_target(coverage
     COMMAND mkdir -p coverage
-    COMMAND gcovr --html-nested -o coverage/uvco.html --gcov-executable ${GCOV_BINARY} -r ..
+    COMMAND gcovr --html-nested -o coverage/uvco.html --gcov-executable ${GCOV_BINARY} -r .. --merge-mode-functions=separate
     COMMAND find . -name *.gcda -delete
 )
 add_custom_target(grcov
