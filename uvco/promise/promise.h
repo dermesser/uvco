@@ -41,6 +41,12 @@ template <typename T> class Promise;
 /// a time.
 ///
 /// See `README.md` for some examples of how to use coroutines and promises.
+///
+/// NOTE: due to inlining (visibility of the promise code) and other factors,
+/// Promise<int> (for example) can be 20% faster than Promise<void>, and also
+/// cause fewer allocations. This happens especially when the compiler can elide
+/// the coroutine frame allocation for Promise<T>, which it can't do with
+/// Promise<void> (which is implemented in a .cc file).
 template <typename T> class Promise {
 protected:
   struct PromiseAwaiter_;

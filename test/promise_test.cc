@@ -164,6 +164,21 @@ TEST(PromiseTest, DISABLED_yieldCallBench) {
   run_loop(setup);
 }
 
+TEST(PromiseTest, DISABLED_yieldIntCallBench) {
+  static constexpr unsigned iterations = 1'000'000;
+  auto coroutine = [](const Loop &loop) -> Promise<int> {
+    co_return (co_await yieldInt());
+  };
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    for (unsigned i = 0; i < iterations; ++i) {
+      co_await coroutine(loop);
+    }
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
 // This appears especially efficient; back-and-forth yielding occurs
 // at only 32 ns overhead (that's 31 million iterations per second).
 TEST(PromiseTest, DISABLED_multiYieldBench) {
