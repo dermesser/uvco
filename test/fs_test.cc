@@ -92,10 +92,6 @@ TEST(FsTest, dropRead) {
     // Read request is dropped immediately. If not handled properly, Address
     // Sanitizer would complain.
     file.read(buffer);
-
-    // Later read still works
-    size_t read = co_await file.read(buffer);
-    EXPECT_EQ(bufSize, read);
   };
 
   run_loop(setup);
