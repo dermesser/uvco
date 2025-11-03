@@ -34,7 +34,7 @@ Promise<R> submitWork(const Loop &loop, std::function<R()> work) {
       result = std::current_exception();
     }
   };
-  co_await innerSubmitWork(loop, agnosticWork);
+  co_await innerSubmitWork(loop, std::move(agnosticWork));
   BOOST_ASSERT(result.has_value());
   if (result->index() == 1) {
     std::rethrow_exception(std::get<std::exception_ptr>(*result));

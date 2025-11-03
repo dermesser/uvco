@@ -28,10 +28,17 @@ public:
   AsyncWorkAwaiter_(AsyncWorkAwaiter_ &&) = delete;
   AsyncWorkAwaiter_ &operator=(const AsyncWorkAwaiter_ &) = delete;
   AsyncWorkAwaiter_ &operator=(AsyncWorkAwaiter_ &&) = delete;
-  ~AsyncWorkAwaiter_() { uv_cancel((uv_req_t *)&work_); }
+  ~AsyncWorkAwaiter_() {
+    uv_cancel((uv_req_t *)&work_);
+    resetRequestData(&work_);
+  }
 
   static void onDoWork(uv_work_t *work) {
-    auto *awaiter = getRequestData<AsyncWorkAwaiter_>(work);
+    auto *awaiter = getRequestDataOrNull<AsyncWorkAwaiter_>(work);
+    if (awaiter == nullptr) {
+      // cancelled
+      return;
+    }
     awaiter->function_();
   }
 
@@ -40,7 +47,11 @@ public:
       // Work was cancelled; do not resume the coroutine.
       return;
     }
-    auto *awaiter = getRequestData<AsyncWorkAwaiter_>(work);
+    auto *awaiter = getRequestDataOrNull<AsyncWorkAwaiter_>(work);
+    if (awaiter == nullptr) {
+      // cancelled
+      return;
+    }
     awaiter->status_ = status;
     awaiter->schedule();
   }

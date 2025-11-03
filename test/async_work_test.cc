@@ -9,6 +9,7 @@
 #include "uvco/async_work.h"
 #include "uvco/loop/loop.h"
 #include "uvco/promise/promise.h"
+#include "uvco/timer.h"
 
 #include <atomic>
 #include <functional>
@@ -80,6 +81,25 @@ TEST(AsyncWorkTest, resultReturned) {
   };
 
   run_loop(setup);
+}
+
+TEST(AsyncWorkTest, cancelled) {
+  std::atomic<bool> started, ended;
+
+  auto work = [&started, &ended]() -> void {
+    started.store(true);
+    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+  };
+
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    auto p = submitWork<void>(loop, work);
+    co_await sleep(loop, 1);
+    co_return;
+  };
+
+  run_loop(setup);
+  EXPECT_TRUE(started);
+  EXPECT_FALSE(ended);
 }
 
 TEST(AsyncWorkTest, exceptionThrown) {

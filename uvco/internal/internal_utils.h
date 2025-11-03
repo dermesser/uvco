@@ -88,6 +88,10 @@ void setRequestData(Request *req, Data *data) {
   uv_req_set_data((uv_req_t *)req, (void *)data);
 }
 
+template <typename Request> void resetRequestData(Request *req) {
+  uv_req_set_data((uv_req_t *)req, (void *)nullptr);
+}
+
 /// Check if handle data is null.
 template <typename Handle> bool dataIsNull(Handle *handle) {
   return nullptr == uv_handle_get_data((const uv_handle_t *)handle);
