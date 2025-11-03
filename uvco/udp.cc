@@ -124,10 +124,14 @@ Promise<std::string> Udp::receiveOne() {
 }
 
 Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
+  BOOST_ASSERT_MSG(dataIsNull(udp_.get()),
+                   "only one coroutine can receive from UDP socket at a time");
   RecvAwaiter_ awaiter{*udp_, 1};
+  awaiter.stop_receiving_ = true;
+  const OnExit onExit{[this] { resetData(udp_.get()); }};
+
   const uv_status status = udpStartReceive();
   if (status != 0) {
-    setData(udp_.get(), (void *)nullptr);
     throw UvcoException(status, "uv_udp_recv_start()");
   }
 
@@ -136,17 +140,18 @@ Promise<std::pair<std::string, AddressHandle>> Udp::receiveOneFrom() {
       co_await awaiter;
 
   // Any exceptions are thrown in RecvAwaiter_::await_resume
-  setData(udp_.get(), (void *)nullptr);
   co_return std::move(packet.value());
 }
 
 MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
+  BOOST_ASSERT_MSG(dataIsNull(udp_.get()),
+                   "only one coroutine can receive from UDP socket at a time");
   RecvAwaiter_ awaiter{*udp_};
   awaiter.stop_receiving_ = false;
   const OnExit onExit{[this] {
     if (udp_) {
       udpStopReceive();
-      setData(udp_.get(), (void *)nullptr);
+      resetData(udp_.get());
     }
   }};
 
@@ -209,8 +214,13 @@ int Udp::udpStartReceive() {
 void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
                        const struct sockaddr *addr, unsigned int flags) {
 
+  auto *awaiter = getDataOrNull<RecvAwaiter_>(handle);
   BOOST_ASSERT(!dataIsNull(handle));
-  auto *awaiter = getData<RecvAwaiter_>(handle);
+  if (awaiter == nullptr) {
+    // cancelled?
+    uv_udp_recv_stop(handle);
+    return;
+  }
 
   if (addr == nullptr) {
     // Error or asking to free buffers.
@@ -326,14 +336,11 @@ std::optional<AddressHandle> Udp::getPeername() const {
 }
 
 Udp::RecvAwaiter_::RecvAwaiter_(uv_udp_t &udp, size_t queueSize)
-    : udp_{udp}, buffer_{queueSize} {
-  BOOST_ASSERT(dataIsNull(&udp_));
-  setData(&udp_, this);
-}
-
-Udp::RecvAwaiter_::~RecvAwaiter_() { resetData(&udp_); }
+    : udp_{udp}, buffer_{queueSize} {}
 
 bool Udp::RecvAwaiter_::await_suspend(std::coroutine_handle<> handle) {
+  BOOST_ASSERT(dataIsNull(&udp_));
+  setData(&udp_, this);
   BOOST_ASSERT(!handle_);
   handle_ = handle;
   return true;
@@ -343,6 +350,7 @@ bool Udp::RecvAwaiter_::await_ready() const { return !buffer_.empty(); }
 
 std::optional<std::pair<std::string, AddressHandle>>
 Udp::RecvAwaiter_::await_resume() {
+  resetData(&udp_);
   // Woken up without read packet: stop receiving.
   if (buffer_.empty()) {
     return std::nullopt;

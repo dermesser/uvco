@@ -226,6 +226,23 @@ TEST(UdpTest, dropWhileReceiving) {
   run_loop(setup);
 }
 
+TEST(UdpTest, dropWhileReceivingWithNewPacket) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Udp server{loop};
+    Udp client{loop};
+    co_await server.bind("::1", 9999, 0);
+    const AddressHandle serverAddr{"::1", 9999};
+    co_await client.connect(serverAddr);
+
+    MultiPromise<std::pair<std::string, AddressHandle>> packets =
+        server.receiveMany();
+
+    co_await server.close();
+  };
+
+  run_loop(setup);
+}
+
 TEST(UdpTest, cancelWhileReceiving) {
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     Udp server{loop};

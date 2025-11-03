@@ -265,7 +265,7 @@ template <typename T> class Coroutine {
 public:
   /// Coroutine object lives and is pinned within the coroutine frame;
   /// copy/move is disallowed.
-  Coroutine() = default; 
+  Coroutine() = default;
   Coroutine(const Coroutine &other) = delete;
   Coroutine &operator=(const Coroutine &other) = delete;
   Coroutine(Coroutine &&other) = delete;

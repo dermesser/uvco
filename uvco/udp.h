@@ -128,7 +128,7 @@ private:
     RecvAwaiter_(RecvAwaiter_ &&) = delete;
     RecvAwaiter_ &operator=(const RecvAwaiter_ &) = delete;
     RecvAwaiter_ &operator=(RecvAwaiter_ &&) = delete;
-    ~RecvAwaiter_();
+    ~RecvAwaiter_() = default;
 
     [[nodiscard]] bool await_ready() const;
     bool await_suspend(std::coroutine_handle<> handle);
@@ -143,8 +143,7 @@ private:
   static void onSendDone(uv_udp_send_t *req, uv_status status);
 
   struct SendAwaiter_ {
-    explicit SendAwaiter_(uv_udp_send_t &req) : req_{req} {
-    }
+    explicit SendAwaiter_(uv_udp_send_t &req) : req_{req} {}
     SendAwaiter_(const SendAwaiter_ &) = default;
     SendAwaiter_(SendAwaiter_ &&) = delete;
     SendAwaiter_ &operator=(const SendAwaiter_ &) = delete;
