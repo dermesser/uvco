@@ -51,9 +51,9 @@ public:
   FileOpAwaiter_ &operator=(FileOpAwaiter_ &&) = delete;
 
   ~FileOpAwaiter_() {
-    resetRequestData(&req_);
     uv_cancel((uv_req_t *)&req_);
     uv_fs_req_cleanup(&req_);
+    resetRequestData(&req_);
   }
 
   /// Obtain the `uv_fs_t` struct to fill in before starting the operation.
@@ -227,10 +227,10 @@ Promise<File> File::open(const Loop &loop, std::string_view path, int flags,
   co_return File{loop.uvloop(), fileDesc};
 }
 
-Promise<void> File::unlink(const Loop &loop, const std::string &path) {
+Promise<void> File::unlink(const Loop &loop, std::string_view path) {
   FileOpAwaiter_ awaiter;
 
-  uv_fs_unlink(loop.uvloop(), &awaiter.req(), std::string{path}.data(),
+  uv_fs_unlink(loop.uvloop(), &awaiter.req(), path.data(),
                FileOpAwaiter_::uvCallback());
 
   co_await awaiter;
