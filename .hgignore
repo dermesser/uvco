@@ -1,4 +1,9 @@
 build
+relbuild
+.orig
+pyproject.toml
+uv.lock
 .cache
+.venv
 compile_commands.json
 doxygen
