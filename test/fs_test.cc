@@ -155,6 +155,16 @@ TEST(FsTest, openDir) {
   run_loop(setup);
 }
 
+TEST(FsTest, dropDir) {
+  static constexpr std::string_view dirName = "/tmp";
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto dir = co_await Directory::open(loop, dirName);
+    auto entries = co_await dir.read();
+  };
+
+  run_loop(setup);
+}
+
 TEST(FsTest, scanDir) {
   static constexpr std::string_view dirName = "/tmp";
   auto setup = [](const Loop &loop) -> Promise<void> {

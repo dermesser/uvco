@@ -119,10 +119,15 @@ Directory &Directory::operator=(Directory &&other) noexcept {
   return *this;
 }
 
+namespace {
+
+void onDirectoryDtorDone(uv_fs_t *req) { delete req; }
+
+} // namespace
+
 Directory::~Directory() {
   if (dir_ != nullptr) {
-    auto req = std::make_unique<uv_fs_t>();
-    uv_fs_closedir(loop_, req.release(), dir_, nullptr);
+    uv_fs_closedir(loop_, new uv_fs_t, dir_, onDirectoryDtorDone);
     fmt::print(stderr, "Directory closed in dtor; this leaks memory. Please "
                        "use co_await close() instead\n");
   }
