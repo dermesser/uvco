@@ -134,8 +134,6 @@ void onDirectoryDtorDone(uv_fs_t *req) { delete req; }
 Directory::~Directory() {
   if (dir_ != nullptr) {
     uv_fs_closedir(loop_, new uv_fs_t, dir_, onDirectoryDtorDone);
-    fmt::print(stderr, "Directory closed in dtor; this leaks memory. Please "
-                       "use co_await close() instead\n");
   }
 }
 
