@@ -35,6 +35,7 @@ class FileOpAwaiter_ {
     auto *awaiter = getRequestDataOrNull<FileOpAwaiter_>(req);
     if (awaiter == nullptr) {
       // cancelled
+      delete req;
       return;
     }
     awaiter->result_ = req->result;
@@ -42,7 +43,7 @@ class FileOpAwaiter_ {
   }
 
 public:
-  FileOpAwaiter_() = default;
+  FileOpAwaiter_() : req_{std::make_unique<uv_fs_t>()} {}
 
   // File operation must be pinned in memory.
   FileOpAwaiter_(const FileOpAwaiter_ &) = delete;
@@ -51,13 +52,17 @@ public:
   FileOpAwaiter_ &operator=(FileOpAwaiter_ &&) = delete;
 
   ~FileOpAwaiter_() {
-    uv_cancel((uv_req_t *)&req_);
-    uv_fs_req_cleanup(&req_);
-    resetRequestData(&req_);
+    uv_fs_req_cleanup(req_.get());
+    if (!requestDataIsNull(req_.get())) {
+      // A callback is pending and the FileOp is aborted. Clean up.
+      resetRequestData(req_.get());
+      // The onFileOpDone callback will clean up after us.
+      uv_cancel((uv_req_t *)req_.release());
+    }
   }
 
   /// Obtain the `uv_fs_t` struct to fill in before starting the operation.
-  [[nodiscard]] uv_fs_t &req() { return req_; }
+  [[nodiscard]] uv_fs_t &req() { return *req_; }
   [[nodiscard]] static uv_fs_cb uvCallback() { return onFileOpDone; }
 
   [[nodiscard]] bool await_ready() const noexcept {
@@ -67,8 +72,8 @@ public:
   bool await_suspend(std::coroutine_handle<> handle) {
     BOOST_ASSERT(!result_);
     BOOST_ASSERT_MSG(!handle_, "FileOpAwaiter_ can only be awaited once");
-    BOOST_ASSERT(requestDataIsNull(&req_));
-    setRequestData(&req_, this);
+    BOOST_ASSERT(requestDataIsNull(req_.get()));
+    setRequestData(req_.get(), this);
     handle_ = handle;
     return true;
   }
@@ -77,7 +82,8 @@ public:
   /// is resumed.
   void await_resume() {
     BOOST_ASSERT(result_);
-    BOOST_ASSERT(!requestDataIsNull(&req_));
+    BOOST_ASSERT(!requestDataIsNull(req_.get()));
+    resetRequestData(req_.get());
     if (result_ && result_.value() < 0) {
       throw UvcoException(static_cast<uv_status>(result_.value()),
                           "file operation failed");
@@ -88,7 +94,7 @@ public:
   }
 
 private:
-  uv_fs_t req_ = {};
+  std::unique_ptr<uv_fs_t> req_;
   std::coroutine_handle<> handle_;
   std::optional<ssize_t> result_ = std::nullopt;
 
