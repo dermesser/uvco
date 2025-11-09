@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <fcntl.h>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -169,6 +170,23 @@ TEST(FsTest, dropDir) {
   };
 
   run_loop(setup);
+}
+
+TEST(FsTest, dropUnlinkOp) {
+  static constexpr std::string_view fileName = "/tmp/_uvco_test_file";
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    // create at least one file in /tmp in case it is empty.
+    auto file = co_await File::open(loop, fileName, O_RDWR | O_CREAT);
+    co_await file.write("hello world");
+    co_await file.close();
+
+    File::unlink(loop, fileName);
+  };
+
+  run_loop(setup);
+  if (std::filesystem::exists(fileName)) {
+    std::filesystem::remove(fileName);
+  }
 }
 
 TEST(FsTest, scanDir) {
