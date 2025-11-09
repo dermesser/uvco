@@ -1,5 +1,7 @@
 # uvco
 
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/dermesser/uvco/test.yml)
+
 C++20 standard library coroutines running on `libuv`.
 
 Currently, a bit of an experiment - but it works for real! I am aiming for an ergonomic, intuitive,
