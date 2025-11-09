@@ -139,7 +139,12 @@ TEST(FsTest, mkDirRmDir) {
 
 TEST(FsTest, openDir) {
   static constexpr std::string_view dirName = "/tmp";
+  static constexpr std::string_view fileName = "/tmp/_uvco_test_file";
   auto setup = [](const Loop &loop) -> Promise<void> {
+    auto file = co_await File::open(loop, fileName, O_RDWR | O_CREAT);
+    co_await file.write("hello world");
+    co_await file.close();
+
     auto dir = co_await Directory::open(loop, dirName);
     // Test move ctor.
     auto dir1 = std::move(dir);
@@ -150,6 +155,7 @@ TEST(FsTest, openDir) {
     EXPECT_GT(entries.size(), 0);
 
     co_await dir.close();
+    co_await File::unlink(loop, fileName);
   };
 
   run_loop(setup);
@@ -167,7 +173,13 @@ TEST(FsTest, dropDir) {
 
 TEST(FsTest, scanDir) {
   static constexpr std::string_view dirName = "/tmp";
+  static constexpr std::string_view fileName = "/tmp/_uvco_test_file";
   auto setup = [](const Loop &loop) -> Promise<void> {
+    // create at least one file in /tmp in case it is empty.
+    auto file = co_await File::open(loop, fileName, O_RDWR | O_CREAT);
+    co_await file.write("hello world");
+    co_await file.close();
+
     auto entries = Directory::readAll(loop, dirName);
     unsigned count = 0;
     std::optional<Directory::DirEnt> entry;
@@ -177,6 +189,8 @@ TEST(FsTest, scanDir) {
       ++count;
     }
     EXPECT_GT(count, 0);
+
+    co_await File::unlink(loop, fileName);
   };
 
   run_loop(setup);
