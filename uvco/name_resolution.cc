@@ -147,49 +147,71 @@ AddressHandle::AddressHandle(const struct sockaddr *sa) {
 Promise<AddressHandle> Resolver::gai(std::string_view host, uint16_t port,
                                      int af_hint) {
   const std::string portStr = std::to_string(port);
-  return gai(host, portStr, af_hint);
+  co_return (co_await gai(host, portStr, af_hint));
 }
 
 Promise<AddressHandle> Resolver::gai(std::string_view host,
                                      std::string_view port, int af_hint) {
   AddrinfoAwaiter_ awaiter;
-  awaiter.req_.data = &awaiter;
   struct addrinfo hints{};
   hints.ai_family = af_hint;
   hints.ai_socktype = SOCK_STREAM;
 
-  uv_getaddrinfo(loop_->uvloop(), &awaiter.req_, onAddrinfo, host.data(),
+  uv_getaddrinfo(loop_->uvloop(), awaiter.req_.get(), onAddrinfo, host.data(),
                  port.data(), &hints);
   // Npte: we rely on libuv not resuming before awaiting the result.
   struct addrinfo *result = co_await awaiter;
 
-  uv_status status = awaiter.status_.value();
+  const uv_status status = awaiter.status_.value();
   if (status != 0) {
     throw UvcoException{status, "getaddrinfo()"};
   }
 
-  AddressHandle address{result};
-  uv_freeaddrinfo(result);
-
-  co_return address;
+  co_return AddressHandle{result};
 }
 
 void Resolver::onAddrinfo(uv_getaddrinfo_t *req, uv_status status,
                           struct addrinfo *result) {
-  auto *awaiter = getRequestData<AddrinfoAwaiter_>(req);
+  // asserts request data not null; the only time this could be the case is
+  // after a lookup is cancelled.
+  auto *awaiter = getRequestDataOrNull<AddrinfoAwaiter_>(req);
+  if (awaiter == nullptr) {
+    // cancelled
+    delete req;
+    return;
+  }
   awaiter->addrinfo_ = result;
   awaiter->status_ = status;
-  BOOST_ASSERT(awaiter->handle_);
-  Loop::enqueue(*awaiter->handle_);
+  BOOST_ASSERT(awaiter->handle_ != nullptr);
+  Loop::enqueue(awaiter->handle_);
 }
+
+Resolver::AddrinfoAwaiter_::AddrinfoAwaiter_()
+    : req_{std::make_unique<uv_getaddrinfo_t>()} {}
+
+Resolver::AddrinfoAwaiter_::~AddrinfoAwaiter_() {
+  if (req_ != nullptr && !requestDataIsNull(req_.get())) {
+    resetRequestData(req_.get());
+    // Request will be freed by onAddrinfo callback
+    uv_cancel((uv_req_t *)req_.release());
+  }
+  if (addrinfo_.has_value()) {
+    uv_freeaddrinfo(addrinfo_.value());
+  }
+}
+
+bool Resolver::AddrinfoAwaiter_::await_ready() { return false; }
 
 struct addrinfo *Resolver::AddrinfoAwaiter_::await_resume() {
   BOOST_ASSERT(addrinfo_);
+  BOOST_ASSERT(!requestDataIsNull(req_.get()));
+  resetRequestData(req_.get());
   return *addrinfo_;
 }
 
 bool Resolver::AddrinfoAwaiter_::await_suspend(std::coroutine_handle<> handle) {
   handle_ = handle;
+  setRequestData(req_.get(), this);
   return true;
 }
 

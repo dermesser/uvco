@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -103,16 +104,19 @@ private:
                          struct addrinfo *result);
 
   struct AddrinfoAwaiter_ {
-    AddrinfoAwaiter_() : req_{} {}
-    [[nodiscard]] bool await_ready() const { return false; }
+    AddrinfoAwaiter_();
+    ~AddrinfoAwaiter_();
+
+    bool await_ready();
     bool await_suspend(std::coroutine_handle<> handle);
 
     struct addrinfo *await_resume();
 
-    uv_getaddrinfo_t req_;
+    // must be unique_ptr to support legal cancellation of lookups.
+    std::unique_ptr<uv_getaddrinfo_t> req_;
     std::optional<struct addrinfo *> addrinfo_;
     std::optional<int> status_;
-    std::optional<std::coroutine_handle<>> handle_;
+    std::coroutine_handle<> handle_;
   };
 };
 

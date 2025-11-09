@@ -53,13 +53,24 @@ TEST(NameResolutionTest, ipv6Parse) {
   EXPECT_EQ(ah.family(), AF_INET6);
 }
 
-TEST(NameResolutionTest, resolveGoogleDotCom) {
+TEST(NameResolutionTest, resolveGoogleDns) {
   auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
     Resolver resolver{loop};
     Promise<AddressHandle> ahPromise = resolver.gai("dns.google", 443, AF_INET);
     AddressHandle address = co_await ahPromise;
     EXPECT_EQ(address.port(), 443);
     EXPECT_TRUE(address.address().starts_with("8.8."));
+  };
+
+  run_loop(setup);
+}
+
+TEST(NameResolutionTest, cancelResolve) {
+  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+    Resolver resolver{loop};
+    Promise<AddressHandle> ahPromise = resolver.gai("google.com", 443, AF_INET);
+    // drop ahPromise here
+    co_return;
   };
 
   run_loop(setup);

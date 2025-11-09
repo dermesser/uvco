@@ -44,6 +44,7 @@ public:
 
   static void onWorkDone(uv_work_t *work, uv_status status) {
     if (status == UV_ECANCELED) {
+      BOOST_ASSERT(requestDataIsNull(work));
       // Work was cancelled; do not resume the coroutine.
       return;
     }
