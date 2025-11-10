@@ -1,7 +1,6 @@
 
 #include <boost/assert.hpp>
 #include <gtest/gtest.h>
-#include <sys/socket.h>
 #include <uv.h>
 
 #include "test_util.h"
@@ -28,7 +27,7 @@ using namespace uvco;
 // Doesn't work on Github Actions because no TTY is attached.
 TEST(TtyTest, DISABLED_stdioTest) {
   uint64_t counter = 0;
-  auto setup = [&counter](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&counter](const Loop &loop) -> Promise<void> {
     std::vector<TtyStream> ttys;
     ttys.emplace_back(TtyStream::stdin(loop));
     ttys.emplace_back(TtyStream::stdout(loop));
@@ -48,7 +47,7 @@ TEST(TtyTest, DISABLED_stdioTest) {
 
 TEST(TtyTest, stdoutNoClose) {
   uint64_t counter = 0;
-  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
     TtyStream stdout = TtyStream::stdout(loop);
 
     co_await stdout.write(" ");
@@ -60,7 +59,7 @@ TEST(TtyTest, stdoutNoClose) {
 }
 
 TEST(TtyTest, invalidFd) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &loop) -> Promise<void> {
     EXPECT_THROW({ TtyStream tty = TtyStream::tty(loop, -1); }, UvcoException);
     co_return;
   };
@@ -69,7 +68,7 @@ TEST(TtyTest, invalidFd) {
 }
 
 TEST(TtyTest, closeWhileReading) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &loop) -> Promise<void> {
     TtyStream tty = TtyStream::stdin(loop);
     Promise<std::optional<std::string>> reader = tty.read();
     co_await tty.close();
@@ -80,19 +79,17 @@ TEST(TtyTest, closeWhileReading) {
 }
 
 TEST(PipeTest, danglingReadDies) {
-  auto f = [](const Loop &loop) -> uvco::Promise<std::optional<std::string>> {
+  auto f = [](const Loop &loop) -> Promise<std::optional<std::string>> {
     auto [read, write] = pipe(loop);
     auto _ = write.write("Hello");
     return read.read();
   };
-  auto setup = [&f](const Loop &loop) -> uvco::Promise<void> {
-    co_await f(loop);
-  };
+  auto setup = [&f](const Loop &loop) -> Promise<void> { co_await f(loop); };
   EXPECT_DEATH(run_loop(setup), R"(stream must outlive reader coroutine)");
 }
 
 TEST(PipeTest, pipePingPong) {
-  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &loop) -> Promise<void> {
     auto [read, write] = pipe(loop);
 
     co_await write.write("Hello\n");
@@ -106,7 +103,7 @@ TEST(PipeTest, pipePingPong) {
 }
 
 TEST(PipeTest, doubleReadDies) {
-  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &loop) -> Promise<void> {
     auto [read, write] = pipe(loop);
 
     Promise<std::optional<std::string>> readPromise = read.read();
@@ -123,7 +120,7 @@ TEST(PipeTest, largeWriteRead) {
   std::array<char, 1024> buffer{};
   urandom.read(buffer.data(), buffer.size());
 
-  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
     auto [read, write] = pipe(loop);
 
     for (unsigned i = 0; i < 10; ++i) {
@@ -150,7 +147,7 @@ TEST(PipeTest, largeWriteRead) {
 }
 
 TEST(PipeTest, readIntoBuffer) {
-  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &loop) -> Promise<void> {
     auto [read, write] = pipe(loop);
 
     co_await write.write("Hello");
