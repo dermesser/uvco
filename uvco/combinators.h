@@ -49,7 +49,7 @@ waitAny(Promise<PromiseTypes> &...promises) {
 /// one element will be set.
 template <typename... PromiseTypes>
 Promise<std::vector<std::variant<PromiseTypes...>>>
-race(Promise<PromiseTypes>... promises) {
+race(Promise<PromiseTypes> &&...promises) {
   co_return (co_await waitAny(promises...));
 }
 
@@ -62,6 +62,40 @@ Promise<void> raceIgnore(Promise<PromiseTypes>... promises) {
   using S = SelectSet<PromiseTypes...>;
   S selectSet{promises...};
   co_await selectSet;
+}
+
+namespace detail {
+
+template <typename T> struct ReplaceVoid {
+  using type = T;
+};
+
+struct Void {};
+
+template <> struct ReplaceVoid<void> {
+  using type = Void;
+};
+
+template <typename PromiseType>
+Promise<typename ReplaceVoid<PromiseType>::type>
+awaitAndReplaceVoid(Promise<PromiseType> &promise) {
+  co_return (co_await promise);
+}
+
+template <> inline Promise<Void> awaitAndReplaceVoid(Promise<void> &promise) {
+  co_await promise;
+  co_return {};
+}
+
+} // namespace detail
+
+/// Wait for all promises to finish, returning all results in a tuple. In the
+/// returned tuple, any `Promise<void>` is represented by a `Void` struct, which
+/// is just an empty struct.
+template <typename... PromiseTypes>
+Promise<std::tuple<typename detail::ReplaceVoid<PromiseTypes>::type...>>
+waitAll(Promise<PromiseTypes>... promises) {
+  co_return std::make_tuple(co_await detail::awaitAndReplaceVoid(promises)...);
 }
 
 /// @}

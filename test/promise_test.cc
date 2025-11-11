@@ -76,11 +76,90 @@ TEST(PromiseTest, awaitTwice) {
   run_loop(setup);
 }
 
+TEST(PromiseTest, awaitConst) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    const Promise<int> promise = []() -> Promise<int> {
+      co_await yield();
+      co_return 1;
+    }();
+    EXPECT_EQ(co_await promise, 1);
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, assignmentEquivalent) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto coroutine = []() -> Promise<int> {
+      co_await yield();
+      co_return 1;
+    };
+
+    // Verify that awaiting a called coroutine and a stored promise both works.
+    EXPECT_EQ(co_await coroutine(), 1);
+
+    auto promise = coroutine();
+    EXPECT_EQ(co_await promise, 1);
+  };
+
+  run_loop(setup);
+}
+
 TEST(PromiseTest, awaitTwiceImmediateReturn) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     Promise<int> promise = []() -> Promise<int> { co_return 1; }();
     EXPECT_EQ(co_await promise, 1);
     EXPECT_THROW({ co_await promise; }, UvcoException);
+  };
+
+  run_loop(setup);
+}
+
+struct MovableOnly {
+  MovableOnly() = default;
+  MovableOnly(MovableOnly &&other) noexcept = default;
+  MovableOnly &operator=(MovableOnly &&other) noexcept = default;
+  MovableOnly(const MovableOnly &) = delete;
+  MovableOnly &operator=(const MovableOnly &) = delete;
+};
+
+TEST(PromiseTest, awaitReturnsMovableOnly) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Promise<MovableOnly> promise = []() -> Promise<MovableOnly> {
+      co_await yield();
+      co_return MovableOnly{};
+    }();
+    MovableOnly value = co_await promise;
+    (void)value;
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, unwrapReturnsMovableOnly) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Promise<MovableOnly> promise = []() -> Promise<MovableOnly> {
+      co_await yield();
+      co_return MovableOnly{};
+    }();
+    co_await yield();
+    BOOST_ASSERT(promise.ready());
+    MovableOnly value = promise.unwrap();
+    (void)value;
+  };
+
+  run_loop(setup);
+}
+
+TEST(PromiseTest, unrwapRethrows) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Promise<int> promise = []() -> Promise<int> {
+      co_await yield();
+      throw UvcoException("test exception");
+    }();
+    co_await yield();
+    BOOST_ASSERT(promise.ready());
+    EXPECT_THROW({ promise.unwrap(); }, UvcoException);
   };
 
   run_loop(setup);

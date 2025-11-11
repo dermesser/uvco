@@ -107,7 +107,7 @@ public:
       case 0: {
         T value = std::move(std::get<0>(slot));
         core_->slot.reset();
-        return std::move(value);
+        return value;
       }
       case 1: {
         std::rethrow_exception(std::get<1>(slot));
@@ -138,7 +138,9 @@ protected:
 
     /// Part of the coroutine protocol: returns `true` if the promise is already
     /// fulfilled.
-    [[nodiscard]] bool await_ready() const { return core_.ready(); }
+    [[nodiscard]] bool await_ready() const {
+      return core_.ready() && !core_.stale();
+    }
 
     /// Part of the coroutine protocol: returns if suspension is desired (always
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
@@ -160,7 +162,7 @@ protected:
         case 0: {
           T result = std::move(std::get<0>(core_.slot.value()));
           core_.slot.reset();
-          return std::move(result);
+          return result;
         }
         case 1: {
           const auto exc = std::get<1>(core_.slot.value());

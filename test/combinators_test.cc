@@ -1,5 +1,6 @@
 
 #include "uvco/combinators.h"
+#include "uvco/exception.h"
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
 #include "uvco/timer.h"
@@ -97,6 +98,76 @@ TEST(CombinatorsTest, race) {
 
   run_loop(main);
   EXPECT_FALSE(twoYieldsFinished);
+}
+
+TEST(CombinatorsTest, raceIgnore) {
+  bool twoYieldsFinished = false;
+  const auto main = [&](const Loop &loop) -> Promise<void> {
+    const auto oneYield = [&] -> Promise<void> {
+      co_await yield();
+      co_return;
+    };
+    const auto twoYields = [&] -> Promise<void> {
+      // We never sleep this long, the coroutine is just cancelled.
+      co_await sleep(loop, 1000);
+      twoYieldsFinished = true;
+      co_return;
+    };
+
+    co_await raceIgnore(oneYield(), twoYields());
+    co_return;
+  };
+
+  run_loop(main);
+  EXPECT_FALSE(twoYieldsFinished);
+}
+
+Promise<std::string_view> oneYield() {
+  co_await yield();
+  co_return "hello";
+}
+
+Promise<int> twoYields() {
+  co_await yield();
+  co_await yield();
+  co_return 123;
+}
+
+TEST(CombinatorsTest, waitAll) {
+  const auto main = [&](const Loop &loop) -> Promise<void> {
+    const auto result = co_await waitAll(oneYield(), twoYields());
+    EXPECT_EQ("hello", std::get<0>(result));
+    EXPECT_EQ(123, std::get<1>(result));
+
+    co_return;
+  };
+
+  run_loop(main);
+}
+
+TEST(CombinatorsTest, waitAllStored) {
+  const auto main = [&](const Loop &loop) -> Promise<void> {
+    const auto promise = waitAll(oneYield(), twoYields());
+    const auto result = co_await promise;
+    EXPECT_EQ(std::make_tuple("hello", 123), result);
+
+    co_return;
+  };
+
+  run_loop(main);
+}
+
+TEST(CombinatorsTest, waitAllTwice) {
+  const auto main = [&](const Loop &loop) -> Promise<void> {
+    auto promise = waitAll(oneYield(), twoYields());
+    const auto result = co_await promise;
+    EXPECT_EQ(std::make_tuple("hello", 123), result);
+    EXPECT_THROW({ co_await promise; }, UvcoException);
+
+    co_return;
+  };
+
+  run_loop(main);
 }
 
 } // namespace
