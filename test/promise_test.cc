@@ -165,6 +165,43 @@ TEST(PromiseTest, unrwapRethrows) {
   run_loop(setup);
 }
 
+template <typename PromiseType>
+struct RvalueCoroutineFixture : public ::testing::Test {};
+using RvalueCoroutineTypes = ::testing::Types<void, int>;
+TYPED_TEST_SUITE(RvalueCoroutineFixture, RvalueCoroutineTypes);
+
+// Tests that temporary values passed to a coroutine don't wreak havoc.
+TYPED_TEST(RvalueCoroutineFixture, rvalueCoroutine) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    // An rvalue `stringArg` is forbidden by the Coroutine constructors.
+    const auto coroutine = [](std::string stringArg) -> Promise<TypeParam> {
+      co_await yield();
+      [[maybe_unused]]
+      const std::string result = fmt::format("{}\n", stringArg);
+      if constexpr (std::is_same_v<TypeParam, void>) {
+        co_return;
+      } else {
+        co_return 1;
+      }
+    };
+
+    std::optional<Promise<TypeParam>> promise1, promise2, promise3;
+
+    {
+      std::string string{"abc"};
+      promise1 = coroutine(fmt::format("abc"));
+      promise2 = coroutine("abc");
+      promise3 = coroutine(std::move(string));
+    }
+
+    co_await promise1.value();
+    co_await promise2.value();
+    co_await promise3.value();
+  };
+
+  run_loop(setup);
+}
+
 // Only run this test with --gtest_filter=PromiseTest.yieldBench in Release
 // builds
 //

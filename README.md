@@ -253,7 +253,7 @@ Promise<void> fun() {
 
     co_await promise;
 
-    // At this point, the coroutine has returned.
+    // At this point, the coroutine is guaranteed to have finished.
 
     co_return;
 }
@@ -295,7 +295,8 @@ Promise<void> returnsPromise(const Loop& loop) {
 }
 ```
 
-This will obviously cause a stack-use-after-return or other use-after-free error, depending on the specific scenario.
+This will obviously cause a stack-use-after-return or other use-after-free error, depending on the
+specific scenario.
 
 Be extra careful of the following dangerous pattern around temporary values:
 
@@ -316,6 +317,11 @@ void run() {
     });
 }
 ```
+
+Some of these patterns are forbidden at compile time by `static_assert`s in the `Coroutine` class;
+specifically, coroutines returning a `uvco::Promise` are not allowed to take parameters by rvalue;
+this is almost always a bad idea and therefore we just ban it outright. As shown above, this ban
+will not save you from stack-use-after-return in `std::string_view`, `std::span`, etc.
 
 I may try to change the uvco types to prevent this pattern, but it's not easy to do so without
 impairing the ease of use in other places. In general, it is safe to pass all arguments by value

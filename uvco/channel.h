@@ -55,8 +55,9 @@ public:
   /// Template method: implements perfect forwarding for both copy and move
   /// insertion.
   ///
-  /// NOTE: template argument restriction may not be entirely correct?
-  template <typename U> Promise<void> put(U &&value) {
+  /// The argument is only accepted by value, as it's safer to do so in a
+  /// coroutine.
+  template <typename U> Promise<void> put(U value) {
     if (!queue_.hasSpace()) {
       // Block until a reader has popped an item.
       ChannelAwaiter_ awaiter{queue_, write_waiting_};

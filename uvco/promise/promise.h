@@ -27,10 +27,10 @@ template <typename T> class Promise;
 /// used within a coroutine. The Promise object itself acts as awaitable for
 /// awaiting coroutines.
 ///
-/// A Promise doesn't need to be constructed directly; it is always returned
-/// from a coroutine function. Declare a function with a return type of
-/// `Promise<T>` and use `co_return` to return a value - that's it! Inside the
-/// coroutine, you can use `co_await` etc.
+/// A Promise doesn't need to be constructed directly (and it can't); it is
+/// always returned from a coroutine function. Declare a function with a return
+/// type of `Promise<T>` and use `co_return` to return a value - that's it!
+/// Inside the coroutine, you can use `co_await` etc.
 ///
 /// When a Promise is awaited using `co_await`, the awaiting coroutine is
 /// suspended until the promise is resolved. Once the promise is resolved, the
@@ -265,6 +265,39 @@ template <typename T> class Coroutine {
   using SharedCore_ = PromiseCore_ *;
 
 public:
+  /// This construct forbids coroutines taking rvalue/xvalue arguments, which
+  /// often enough come from function return values. If a Promise returned by
+  /// such a coroutine is stored and awaited later, a use-after-free or
+  /// use-after-return results.
+  ///
+  /// Instead, pass arguments by lvalue reference (which forbids xvalues), or by
+  /// value (which allows xvalues, and is safe).
+  ///
+  /// The typical violating example is as follows:
+  ///
+  /// ```
+  /// Promise<int> coroutine(std::string&& string);
+  /// Promise<int> owningCoroutine(std::string string);
+  /// Promise<int> lvalueCoroutine(std::string& string);
+  ///
+  /// Promise<int> promise = coroutine(fmt::format("Hello World"));
+  /// // Error: string is long gone.
+  /// co_await promise;
+  ///
+  /// // OK
+  /// Promise<int> ok = owningCoroutine(fmt::format("Hello World"));
+  /// co_await ok;
+  ///
+  /// // Compiler Error
+  /// Promise<int> bad = lvalueCoroutine(fmt::format("Hello World"));
+  /// ```
+  template <typename... Args> explicit Coroutine(Args &&...args) {
+    // Assert statically that no arg is an rvalue/xvalue reference
+    static_assert(
+        (!std::is_rvalue_reference_v<Args &&> && ...),
+        "Coroutine constructor arguments must not be rvalue references");
+  }
+
   /// Coroutine object lives and is pinned within the coroutine frame;
   /// copy/move is disallowed.
   Coroutine() = default;
@@ -323,6 +356,13 @@ template <> class Coroutine<void> {
   using SharedCore_ = PromiseCore_ *;
 
 public:
+  template <typename... Args> explicit Coroutine(Args &&...args) {
+    // Assert statically that no arg is an rvalue/xvalue reference
+    static_assert(
+        (!std::is_rvalue_reference_v<Args &&> && ...),
+        "Coroutine constructor arguments must not be rvalue references");
+  }
+
   Coroutine() = default;
   // Coroutine is pinned in memory and not allowed to copy/move.
   Coroutine(Coroutine<void> &&other) noexcept = delete;

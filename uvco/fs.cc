@@ -32,6 +32,9 @@ namespace {
 
 class FileOpAwaiter_ {
   static void onFileOpDone(uv_fs_t *req) {
+    if (req == nullptr) {
+      return;
+    }
     auto *awaiter = getRequestDataOrNull<FileOpAwaiter_>(req);
     if (awaiter == nullptr) {
       // cancelled
