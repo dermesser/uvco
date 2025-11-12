@@ -44,12 +44,12 @@ waitAny(Promise<PromiseTypes> &...promises) {
   co_return results;
 }
 
-/// Like `waitAny`, but cancel all promises that were not ready in time.
+/// Like `waitAny`, but cancels all promises that were not ready in time.
 /// Returns a vector of the results that were ready first; most frequently, only
 /// one element will be set.
 template <typename... PromiseTypes>
 Promise<std::vector<std::variant<PromiseTypes...>>>
-race(Promise<PromiseTypes> &&...promises) {
+race(Promise<PromiseTypes> ...promises) {
   co_return (co_await waitAny(promises...));
 }
 
