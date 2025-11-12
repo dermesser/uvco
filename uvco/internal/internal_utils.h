@@ -113,67 +113,6 @@ struct UvHandleDeleter {
   }
 };
 
-/// `RefCounted<T>` is an intrusive refcounting approach, which reduces the
-/// run-time of low-overhead high frequency promise code (such as buffered
-/// channel ping-pong scenarios) by as much as 50% compared to `shared_ptr` use.
-/// However, manual refcounting is required by objects owning a refcounted
-/// object.
-///
-/// Use `makeRefCounted()` to allocate a new reference-counted object, and
-/// store it as part of your class. Use `addRef()` and `delRef()` to keep track
-/// of the current number of references.
-///
-/// This type currently doesn't work well with inheritance: only a class
-/// directly inheriting from `RefCounted` can be managed. This is caused by the
-/// current API approach.
-///
-/// NOTE: currently not used, as `PromiseCore` objects are now stored inline in
-/// the `Coroutine` object, and `MultiPromise` uses `shared_ptr` for simplicity.
-template <typename T> class RefCounted {
-public:
-  // Assignment doesn't change count.
-  RefCounted(const RefCounted &other) = default;
-  RefCounted &operator=(const RefCounted &other) = default;
-  RefCounted(RefCounted &&other) noexcept {}
-  RefCounted &operator=(RefCounted &&other) noexcept {}
-  virtual ~RefCounted() = default;
-
-  /// Use in e.g. copy constructors, when creating a new reference to the same
-  /// object.
-  virtual T *addRef() {
-    ++count_;
-    return static_cast<T *>(this);
-  }
-
-  /// Use in e.g. destructors, when an existing pointer goes out of
-  /// scope. Once the reference count has dropped to 0, the referred object will
-  /// be deleted.
-  virtual void delRef() {
-    --count_;
-    if (count_ == 0) {
-      delete static_cast<T *>(this);
-    }
-  }
-
-protected:
-  RefCounted() = default;
-
-private:
-  size_t count_ = 1;
-};
-
-/// Create a new refcounted value. `T` must derive from `RefCounted<T>`.
-template <typename T, typename... Args>
-T *makeRefCounted(Args... args)
-  requires std::derived_from<T, RefCounted<T>>
-{
-  if constexpr (sizeof...(args) == 0) {
-    return new T{};
-  } else {
-    return new T{std::forward<Args...>(args...)};
-  }
-}
-
 extern const bool TRACK_LIFETIMES;
 
 /// A utility that can be inherited from in order to log information

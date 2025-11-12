@@ -49,7 +49,7 @@ waitAny(Promise<PromiseTypes> &...promises) {
 /// one element will be set.
 template <typename... PromiseTypes>
 Promise<std::vector<std::variant<PromiseTypes...>>>
-race(Promise<PromiseTypes> ...promises) {
+race(Promise<PromiseTypes>... promises) {
   co_return (co_await waitAny(promises...));
 }
 
