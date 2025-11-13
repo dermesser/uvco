@@ -60,7 +60,14 @@ public:
       // A callback is pending and the FileOp is aborted. Clean up.
       resetRequestData(req_.get());
       // The onFileOpDone callback will clean up after us.
-      uv_cancel((uv_req_t *)req_.release());
+      if (0 != uv_cancel((uv_req_t *)req_.release())) {
+        // This is known to trigger a nullptr dereference in uv__fs_read()
+        // rarely due to a race condition with libuv. Best practice - don't
+        // cancel file operations, as they occur on a threadpool thread and may
+        // not always be cancelled safely.
+        fmt::print("uv_cancel failed in FileOpAwaiter_ dtor. This happened "
+                   "because an fs operation was cancelled - try not to do that\n");
+      }
     }
   }
 
