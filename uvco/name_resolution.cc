@@ -178,6 +178,7 @@ void Resolver::onAddrinfo(uv_getaddrinfo_t *req, uv_status status,
   if (awaiter == nullptr) {
     // cancelled
     delete req;
+    uv_freeaddrinfo(result);
     return;
   }
   awaiter->addrinfo_ = result;
