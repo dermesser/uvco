@@ -300,8 +300,8 @@ TEST(ChannelTest, channelGenerator) {
   auto setup = [&](const Loop &) -> Promise<void> {
     Channel<int> chan{2};
 
-    Promise<void> writerCoroutine = writer(chan, numIters);
     MultiPromise<int> gen = chan.getAll();
+    Promise<void> writerCoroutine = writer(chan, numIters);
 
     for (int i = 0; i < numIters; ++i) {
       EXPECT_EQ(counter = (co_await gen).value(), i);

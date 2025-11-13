@@ -30,16 +30,16 @@ namespace uvco {
 /// reader.
 ///
 /// When only using a channel to communicate small objects between coroutines,
-/// it takes about 1 µs per send/receive operation on a slightly older
-/// *i5-7300U CPU @ 2.60GHz* CPU (clang 17) using the `RunMode::Deferred` event
-/// loop mode. This includes the entire coroutine dance of suspending/resuming
-/// between the reader and writer. (`RunMode::Immediate` is ~25% faster)
+/// it takes about 50 ns to send a small value (e.g. int) on clang-21 and AMD
+/// Ryzen 7 PRO 7840U.
 ///
 /// Caveat 1: the channel is obviously not thread safe. Only use within one
-/// loop. Caveat 2: As you can notice, the Channel is independent of a `Loop`.
-/// This means that a `runMain()` may return despite there being channels in use
-/// and awaited on. Ensure that at least one uv operation (socket
-/// read/write/listen, timer, etc.) is running to keep the loop alive.
+/// loop.
+///
+/// Caveat 2: Channel is independent of a `Loop`. This means that `runMain()`
+/// may return despite there being channels in use and awaited on. Ensure that
+/// at least one uv operation (socket read/write/listen, timer, etc.) is running
+/// to keep the loop alive.
 template <typename T> class Channel {
 public:
   /// Create a channel for up to `capacity` items.
