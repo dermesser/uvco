@@ -120,17 +120,23 @@ private:
   BoundedQueue<std::coroutine_handle<>> write_waiting_;
 
   void awake_reader() {
-    if (!read_waiting_.empty()) {
+    while (!read_waiting_.empty()) {
       auto handle = read_waiting_.get();
-      // Slower than direct resume but interacts more nicely with other
-      // coroutines.
-      Loop::enqueue(handle);
+      // Skip cancelled coroutines.
+      if (handle != nullptr) {
+        Loop::enqueue(handle);
+        break;
+      }
     }
   }
+
   void awake_writer() {
-    if (!write_waiting_.empty()) {
+    while (!write_waiting_.empty()) {
       auto handle = write_waiting_.get();
-      Loop::enqueue(handle);
+      if (handle != nullptr) {
+        Loop::enqueue(handle);
+        break;
+      }
     }
   }
 
@@ -138,6 +144,15 @@ private:
     explicit ChannelAwaiter_(BoundedQueue<T> &queue,
                              BoundedQueue<std::coroutine_handle<>> &slot)
         : queue_{queue}, waiters_{slot} {}
+    ~ChannelAwaiter_() {
+      // Remove us from waiters.
+      waiters_.forEach([this](std::coroutine_handle<> &h) {
+        // Remove pending coroutine from waiter queue.
+        if (h == thisCoro_) {
+          h = nullptr;
+        }
+      });
+    }
 
     bool await_ready() { return false; }
 
@@ -147,6 +162,7 @@ private:
             UV_EBUSY,
             "too many coroutines waiting for reading/writing a channel");
       }
+      thisCoro_ = handle;
       waiters_.put(handle);
       return true;
     }
@@ -156,6 +172,7 @@ private:
     // References Channel<T>::queue_
     BoundedQueue<T> &queue_;
     BoundedQueue<std::coroutine_handle<>> &waiters_;
+    std::coroutine_handle<> thisCoro_;
   };
 };
 

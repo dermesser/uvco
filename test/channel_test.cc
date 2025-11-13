@@ -167,7 +167,6 @@ TEST(ChannelTest, blockingRead) {
 }
 
 TEST(ChannelTest, blockingWriteBench) {
-
   auto source = [](Channel<int> &chan, int numIters) -> Promise<void> {
     for (int i = 1; i < numIters + 1; ++i) {
       co_await chan.put(i);
@@ -192,6 +191,48 @@ TEST(ChannelTest, blockingWriteBench) {
   // May not be the case if a co_await stalled: then run_loop finishes
   // prematurely.
   EXPECT_TRUE(reachedEnd);
+}
+
+TEST(ChannelTest, cancelRead) {
+  auto setup = [&](const Loop &) -> Promise<void> {
+    Channel<int> chan{2};
+
+    {
+      Promise<int> reader = chan.get();
+    }
+    chan.put(123);
+
+    EXPECT_EQ(123, co_await chan.get());
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(ChannelTest, cancelWrite) {
+  auto setup = [&](const Loop &) -> Promise<void> {
+    Channel<int> chan{1};
+
+    auto writer1 = chan.put(1);
+    EXPECT_TRUE(writer1.ready());
+    co_await writer1;
+
+    {
+      Promise<void> writer = chan.put(2);
+      EXPECT_FALSE(writer.ready());
+    }
+
+    EXPECT_EQ(1, co_await chan.get());
+
+    auto writer2 = chan.put(3);
+    EXPECT_TRUE(writer2.ready());
+    co_await writer2;
+
+    EXPECT_EQ(3, co_await chan.get());
+    co_return;
+  };
+
+  run_loop(setup);
 }
 
 TEST(ChannelTest, multipleWaiters) {
