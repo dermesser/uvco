@@ -50,6 +50,7 @@ private:
   /// is different than e.g. in the `TcpClient` class.
   struct ConnectAwaiter_ {
     explicit ConnectAwaiter_(const Loop &loop, std::string_view path);
+    ~ConnectAwaiter_();
 
     static void onConnect(uv_connect_t *req, uv_status status);
 
@@ -57,10 +58,10 @@ private:
     bool await_suspend(std::coroutine_handle<> handle);
     UnixStream await_resume();
 
-    uv_connect_t request_{};
+    std::unique_ptr<uv_connect_t> request_{};
     std::unique_ptr<uv_pipe_t> pipe_;
     std::string_view path_;
-    std::optional<std::coroutine_handle<>> handle_;
+    std::coroutine_handle<> handle_;
     std::optional<uv_status> status_;
   };
 };

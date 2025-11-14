@@ -78,7 +78,7 @@ Promise<void> pingPongClient(const Loop &loop) {
   }
 }
 
-TEST(UdsTest, UnixStreamPingPong) {
+TEST(UdsTest, unixStreamPingPong) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     try {
       Promise<void> server = pingPongServer(loop);
@@ -95,7 +95,27 @@ TEST(UdsTest, UnixStreamPingPong) {
   run_loop(setup);
 }
 
-TEST(UdsTest, UnixStreamFailConnect) {
+TEST(UdsTest, dropServer) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    UnixStreamServer server{loop, testSocketPath};
+    MultiPromise<uvco::UnixStream> listener = server.listen();
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(UdsTest, dropPingPong) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Promise<void> server = pingPongServer(loop);
+    Promise<void> client = pingPongClient(loop);
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(UdsTest, unixStreamFailConnect) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     try {
       UnixStreamClient client{loop};
@@ -109,7 +129,7 @@ TEST(UdsTest, UnixStreamFailConnect) {
   EXPECT_THROW({ run_loop(setup); }, UvcoException);
 }
 
-TEST(UdsTest, UnixStreamListenerStop) {
+TEST(UdsTest, unixStreamListenerStop) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     UnixStreamServer server{loop, testSocketPath};
     auto listener = server.listen();

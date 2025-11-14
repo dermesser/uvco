@@ -21,7 +21,6 @@
 #include "uvco/uds_stream.h"
 
 #include <coroutine>
-#include <cstdio>
 #include <memory>
 #include <utility>
 
@@ -29,12 +28,9 @@ namespace uvco {
 
 template <typename UvStreamType, typename StreamType>
 StreamServerBase<UvStreamType, StreamType>::~StreamServerBase() {
-  if (socket_) {
-    fmt::print(stderr, "StreamServerBase::~StreamServerBase(): closing server "
-                       "in dtor; this will leak memory. "
-                       "Please co_await server.close() if possible.\n");
-    // Asynchronously close handle. It's better to leak memory than file
-    // descriptors.
+  if (socket_ != nullptr) {
+    // closeHandle takes care of freeing the memory if its own promise is
+    // dropped.
     closeHandle(socket_.release());
   }
 }
