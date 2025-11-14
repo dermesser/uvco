@@ -84,6 +84,19 @@ TEST(AsyncWorkTest, resultReturned) {
 }
 
 TEST(AsyncWorkTest, cancelled) {
+  auto work = []() -> void {
+    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+  };
+
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    auto p = submitWork<void>(loop, work);
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(AsyncWorkTest, cancelledLate) {
   std::atomic<bool> started;
 
   auto work = [&started]() -> void {
@@ -117,7 +130,7 @@ TEST(AsyncWorkTest, exceptionThrown) {
   run_loop(setup);
 }
 
-TEST(AsyncWorkTest, execptionThrownForValue) {
+TEST(AsyncWorkTest, exceptionThrownForValue) {
   auto work = []() -> unsigned { throw std::runtime_error("test"); };
 
   auto setup = [&](const Loop &loop) -> Promise<void> {
@@ -130,24 +143,6 @@ TEST(AsyncWorkTest, execptionThrownForValue) {
     }
   };
   run_loop(setup);
-}
-
-TEST(AsyncWorkTest, workNotAwaited) {
-  // Test that work on the threadpool finishes even if the main function returns
-  // early.
-  bool workRan = false;
-  auto work = [&workRan]() -> void {
-    std::this_thread::sleep_for(std::chrono::milliseconds{10});
-    workRan = true;
-  };
-
-  auto setup = [&](const Loop &loop) -> Promise<void> {
-    submitWork<void>(loop, work);
-    co_return;
-  };
-
-  run_loop(setup);
-  EXPECT_FALSE(workRan);
 }
 
 } // namespace

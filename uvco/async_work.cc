@@ -2,6 +2,7 @@
 
 #include <coroutine>
 #include <exception>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <uv.h>
@@ -21,16 +22,18 @@ namespace {
 class AsyncWorkAwaiter_ {
 public:
   explicit AsyncWorkAwaiter_(std::function<void()> function)
-      : work_{}, function_{std::move(function)} {
-    setRequestData(&work_, this);
+      : work_{std::make_unique<uv_work_t>()}, function_{std::move(function)} {
+    setRequestData(work_.get(), this);
   }
   AsyncWorkAwaiter_(const AsyncWorkAwaiter_ &) = delete;
   AsyncWorkAwaiter_(AsyncWorkAwaiter_ &&) = delete;
   AsyncWorkAwaiter_ &operator=(const AsyncWorkAwaiter_ &) = delete;
   AsyncWorkAwaiter_ &operator=(AsyncWorkAwaiter_ &&) = delete;
   ~AsyncWorkAwaiter_() {
-    uv_cancel((uv_req_t *)&work_);
-    resetRequestData(&work_);
+    if (!requestDataIsNull(work_.get())) {
+      resetRequestData(work_.get());
+      uv_cancel((uv_req_t *)work_.release());
+    }
   }
 
   static void onDoWork(uv_work_t *work) {
@@ -43,21 +46,18 @@ public:
   }
 
   static void onWorkDone(uv_work_t *work, uv_status status) {
-    if (status == UV_ECANCELED) {
-      BOOST_ASSERT(requestDataIsNull(work));
-      // Work was cancelled; do not resume the coroutine.
-      return;
-    }
     auto *awaiter = getRequestDataOrNull<AsyncWorkAwaiter_>(work);
     if (awaiter == nullptr) {
       // cancelled
+      delete work;
       return;
     }
+    BOOST_ASSERT(awaiter != nullptr);
     awaiter->status_ = status;
     awaiter->schedule();
   }
 
-  uv_work_t &work() { return work_; }
+  uv_work_t &work() { return *work_; }
 
   [[nodiscard]] bool await_ready() const noexcept {
     return status_.has_value();
@@ -73,16 +73,17 @@ public:
 
   void await_resume() {
     BOOST_ASSERT(status_.has_value());
+    resetRequestData(work_.get());
     if (status_.value() != 0) {
       throw UvcoException(status_.value(), "AsyncWorkAwaiter_ failed");
     }
   }
 
 private:
-  uv_work_t work_;
+  std::unique_ptr<uv_work_t> work_;
   std::function<void()> function_;
   std::optional<uv_status> status_;
-  std::optional<std::coroutine_handle<>> handle_;
+  std::coroutine_handle<> handle_;
 
   void invoke() {
     BOOST_ASSERT(function_ != nullptr);
@@ -91,8 +92,8 @@ private:
 
   void schedule() {
     if (handle_) {
-      const auto handle = handle_.value();
-      handle_ = std::nullopt;
+      const std::coroutine_handle<> handle = handle_;
+      handle_ = nullptr;
       Loop::enqueue(handle);
     }
   }

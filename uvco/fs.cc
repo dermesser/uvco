@@ -68,8 +68,9 @@ public:
         // rarely due to a race condition with libuv. Best practice - don't
         // cancel file operations, as they occur on a threadpool thread and may
         // not always be cancelled safely.
-        fmt::print("uv_cancel failed in FileOpAwaiter_ dtor. This happened "
-                   "because an fs operation was cancelled - try not to do that\n");
+        fmt::print(
+            "uv_cancel failed in FileOpAwaiter_ dtor. This happened "
+            "because an fs operation was cancelled - try not to do that\n");
       }
     }
   }
