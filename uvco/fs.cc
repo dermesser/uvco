@@ -41,6 +41,9 @@ class FileOpAwaiter_ {
       delete req;
       return;
     }
+    if (req->result == -ECANCELED) {
+      return;
+    }
     awaiter->result_ = req->result;
     awaiter->schedule();
   }
