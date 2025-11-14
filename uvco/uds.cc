@@ -105,11 +105,9 @@ bool UnixStreamClient::ConnectAwaiter_::await_suspend(
 }
 
 UnixStream UnixStreamClient::ConnectAwaiter_::await_resume() {
-  BOOST_ASSERT(status_);
-  if (*status_ != 0) {
-    throw UvcoException{*status_, "UnixStreamClient failed to connect"};
+  if (status_ != 0) {
+    throw UvcoException{status_, "UnixStreamClient failed to connect"};
   }
-  status_.reset();
   handle_ = nullptr;
   resetRequestData(request_.get());
   return UnixStream{std::move(pipe_)};

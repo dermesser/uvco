@@ -13,7 +13,6 @@
 
 #include <coroutine>
 #include <memory>
-#include <optional>
 #include <string_view>
 
 namespace uvco {
@@ -62,7 +61,7 @@ private:
     std::unique_ptr<uv_pipe_t> pipe_;
     std::string_view path_;
     std::coroutine_handle<> handle_;
-    std::optional<uv_status> status_;
+    uv_status status_{};
   };
 };
 
