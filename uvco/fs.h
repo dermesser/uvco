@@ -103,6 +103,7 @@ private:
 };
 
 class FsWatch {
+  struct FsWatchAwaiter_;
 public:
   FsWatch(const FsWatch &) = delete;
   FsWatch(FsWatch &&) = default;
@@ -159,33 +160,14 @@ public:
   Promise<void> close();
 
 private:
+  FsWatch();
   static Promise<FsWatch> createWithFlag(const Loop &loop,
                                          std::string_view path,
                                          uv_fs_event_flags flags);
-  FsWatch();
 
   MultiPromise<FileEvent> watch_();
   static void onFsWatcherEvent(uv_fs_event_t *handle, const char *path,
                                int events, uv_status status);
-
-  struct FsWatchAwaiter_ {
-    static constexpr unsigned defaultCapacity = 128;
-
-    FsWatchAwaiter_();
-
-    [[nodiscard]] bool await_ready() const;
-    void await_suspend(std::coroutine_handle<> handle);
-    bool await_resume();
-
-    void schedule();
-    void stop();
-    void addError(uv_status status);
-    void addEvent(FileEvent event);
-
-    std::optional<std::coroutine_handle<>> handle_;
-    BoundedQueue<FileEvent> events_;
-    bool stopped_{};
-  };
 
   std::unique_ptr<uv_fs_event_t> uv_handle_{};
 };

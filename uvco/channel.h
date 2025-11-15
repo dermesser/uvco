@@ -121,7 +121,7 @@ private:
 
   void awake_reader() {
     while (!read_waiting_.empty()) {
-      auto handle = read_waiting_.get();
+      std::coroutine_handle<void> handle = read_waiting_.get();
       // Skip cancelled coroutines.
       if (handle != nullptr) {
         Loop::enqueue(handle);
@@ -132,7 +132,7 @@ private:
 
   void awake_writer() {
     while (!write_waiting_.empty()) {
-      auto handle = write_waiting_.get();
+      std::coroutine_handle<void> handle = write_waiting_.get();
       if (handle != nullptr) {
         Loop::enqueue(handle);
         break;

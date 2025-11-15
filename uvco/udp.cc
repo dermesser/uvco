@@ -4,6 +4,7 @@
 #include <uv.h>
 #include <uv/unix.h>
 
+#include "uvco/bounded_queue.h"
 #include "uvco/close.h"
 #include "uvco/exception.h"
 #include "uvco/internal/internal_utils.h"
@@ -30,6 +31,45 @@
 #include <variant>
 
 namespace uvco {
+
+struct Udp::RecvAwaiter_ {
+  static constexpr unsigned packetQueueSize = 128;
+  using QueueItem_ =
+      std::variant<std::pair<std::string, AddressHandle>, uv_status>;
+
+  explicit RecvAwaiter_(uv_udp_t &udp, size_t queueSize = packetQueueSize);
+  RecvAwaiter_(const RecvAwaiter_ &) = default;
+  RecvAwaiter_(RecvAwaiter_ &&) = delete;
+  RecvAwaiter_ &operator=(const RecvAwaiter_ &) = delete;
+  RecvAwaiter_ &operator=(RecvAwaiter_ &&) = delete;
+  ~RecvAwaiter_() = default;
+
+  [[nodiscard]] bool await_ready() const;
+  bool await_suspend(std::coroutine_handle<> handle);
+  std::optional<std::pair<std::string, AddressHandle>> await_resume();
+
+  uv_udp_t &udp_;
+  BoundedQueue<QueueItem_> buffer_;
+  std::optional<std::coroutine_handle<>> handle_;
+  bool stop_receiving_ = true;
+};
+
+struct Udp::SendAwaiter_ {
+  explicit SendAwaiter_(uv_udp_send_t &req) : req_{req} {}
+  SendAwaiter_(const SendAwaiter_ &) = default;
+  SendAwaiter_(SendAwaiter_ &&) = delete;
+  SendAwaiter_ &operator=(const SendAwaiter_ &) = delete;
+  SendAwaiter_ &operator=(SendAwaiter_ &&) = delete;
+  ~SendAwaiter_() { resetData(&req_); }
+
+  [[nodiscard]] bool await_ready() const;
+  bool await_suspend(std::coroutine_handle<> h);
+  int await_resume();
+
+  uv_udp_send_t &req_;
+  std::optional<std::coroutine_handle<>> handle_;
+  std::optional<int> status_;
+};
 
 Udp::Udp(const Loop &loop) : loop_{&loop}, udp_{std::make_unique<uv_udp_t>()} {
   uv_udp_init(loop.uvloop(), udp_.get());

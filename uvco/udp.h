@@ -2,20 +2,15 @@
 
 #pragma once
 
-#include <boost/assert.hpp>
-#include <sys/socket.h>
-#include <sys/types.h>
 #include <uv.h>
 #include <uv/unix.h>
 
-#include "uvco/bounded_queue.h"
 #include "uvco/internal/internal_utils.h"
 #include "uvco/name_resolution.h"
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
 
-#include <coroutine>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -23,7 +18,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 
 namespace uvco {
 
@@ -32,6 +26,9 @@ namespace uvco {
 
 /// A UDP socket.
 class Udp {
+  struct SendAwaiter_;
+  struct RecvAwaiter_;
+
 public:
   /// Set up a UDP object.
   explicit Udp(const Loop &loop);
@@ -115,49 +112,9 @@ private:
   int udpStartReceive();
   void udpStopReceive();
 
+  static void onSendDone(uv_udp_send_t *req, uv_status status);
   static void onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
                            const struct sockaddr *addr, unsigned int flags);
-
-  struct RecvAwaiter_ {
-    static constexpr unsigned packetQueueSize = 128;
-    using QueueItem_ =
-        std::variant<std::pair<std::string, AddressHandle>, uv_status>;
-
-    explicit RecvAwaiter_(uv_udp_t &udp, size_t queueSize = packetQueueSize);
-    RecvAwaiter_(const RecvAwaiter_ &) = default;
-    RecvAwaiter_(RecvAwaiter_ &&) = delete;
-    RecvAwaiter_ &operator=(const RecvAwaiter_ &) = delete;
-    RecvAwaiter_ &operator=(RecvAwaiter_ &&) = delete;
-    ~RecvAwaiter_() = default;
-
-    [[nodiscard]] bool await_ready() const;
-    bool await_suspend(std::coroutine_handle<> handle);
-    std::optional<std::pair<std::string, AddressHandle>> await_resume();
-
-    uv_udp_t &udp_;
-    BoundedQueue<QueueItem_> buffer_;
-    std::optional<std::coroutine_handle<>> handle_;
-    bool stop_receiving_ = true;
-  };
-
-  static void onSendDone(uv_udp_send_t *req, uv_status status);
-
-  struct SendAwaiter_ {
-    explicit SendAwaiter_(uv_udp_send_t &req) : req_{req} {}
-    SendAwaiter_(const SendAwaiter_ &) = default;
-    SendAwaiter_(SendAwaiter_ &&) = delete;
-    SendAwaiter_ &operator=(const SendAwaiter_ &) = delete;
-    SendAwaiter_ &operator=(SendAwaiter_ &&) = delete;
-    ~SendAwaiter_() { resetData(&req_); }
-
-    [[nodiscard]] bool await_ready() const;
-    bool await_suspend(std::coroutine_handle<> h);
-    int await_resume();
-
-    uv_udp_send_t &req_;
-    std::optional<std::coroutine_handle<>> handle_;
-    std::optional<int> status_;
-  };
 };
 
 /// @}

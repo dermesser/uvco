@@ -98,6 +98,7 @@ public:
 private:
   const Loop *loop_;
 
+  /// Called after finishing a getaddrinfo call.
   static void onAddrinfo(uv_getaddrinfo_t *req, uv_status status,
                          struct addrinfo *result);
 };

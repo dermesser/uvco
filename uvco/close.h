@@ -30,7 +30,7 @@ struct CloseAwaiter {
   bool await_suspend(std::coroutine_handle<> handle);
   void await_resume();
 
-  std::optional<std::coroutine_handle<>> handle_;
+  std::coroutine_handle<> handle_;
   uv_handle_t *uvHandle_;
   bool closed_ = false;
 };

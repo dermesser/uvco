@@ -27,6 +27,88 @@
 namespace uvco {
 
 template <typename UvStreamType, typename StreamType>
+struct StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_ {
+  explicit ConnectionAwaiter_(UvStreamType &socket) : socket_{socket} {
+    accepted_.reserve(4);
+  }
+
+  [[nodiscard]] bool await_ready() const;
+  bool await_suspend(std::coroutine_handle<> handle);
+  // Returns true if one or more connections were accepted.
+  // Returns false if the listener should stop.
+  [[nodiscard]] bool await_resume() const { return !stopped_; }
+
+  /// Stop a listener coroutine.
+  void stop();
+
+  UvStreamType &socket_;
+  std::optional<std::coroutine_handle<>> handle_;
+
+  // Set of accepted connections or errors.
+  using Accepted = std::variant<uv_status, StreamType>;
+  std::vector<Accepted> accepted_;
+
+  bool stopped_ = false;
+};
+
+template <typename UvStreamType, typename StreamType>
+void StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_::stop() {
+  if (stopped_) {
+    return;
+  }
+  stopped_ = true;
+  if (handle_) {
+    // Synchronous resume to ensure that the listener is stopped by the time
+    // the function returns.
+    const auto handle = *handle_;
+    handle_.reset();
+    handle.resume();
+  }
+}
+
+template <typename UvStreamType, typename StreamType>
+bool StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_::
+    await_suspend(std::coroutine_handle<> handle) {
+  BOOST_ASSERT(!handle_);
+  handle_ = handle;
+  return true;
+}
+
+template <typename UvStreamType, typename StreamType>
+bool StreamServerBase<UvStreamType,
+                      StreamType>::ConnectionAwaiter_::await_ready() const {
+  return !accepted_.empty();
+}
+
+template <typename UvStreamType, typename StreamType>
+void StreamServerBase<UvStreamType, StreamType>::onNewConnection(
+    uv_stream_t *stream, uv_status status) {
+  const auto *server = (UvStreamType *)stream;
+  auto *connectionAwaiter = getData<ConnectionAwaiter_>(server);
+  uv_loop_t *const loop = connectionAwaiter->socket_.loop;
+
+  if (status == 0) {
+    auto clientStream = std::make_unique<UvStreamType>();
+    UvStreamInitHelper<UvStreamType>::init(loop, clientStream.get());
+    const uv_status acceptStatus =
+        uv_accept((uv_stream_t *)server, (uv_stream_t *)clientStream.get());
+    if (acceptStatus == 0) {
+      connectionAwaiter->accepted_.emplace_back(
+          StreamType{std::move(clientStream)});
+    } else {
+      connectionAwaiter->accepted_.emplace_back(acceptStatus);
+    }
+  } else {
+    connectionAwaiter->accepted_.emplace_back(status);
+  }
+
+  if (connectionAwaiter->handle_) {
+    Loop::enqueue(*connectionAwaiter->handle_);
+    connectionAwaiter->handle_.reset();
+  }
+}
+
+template <typename UvStreamType, typename StreamType>
 StreamServerBase<UvStreamType, StreamType>::~StreamServerBase() {
   if (socket_ != nullptr) {
     // closeHandle takes care of freeing the memory if its own promise is
@@ -106,63 +188,6 @@ StreamServerBase<UvStreamType, StreamType>::listen(int backlog) {
     awaiter.accepted_.clear();
   }
   setData(socket_.get(), (void *)nullptr);
-}
-
-template <typename UvStreamType, typename StreamType>
-void StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_::stop() {
-  if (stopped_) {
-    return;
-  }
-  stopped_ = true;
-  if (handle_) {
-    // Synchronous resume to ensure that the listener is stopped by the time
-    // the function returns.
-    const auto handle = *handle_;
-    handle_.reset();
-    handle.resume();
-  }
-}
-
-template <typename UvStreamType, typename StreamType>
-bool StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_::
-    await_suspend(std::coroutine_handle<> handle) {
-  BOOST_ASSERT(!handle_);
-  handle_ = handle;
-  return true;
-}
-
-template <typename UvStreamType, typename StreamType>
-bool StreamServerBase<UvStreamType,
-                      StreamType>::ConnectionAwaiter_::await_ready() const {
-  return !accepted_.empty();
-}
-
-template <typename UvStreamType, typename StreamType>
-void StreamServerBase<UvStreamType, StreamType>::onNewConnection(
-    uv_stream_t *stream, uv_status status) {
-  const auto *server = (UvStreamType *)stream;
-  auto *connectionAwaiter = getData<ConnectionAwaiter_>(server);
-  uv_loop_t *const loop = connectionAwaiter->socket_.loop;
-
-  if (status == 0) {
-    auto clientStream = std::make_unique<UvStreamType>();
-    UvStreamInitHelper<UvStreamType>::init(loop, clientStream.get());
-    const uv_status acceptStatus =
-        uv_accept((uv_stream_t *)server, (uv_stream_t *)clientStream.get());
-    if (acceptStatus == 0) {
-      connectionAwaiter->accepted_.emplace_back(
-          StreamType{std::move(clientStream)});
-    } else {
-      connectionAwaiter->accepted_.emplace_back(acceptStatus);
-    }
-  } else {
-    connectionAwaiter->accepted_.emplace_back(status);
-  }
-
-  if (connectionAwaiter->handle_) {
-    Loop::enqueue(*connectionAwaiter->handle_);
-    connectionAwaiter->handle_.reset();
-  }
 }
 
 // Pre-instantiate templates for the known users of this class.

@@ -14,7 +14,6 @@
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
 
-#include <array>
 #include <coroutine>
 #include <cstdio>
 #include <memory>
@@ -29,6 +28,10 @@ namespace uvco {
 
 /// A plain stream, permitting reading, writing, and closing.
 class StreamBase {
+  struct ShutdownAwaiter_;
+  struct InStreamAwaiter_;
+  struct OutStreamAwaiter_;
+
 public:
   template <typename Stream>
   explicit StreamBase(std::unique_ptr<Stream> stream)
@@ -113,64 +116,8 @@ private:
   std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
 
   // Currently suspended readers/writers to be notified on close().
-  std::optional<std::coroutine_handle<>> reader_;
-  std::optional<std::coroutine_handle<>> writer_;
-
-  struct ShutdownAwaiter_ {
-    ShutdownAwaiter_() = default;
-    static void onShutdown(uv_shutdown_t *req, uv_status status);
-
-    bool await_ready();
-    bool await_suspend(std::coroutine_handle<> handle);
-    void await_resume();
-
-    std::optional<std::coroutine_handle<>> handle_;
-    std::optional<uv_status> status_;
-  };
-
-  struct InStreamAwaiter_ {
-    explicit InStreamAwaiter_(StreamBase &stream, std::span<char> buffer)
-        : stream_{stream}, buffer_{buffer} {}
-    ~InStreamAwaiter_();
-
-    bool await_ready();
-    bool await_suspend(std::coroutine_handle<> handle);
-    size_t await_resume();
-
-    void start_read();
-    void stop_read();
-
-    static void allocate(uv_handle_t *handle, size_t suggested_size,
-                         uv_buf_t *buf);
-    static void onInStreamRead(uv_stream_t *stream, ssize_t nread,
-                               const uv_buf_t *buf);
-
-    StreamBase &stream_;
-    std::span<char> buffer_;
-    std::optional<ssize_t> status_;
-    std::optional<std::coroutine_handle<>> handle_;
-  };
-
-  struct OutStreamAwaiter_ {
-    OutStreamAwaiter_(StreamBase &stream, std::span<const char> buffer);
-    ~OutStreamAwaiter_();
-
-    [[nodiscard]] std::array<uv_buf_t, 1> prepare_buffers() const;
-
-    bool await_ready();
-    bool await_suspend(std::coroutine_handle<> handle);
-    uv_status await_resume();
-
-    static void onOutStreamWrite(uv_write_t *write, uv_status status);
-
-    std::optional<std::coroutine_handle<>> handle_;
-    std::optional<uv_status> status_;
-
-    // State necessary for both immediate and delayed writing.
-    std::span<const char> buffer_;
-    uv_write_t write_{};
-    StreamBase &stream_;
-  };
+  std::coroutine_handle<> reader_;
+  std::coroutine_handle<> writer_;
 };
 
 /// A stream referring to stdin/stdout/stderr. Should be created using one of

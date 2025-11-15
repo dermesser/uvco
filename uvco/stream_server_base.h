@@ -9,11 +9,7 @@
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 
-#include <coroutine>
 #include <memory>
-#include <optional>
-#include <variant>
-#include <vector>
 
 namespace uvco {
 
@@ -36,6 +32,7 @@ template <typename UvStreamType> struct UvStreamInitHelper {
 /// must be generic over the stream type, so the actual stream type is a
 /// template parameter.
 template <typename UvStreamType, typename StreamType> class StreamServerBase {
+  struct ConnectionAwaiter_;
 public:
   StreamServerBase(const StreamServerBase &) = delete;
   StreamServerBase(StreamServerBase &&) = default;
@@ -60,29 +57,6 @@ protected:
 
 private:
   static void onNewConnection(uv_stream_t *stream, uv_status status);
-
-  struct ConnectionAwaiter_ {
-    explicit ConnectionAwaiter_(UvStreamType &socket) : socket_{socket} {
-      accepted_.reserve(4);
-    }
-    [[nodiscard]] bool await_ready() const;
-    bool await_suspend(std::coroutine_handle<> handle);
-    // Returns true if one or more connections were accepted.
-    // Returns false if the listener should stop.
-    [[nodiscard]] bool await_resume() const { return !stopped_; }
-
-    /// Stop a listener coroutine.
-    void stop();
-
-    UvStreamType &socket_;
-    std::optional<std::coroutine_handle<>> handle_;
-
-    // Set of accepted connections or errors.
-    using Accepted = std::variant<uv_status, StreamType>;
-    std::vector<Accepted> accepted_;
-
-    bool stopped_ = false;
-  };
 };
 
 // Implementation contained in stream_server_base_impl.cc, where it's

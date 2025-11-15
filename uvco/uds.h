@@ -5,14 +5,11 @@
 #include <fmt/core.h>
 #include <uv.h>
 
-#include "uvco/internal/internal_utils.h"
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
 #include "uvco/stream_server_base.h"
 #include "uvco/uds_stream.h"
 
-#include <coroutine>
-#include <memory>
 #include <string_view>
 
 namespace uvco {
@@ -26,6 +23,8 @@ namespace uvco {
 /// when the connection is established. The peer address can be obtained using
 /// the `getPeerName()` method on `UnixStream`.
 class UnixStreamClient {
+  struct ConnectAwaiter_;
+
 public:
   UnixStreamClient(const UnixStreamClient &) = delete;
   UnixStreamClient(UnixStreamClient &&) = delete;
@@ -40,29 +39,6 @@ public:
 
 private:
   const Loop &loop_;
-
-  /// An awaiter class used to wait for a connection to be established.
-  ///
-  /// Implementation note: almost the entire mechanics of connecting is
-  /// handled by the awaiter. The `connect()` method is just a thin wrapper
-  /// around the awaiter; the awaiter's methods also throw exceptions. This
-  /// is different than e.g. in the `TcpClient` class.
-  struct ConnectAwaiter_ {
-    explicit ConnectAwaiter_(const Loop &loop, std::string_view path);
-    ~ConnectAwaiter_();
-
-    static void onConnect(uv_connect_t *req, uv_status status);
-
-    [[nodiscard]] static bool await_ready();
-    bool await_suspend(std::coroutine_handle<> handle);
-    UnixStream await_resume();
-
-    std::unique_ptr<uv_connect_t> request_{};
-    std::unique_ptr<uv_pipe_t> pipe_;
-    std::string_view path_;
-    std::coroutine_handle<> handle_;
-    uv_status status_{};
-  };
 };
 
 /// A server that listens for incoming connections on a Unix domain socket (type

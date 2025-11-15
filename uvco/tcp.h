@@ -14,11 +14,8 @@
 #include "uvco/stream_server_base.h"
 #include "uvco/tcp_stream.h"
 
-#include <coroutine>
 #include <cstdint>
-#include <optional>
 #include <string>
-#include <sys/socket.h>
 
 namespace uvco {
 
@@ -27,6 +24,8 @@ namespace uvco {
 
 /// A client for connecting to a TCP peer.
 class TcpClient {
+  struct ConnectAwaiter_;
+
 public:
   /// Create a client; call `connect()` to obtain a `TcpStream`. Address can be
   /// given as domain name, IP, etc.
@@ -54,17 +53,6 @@ private:
   uint16_t port_;
 
   static void onConnect(uv_connect_t *req, uv_status status);
-
-  struct ConnectAwaiter_ {
-    [[nodiscard]] bool await_ready() const;
-    bool await_suspend(std::coroutine_handle<> handle);
-    uv_status await_resume();
-
-    void onConnect(uv_status status);
-
-    std::optional<std::coroutine_handle<>> handle_;
-    std::optional<uv_status> status_;
-  };
 };
 
 /// A TCP server accepts client connections by listening on a specific bind

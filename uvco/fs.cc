@@ -310,6 +310,71 @@ Promise<void> File::close() {
   co_await awaiter;
 }
 
+struct FsWatch::FsWatchAwaiter_ {
+  static constexpr unsigned defaultCapacity = 128;
+
+  FsWatchAwaiter_();
+
+  [[nodiscard]] bool await_ready() const;
+  void await_suspend(std::coroutine_handle<> handle);
+  bool await_resume();
+
+  void schedule();
+  void stop();
+  void addError(uv_status status);
+  void addEvent(FileEvent event);
+
+  std::optional<std::coroutine_handle<>> handle_;
+  BoundedQueue<FileEvent> events_;
+  bool stopped_{};
+};
+
+FsWatch::FsWatchAwaiter_::FsWatchAwaiter_() : events_{defaultCapacity} {}
+
+bool FsWatch::FsWatchAwaiter_::await_ready() const {
+  return stopped_ || !events_.empty();
+}
+
+void FsWatch::FsWatchAwaiter_::await_suspend(std::coroutine_handle<> handle) {
+  BOOST_ASSERT(!handle_);
+  handle_ = handle;
+}
+
+bool FsWatch::FsWatchAwaiter_::await_resume() {
+  handle_.reset();
+  BOOST_ASSERT(stopped_ || !events_.empty());
+  return !stopped_;
+}
+
+void FsWatch::FsWatchAwaiter_::schedule() {
+  if (handle_) {
+    std::coroutine_handle<> handle = handle_.value();
+    handle_.reset();
+    Loop::enqueue(handle);
+  }
+}
+
+void FsWatch::FsWatchAwaiter_::stop() {
+  stopped_ = true;
+  schedule();
+}
+
+void FsWatch::FsWatchAwaiter_::addError(uv_status status) {
+  if (!events_.hasSpace()) {
+    fmt::print(stderr, "uvco dropped FS event error {}", uv_strerror(status));
+  }
+  events_.put(FileEvent{status});
+}
+
+void FsWatch::FsWatchAwaiter_::addEvent(FileEvent event) {
+  if (!events_.hasSpace()) {
+    fmt::print(stderr, "uvco dropped FS event on {} due to queue overload\n",
+               event.path);
+    return;
+  }
+  events_.put(std::move(event));
+}
+
 FsWatch::FsWatch() : uv_handle_{std::make_unique<uv_fs_event_t>()} {}
 
 FsWatch::~FsWatch() {
@@ -400,52 +465,6 @@ void FsWatch::onFsWatcherEvent(uv_fs_event_t *handle, const char *path,
     awaiter->addError(status);
   }
   awaiter->schedule();
-}
-
-FsWatch::FsWatchAwaiter_::FsWatchAwaiter_() : events_{defaultCapacity} {}
-
-bool FsWatch::FsWatchAwaiter_::await_ready() const {
-  return stopped_ || !events_.empty();
-}
-
-void FsWatch::FsWatchAwaiter_::await_suspend(std::coroutine_handle<> handle) {
-  BOOST_ASSERT(!handle_);
-  handle_ = handle;
-}
-
-bool FsWatch::FsWatchAwaiter_::await_resume() {
-  handle_.reset();
-  BOOST_ASSERT(stopped_ || !events_.empty());
-  return !stopped_;
-}
-
-void FsWatch::FsWatchAwaiter_::schedule() {
-  if (handle_) {
-    std::coroutine_handle<> handle = handle_.value();
-    handle_.reset();
-    Loop::enqueue(handle);
-  }
-}
-
-void FsWatch::FsWatchAwaiter_::stop() {
-  stopped_ = true;
-  schedule();
-}
-
-void FsWatch::FsWatchAwaiter_::addError(uv_status status) {
-  if (!events_.hasSpace()) {
-    fmt::print(stderr, "uvco dropped FS event error {}", uv_strerror(status));
-  }
-  events_.put(FileEvent{status});
-}
-
-void FsWatch::FsWatchAwaiter_::addEvent(FileEvent event) {
-  if (!events_.hasSpace()) {
-    fmt::print(stderr, "uvco dropped FS event on {} due to queue overload\n",
-               event.path);
-    return;
-  }
-  events_.put(std::move(event));
 }
 
 } // namespace uvco

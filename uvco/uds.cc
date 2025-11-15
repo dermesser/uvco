@@ -14,7 +14,6 @@
 #include "uvco/uds.h"
 #include "uvco/uds_stream.h"
 
-#include <coroutine>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -38,6 +37,29 @@ UnixStreamServer::UnixStreamServer(const Loop &loop, std::string_view bindPath,
 }
 
 void UnixStreamServer::chmod(int mode) { uv_pipe_chmod(socket_.get(), mode); }
+
+/// An awaiter class used to wait for a connection to be established.
+///
+/// Implementation note: almost the entire mechanics of connecting is
+/// handled by the awaiter. The `connect()` method is just a thin wrapper
+/// around the awaiter; the awaiter's methods also throw exceptions. This
+/// is different than e.g. in the `TcpClient` class.
+struct UnixStreamClient::ConnectAwaiter_ {
+  explicit ConnectAwaiter_(const Loop &loop, std::string_view path);
+  ~ConnectAwaiter_();
+
+  static void onConnect(uv_connect_t *req, uv_status status);
+
+  [[nodiscard]] static bool await_ready();
+  bool await_suspend(std::coroutine_handle<> handle);
+  UnixStream await_resume();
+
+  std::unique_ptr<uv_connect_t> request_{};
+  std::unique_ptr<uv_pipe_t> pipe_;
+  std::string_view path_;
+  std::coroutine_handle<> handle_;
+  uv_status status_{};
+};
 
 Promise<UnixStream> UnixStreamClient::connect(std::string_view path) {
   ConnectAwaiter_ awaiter{loop_, path};

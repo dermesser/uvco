@@ -25,6 +25,40 @@
 
 namespace uvco {
 
+struct TcpClient::ConnectAwaiter_ {
+  [[nodiscard]] bool await_ready() const;
+  bool await_suspend(std::coroutine_handle<> handle);
+  uv_status await_resume();
+
+  void onConnect(uv_status status);
+
+  std::coroutine_handle<> handle_;
+  std::optional<uv_status> status_;
+};
+
+bool TcpClient::ConnectAwaiter_::await_ready() const {
+  return status_.has_value();
+}
+
+bool TcpClient::ConnectAwaiter_::await_suspend(std::coroutine_handle<> handle) {
+  BOOST_ASSERT(!handle_);
+  handle_ = handle;
+  return true;
+}
+
+uv_status TcpClient::ConnectAwaiter_::await_resume() {
+  BOOST_ASSERT(status_);
+  return *status_;
+}
+
+void TcpClient::ConnectAwaiter_::onConnect(uv_status status) {
+  status_ = status;
+  if (handle_ != nullptr) {
+    Loop::enqueue(handle_);
+    handle_ = nullptr;
+  }
+}
+
 TcpClient::TcpClient(const Loop &loop, std::string target_host_address,
                      uint16_t target_host_port, int af_hint)
     : loop_{&loop}, host_{std::move(target_host_address)}, af_hint_{af_hint},
@@ -79,29 +113,6 @@ Promise<TcpStream> TcpClient::connect() {
 void TcpClient::onConnect(uv_connect_t *req, uv_status status) {
   auto *connect = getRequestData<ConnectAwaiter_>(req);
   connect->onConnect(status);
-}
-
-bool TcpClient::ConnectAwaiter_::await_ready() const {
-  return status_.has_value();
-}
-
-bool TcpClient::ConnectAwaiter_::await_suspend(std::coroutine_handle<> handle) {
-  BOOST_ASSERT(!handle_);
-  handle_ = handle;
-  return true;
-}
-
-uv_status TcpClient::ConnectAwaiter_::await_resume() {
-  BOOST_ASSERT(status_);
-  return *status_;
-}
-
-void TcpClient::ConnectAwaiter_::onConnect(uv_status status) {
-  status_ = status;
-  if (handle_) {
-    Loop::enqueue(*handle_);
-    handle_.reset();
-  }
 }
 
 TcpServer::TcpServer(const Loop &loop, AddressHandle bindAddress, bool ipv6Only)

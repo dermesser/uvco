@@ -25,6 +25,62 @@
 
 namespace uvco {
 
+struct StreamBase::ShutdownAwaiter_ {
+  ShutdownAwaiter_() = default;
+  static void onShutdown(uv_shutdown_t *req, uv_status status);
+
+  bool await_ready();
+  bool await_suspend(std::coroutine_handle<> handle);
+  void await_resume();
+
+  std::optional<std::coroutine_handle<>> handle_;
+  std::optional<uv_status> status_;
+};
+
+struct StreamBase::InStreamAwaiter_ {
+  explicit InStreamAwaiter_(StreamBase &stream, std::span<char> buffer)
+      : stream_{stream}, buffer_{buffer} {}
+  ~InStreamAwaiter_();
+
+  bool await_ready();
+  bool await_suspend(std::coroutine_handle<> handle);
+  size_t await_resume();
+
+  void start_read();
+  void stop_read();
+
+  static void allocate(uv_handle_t *handle, size_t suggested_size,
+                       uv_buf_t *buf);
+  static void onInStreamRead(uv_stream_t *stream, ssize_t nread,
+                             const uv_buf_t *buf);
+
+  StreamBase &stream_;
+  std::span<char> buffer_;
+  std::optional<ssize_t> status_;
+  std::optional<std::coroutine_handle<>> handle_;
+};
+
+struct StreamBase::OutStreamAwaiter_ {
+  OutStreamAwaiter_(StreamBase &stream, std::span<const char> buffer);
+  ~OutStreamAwaiter_();
+
+  [[nodiscard]] std::array<uv_buf_t, 1> prepare_buffers() const;
+
+  bool await_ready();
+  bool await_suspend(std::coroutine_handle<> handle);
+  uv_status await_resume();
+
+  static void onOutStreamWrite(uv_write_t *write, uv_status status);
+
+  std::optional<std::coroutine_handle<>> handle_;
+  std::optional<uv_status> status_;
+
+  // State necessary for both immediate and delayed writing.
+  std::span<const char> buffer_;
+  uv_write_t write_{};
+  StreamBase &stream_;
+};
+
 StreamBase::~StreamBase() {
   if (stream_) {
     // stream_ will be freed by closeHandle() mechanics.
@@ -110,13 +166,13 @@ Promise<void> StreamBase::shutdown() {
 Promise<void> StreamBase::close() {
   auto stream = std::move(stream_);
   co_await closeHandle(stream.get());
-  if (reader_) {
-    Loop::enqueue(*reader_);
-    reader_.reset();
+  if (reader_ != nullptr) {
+    Loop::enqueue(reader_);
+    reader_ = nullptr;
   }
-  if (writer_) {
-    Loop::enqueue(*writer_);
-    writer_.reset();
+  if (writer_ != nullptr) {
+    Loop::enqueue(writer_);
+    writer_ = nullptr;
   }
 }
 
@@ -128,7 +184,7 @@ StreamBase::InStreamAwaiter_::~InStreamAwaiter_() {
   if (stream_.stream_ != nullptr) {
     resetData(&stream_.stream());
   }
-  stream_.reader_.reset();
+  stream_.reader_ = nullptr;
 }
 
 bool StreamBase::InStreamAwaiter_::await_ready() {
@@ -157,7 +213,7 @@ size_t StreamBase::InStreamAwaiter_::await_resume() {
     return {};
   }
   BOOST_ASSERT(status_);
-  stream_.reader_.reset();
+  stream_.reader_ = nullptr;
   if (status_ && *status_ == UV_EOF) {
     return 0;
   }
@@ -217,7 +273,9 @@ StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream,
                                                  std::span<const char> buffer)
     : buffer_{buffer}, write_{}, stream_{stream} {}
 
-StreamBase::OutStreamAwaiter_::~OutStreamAwaiter_() { stream_.writer_.reset(); }
+StreamBase::OutStreamAwaiter_::~OutStreamAwaiter_() {
+  stream_.writer_ = nullptr;
+}
 
 std::array<uv_buf_t, 1> StreamBase::OutStreamAwaiter_::prepare_buffers() const {
   std::array<uv_buf_t, 1> bufs{};
@@ -247,7 +305,7 @@ uv_status StreamBase::OutStreamAwaiter_::await_resume() {
     return UV_ECANCELED;
   }
   BOOST_ASSERT(status_);
-  stream_.writer_.reset();
+  stream_.writer_ = nullptr;
   setData(&write_, (void *)nullptr);
   return *status_;
 }
