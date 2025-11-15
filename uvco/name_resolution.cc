@@ -144,6 +144,80 @@ AddressHandle::AddressHandle(const struct sockaddr *sa) {
   }
 }
 
+std::string AddressHandle::NtopHelper_::ntop(int family, void *addr) {
+  std::string dst{};
+  if (family == AF_INET) {
+    dst.resize(4 * 3 + 3 + 1);
+  } else if (family == AF_INET6) {
+    dst.resize(8 * 4 + 7 + 1);
+  }
+  const char *result = inet_ntop(family, addr, dst.data(), dst.size());
+  if (result == nullptr) {
+    throw UvcoException(fmt::format("inet_ntop(): {}", std::strerror(errno)));
+  }
+  dst.resize(std::strlen(result));
+  return dst;
+}
+
+std::string
+AddressHandle::NtopHelper_::operator()(const struct sockaddr_in6 &ipv6) {
+  return ntop(ipv6.sin6_family, (void *)&ipv6.sin6_addr);
+}
+
+std::string
+AddressHandle::NtopHelper_::operator()(const struct sockaddr_in &ipv4) {
+  return ntop(ipv4.sin_family, (void *)&ipv4.sin_addr);
+}
+
+namespace {
+
+struct AddrinfoAwaiter_ {
+  AddrinfoAwaiter_();
+  ~AddrinfoAwaiter_();
+
+  bool await_ready();
+  bool await_suspend(std::coroutine_handle<> handle);
+
+  struct addrinfo *await_resume();
+
+  // must be unique_ptr to support legal cancellation of lookups.
+  std::unique_ptr<uv_getaddrinfo_t> req_;
+  std::optional<struct addrinfo *> addrinfo_;
+  std::optional<int> status_;
+  std::coroutine_handle<> handle_;
+};
+
+AddrinfoAwaiter_::AddrinfoAwaiter_()
+    : req_{std::make_unique<uv_getaddrinfo_t>()} {}
+
+AddrinfoAwaiter_::~AddrinfoAwaiter_() {
+  if (req_ != nullptr && !requestDataIsNull(req_.get())) {
+    resetRequestData(req_.get());
+    // Request will be freed by onAddrinfo callback
+    uv_cancel((uv_req_t *)req_.release());
+  }
+  if (addrinfo_.has_value()) {
+    uv_freeaddrinfo(addrinfo_.value());
+  }
+}
+
+bool AddrinfoAwaiter_::await_ready() { return false; }
+
+struct addrinfo *AddrinfoAwaiter_::await_resume() {
+  BOOST_ASSERT(addrinfo_);
+  BOOST_ASSERT(!requestDataIsNull(req_.get()));
+  resetRequestData(req_.get());
+  return *addrinfo_;
+}
+
+bool AddrinfoAwaiter_::await_suspend(std::coroutine_handle<> handle) {
+  handle_ = handle;
+  setRequestData(req_.get(), this);
+  return true;
+}
+
+} // namespace
+
 Promise<AddressHandle> Resolver::gai(std::string_view host, uint16_t port,
                                      int af_hint) {
   const std::string portStr = std::to_string(port);
@@ -185,60 +259,6 @@ void Resolver::onAddrinfo(uv_getaddrinfo_t *req, uv_status status,
   awaiter->status_ = status;
   BOOST_ASSERT(awaiter->handle_ != nullptr);
   Loop::enqueue(awaiter->handle_);
-}
-
-Resolver::AddrinfoAwaiter_::AddrinfoAwaiter_()
-    : req_{std::make_unique<uv_getaddrinfo_t>()} {}
-
-Resolver::AddrinfoAwaiter_::~AddrinfoAwaiter_() {
-  if (req_ != nullptr && !requestDataIsNull(req_.get())) {
-    resetRequestData(req_.get());
-    // Request will be freed by onAddrinfo callback
-    uv_cancel((uv_req_t *)req_.release());
-  }
-  if (addrinfo_.has_value()) {
-    uv_freeaddrinfo(addrinfo_.value());
-  }
-}
-
-bool Resolver::AddrinfoAwaiter_::await_ready() { return false; }
-
-struct addrinfo *Resolver::AddrinfoAwaiter_::await_resume() {
-  BOOST_ASSERT(addrinfo_);
-  BOOST_ASSERT(!requestDataIsNull(req_.get()));
-  resetRequestData(req_.get());
-  return *addrinfo_;
-}
-
-bool Resolver::AddrinfoAwaiter_::await_suspend(std::coroutine_handle<> handle) {
-  handle_ = handle;
-  setRequestData(req_.get(), this);
-  return true;
-}
-
-std::string AddressHandle::NtopHelper_::ntop(int family, void *addr) {
-  std::string dst{};
-  if (family == AF_INET) {
-    dst.resize(4 * 3 + 3 + 1);
-  } else if (family == AF_INET6) {
-    dst.resize(8 * 4 + 7 + 1);
-  }
-  const char *result = inet_ntop(family, addr, dst.data(), dst.size());
-  if (result == nullptr) {
-    throw UvcoException(fmt::format("inet_ntop(): {}", std::strerror(errno)));
-  }
-  dst.resize(std::strlen(result));
-  return dst;
-}
-
-std::string
-AddressHandle::NtopHelper_::operator()(const struct sockaddr_in6 &ipv6) {
-  return ntop(ipv6.sin6_family, (void *)&ipv6.sin6_addr);
-}
-
-std::string
-AddressHandle::NtopHelper_::operator()(const struct sockaddr_in &ipv4) {
-  return ntop(ipv4.sin_family, (void *)&ipv4.sin_addr);
 }
 
 } // namespace uvco

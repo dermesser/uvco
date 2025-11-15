@@ -83,8 +83,6 @@ private:
 
 /// Asynchronous name resolution using the `libuv` `getaddrinfo(3)` interface.
 class Resolver {
-  struct AddrinfoAwaiter_;
-
 public:
   /// Instantiate a resolver based on an event loop.
   explicit Resolver(const Loop &loop) : loop_{&loop} {}
@@ -102,22 +100,6 @@ private:
 
   static void onAddrinfo(uv_getaddrinfo_t *req, uv_status status,
                          struct addrinfo *result);
-
-  struct AddrinfoAwaiter_ {
-    AddrinfoAwaiter_();
-    ~AddrinfoAwaiter_();
-
-    bool await_ready();
-    bool await_suspend(std::coroutine_handle<> handle);
-
-    struct addrinfo *await_resume();
-
-    // must be unique_ptr to support legal cancellation of lookups.
-    std::unique_ptr<uv_getaddrinfo_t> req_;
-    std::optional<struct addrinfo *> addrinfo_;
-    std::optional<int> status_;
-    std::coroutine_handle<> handle_;
-  };
 };
 
 /// @}
