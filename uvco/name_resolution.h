@@ -2,20 +2,13 @@
 
 #pragma once
 
-#include <cstddef>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
 #include <uv.h>
 
 #include "uvco/internal/internal_utils.h"
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
 
-#include <coroutine>
 #include <cstdint>
-#include <optional>
 #include <span>
 #include <string>
 #include <string_view>

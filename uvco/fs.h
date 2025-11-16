@@ -104,6 +104,7 @@ private:
 
 class FsWatch {
   struct FsWatchAwaiter_;
+
 public:
   FsWatch(const FsWatch &) = delete;
   FsWatch(FsWatch &&) = default;

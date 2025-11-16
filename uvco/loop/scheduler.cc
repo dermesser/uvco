@@ -9,15 +9,21 @@
 
 namespace uvco {
 
+static constexpr bool logSchedulerOperations = false;
+
 void Scheduler::runAll() {
   while (!resumableActive_.empty()) {
     resumableRunning_.swap(resumableActive_);
-    for (auto &coro : resumableRunning_) {
-      if (coro == nullptr || coro.done()) {
+    for (auto &handle : resumableRunning_) {
+      if (handle == nullptr || handle.done()) {
         continue;
       }
 
-      coro.resume();
+      if constexpr (logSchedulerOperations) {
+        fmt::print("Resuming coroutine {:x}\n", (uintptr_t)handle.address());
+      }
+
+      handle.resume();
     }
     resumableRunning_.clear();
   }
@@ -26,6 +32,10 @@ void Scheduler::runAll() {
 void Scheduler::close() { BOOST_ASSERT(resumableActive_.empty()); }
 
 void Scheduler::enqueue(std::coroutine_handle<> handle) {
+  if constexpr (logSchedulerOperations) {
+    fmt::print("Enqueuing coroutine {:x}\n", (uintptr_t)handle.address());
+  }
+
   // Use of moved-out Scheduler?
   BOOST_ASSERT(resumableActive_.capacity() > 0);
   resumableActive_.push_back(handle);
@@ -41,6 +51,10 @@ Scheduler::Scheduler() {
 }
 
 void Scheduler::cancel(std::coroutine_handle<> handle) {
+  if constexpr (logSchedulerOperations) {
+    fmt::print("Cancelling coroutine {:x}\n", (uintptr_t)handle.address());
+  }
+
   for (auto &resumable :
        std::to_array({&resumableActive_, &resumableRunning_})) {
     for (auto &it : *resumable) {

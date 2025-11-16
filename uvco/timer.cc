@@ -65,7 +65,7 @@ public:
     closed_ = true;
     // If the timer is already closing, we don't need to close it again.
     // This would cause an error in libuv.
-    if (uv_is_closing((uv_handle_t *)timer_.get()) != 0) {
+    if (isClosed(timer_.get())) {
       co_return;
     }
     stop();

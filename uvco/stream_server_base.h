@@ -6,6 +6,7 @@
 #include <uv.h>
 
 #include "uvco/internal/internal_utils.h"
+#include "uvco/name_resolution.h"
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 
@@ -33,6 +34,7 @@ template <typename UvStreamType> struct UvStreamInitHelper {
 /// template parameter.
 template <typename UvStreamType, typename StreamType> class StreamServerBase {
   struct ConnectionAwaiter_;
+
 public:
   StreamServerBase(const StreamServerBase &) = delete;
   StreamServerBase(StreamServerBase &&) = default;
@@ -47,6 +49,8 @@ public:
   /// This generator may not be `co_await`ed on after having called `close()`.
   MultiPromise<StreamType> listen(int backlog = 128);
 
+  AddressHandle getSockname() const;
+
   /// Close server and stop accepting client connections; must be awaited.
   Promise<void> close();
 
@@ -56,6 +60,7 @@ protected:
   std::unique_ptr<UvStreamType> socket_;
 
 private:
+  /// Called by libuv when a new connection arrives.
   static void onNewConnection(uv_stream_t *stream, uv_status status);
 };
 

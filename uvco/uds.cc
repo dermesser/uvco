@@ -61,6 +61,18 @@ struct UnixStreamClient::ConnectAwaiter_ {
   uv_status status_{};
 };
 
+UnixStreamClient::ConnectAwaiter_::~ConnectAwaiter_() {
+  // request data is reset by await_resume(), so if it's non-null, the
+  // connection attempt was cancelled and we need to clean up.
+  if (pipe_ != nullptr) {
+    closeHandle(pipe_.release());
+  }
+  if (!requestDataIsNull(request_.get())) {
+    resetRequestData(request_.get());
+    uv_cancel((uv_req_t *)request_.get());
+  }
+}
+
 Promise<UnixStream> UnixStreamClient::connect(std::string_view path) {
   ConnectAwaiter_ awaiter{loop_, path};
   std::optional<UvcoException> maybeError;
@@ -133,18 +145,6 @@ UnixStream UnixStreamClient::ConnectAwaiter_::await_resume() {
   handle_ = nullptr;
   resetRequestData(request_.get());
   return UnixStream{std::move(pipe_)};
-}
-
-UnixStreamClient::ConnectAwaiter_::~ConnectAwaiter_() {
-  // request data is reset by await_resume(), so if it's non-null, the
-  // connection attempt was cancelled and we need to clean up.
-  if (!requestDataIsNull(request_.get())) {
-    resetRequestData(request_.get());
-    uv_cancel((uv_req_t *)request_.get());
-  }
-  if (pipe_ != nullptr) {
-    closeHandle(pipe_.release());
-  }
 }
 
 } // namespace uvco

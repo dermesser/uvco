@@ -47,10 +47,11 @@ public:
 private:
   const Loop *loop_;
 
+  std::optional<AddressHandle> resolvedAddress_;
   // May be a name or address; resolved upon connect().
   std::string host_;
-  int af_hint_;
-  uint16_t port_;
+  int af_hint_{};
+  uint16_t port_{};
 
   static void onConnect(uv_connect_t *req, uv_status status);
 };

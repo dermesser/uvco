@@ -36,6 +36,10 @@ struct CloseAwaiter {
 
 void onCloseCallback(uv_handle_t *handle);
 
+template <typename Handle> bool isClosed(const Handle *h) {
+  return 0 != uv_is_closing((uv_handle_t *)h);
+}
+
 /// closeHandle() takes care of safely closing a handle. Canonically you should
 /// await the returned promise to be sure that the handle is closed. However, if
 /// the promise is dropped and thus the coroutine cancelled, the libuv close

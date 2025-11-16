@@ -1,5 +1,6 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include <memory>
 #include <uv.h>
 
 #include "exception.h"
@@ -42,8 +43,7 @@ AddressHandle::AddressHandle(std::span<const uint8_t> ipv4_or_6, uint16_t port,
     struct sockaddr_in6 addr{};
     struct in6_addr ipAddr{};
 
-    std::copy(ipv4_or_6.begin(), ipv4_or_6.end(),
-              static_cast<uint8_t *>(ipAddr.s6_addr));
+    std::ranges::copy(ipv4_or_6, static_cast<uint8_t *>(ipAddr.s6_addr));
 
     addr.sin6_family = AF_INET6;
     addr.sin6_port = htons(port);

@@ -87,7 +87,7 @@ public:
   ///
   /// Called by tje `MultiPromise` destructor and `MultiPromise::cancel()`.
   void cancelGenerator() {
-    terminated();
+    setTerminated();
     if (coroutine_ != nullptr) {
       const std::coroutine_handle<> coroutine = coroutine_;
       coroutine_ = nullptr;
@@ -101,7 +101,7 @@ public:
   /// the MultiPromise upon return_value and unhandled_exception. From hereon
   /// awaiting the generator will either rethrow the thrown exception, or yield
   /// nullopt.
-  void terminated() { terminated_ = true; }
+  void setTerminated() { terminated_ = true; }
 
   /// Check if the generator has been cancelled or has returned.
   [[nodiscard]] bool isTerminated() const { return terminated_; }
@@ -279,7 +279,7 @@ public:
   /// A MultiPromise coroutine ultimately returns void. This is signaled to the
   /// caller by returning an empty `std::optional`.
   void return_void() {
-    core_->terminated();
+    core_->setTerminated();
     core_->resume();
   }
 
@@ -297,7 +297,7 @@ public:
   /// Part of the coroutine protocol (see `Promise`).
   void unhandled_exception() {
     core_->slot = std::current_exception();
-    core_->terminated();
+    core_->setTerminated();
     core_->resume();
   }
 

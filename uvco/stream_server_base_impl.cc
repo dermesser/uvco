@@ -14,6 +14,7 @@
 #include "uvco/exception.h"
 #include "uvco/internal/internal_utils.h"
 #include "uvco/loop/loop.h"
+#include "uvco/name_resolution.h"
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 #include "uvco/stream_server_base.h"
@@ -30,7 +31,9 @@ template <typename UvStreamType, typename StreamType>
 struct StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_ {
   explicit ConnectionAwaiter_(UvStreamType &socket) : socket_{socket} {
     accepted_.reserve(4);
+    setData(&socket_, this);
   }
+  ~ConnectionAwaiter_() { resetData(&socket_); }
 
   [[nodiscard]] bool await_ready() const;
   bool await_suspend(std::coroutine_handle<> handle);
@@ -42,7 +45,7 @@ struct StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_ {
   void stop();
 
   UvStreamType &socket_;
-  std::optional<std::coroutine_handle<>> handle_;
+  std::coroutine_handle<> handle_;
 
   // Set of accepted connections or errors.
   using Accepted = std::variant<uv_status, StreamType>;
@@ -57,11 +60,11 @@ void StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_::stop() {
     return;
   }
   stopped_ = true;
-  if (handle_) {
+  if (handle_ != nullptr) {
     // Synchronous resume to ensure that the listener is stopped by the time
     // the function returns.
-    const auto handle = *handle_;
-    handle_.reset();
+    const std::coroutine_handle<> handle = handle_;
+    handle_ = nullptr;
     handle.resume();
   }
 }
@@ -69,7 +72,7 @@ void StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_::stop() {
 template <typename UvStreamType, typename StreamType>
 bool StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_::
     await_suspend(std::coroutine_handle<> handle) {
-  BOOST_ASSERT(!handle_);
+  BOOST_ASSERT(handle_ == nullptr);
   handle_ = handle;
   return true;
 }
@@ -102,15 +105,15 @@ void StreamServerBase<UvStreamType, StreamType>::onNewConnection(
     connectionAwaiter->accepted_.emplace_back(status);
   }
 
-  if (connectionAwaiter->handle_) {
-    Loop::enqueue(*connectionAwaiter->handle_);
-    connectionAwaiter->handle_.reset();
+  if (connectionAwaiter->handle_ != nullptr) {
+    Loop::enqueue(connectionAwaiter->handle_);
+    connectionAwaiter->handle_ = nullptr;
   }
 }
 
 template <typename UvStreamType, typename StreamType>
 StreamServerBase<UvStreamType, StreamType>::~StreamServerBase() {
-  if (socket_ != nullptr) {
+  if (socket_ != nullptr && !isClosed(socket_.get())) {
     // closeHandle takes care of freeing the memory if its own promise is
     // dropped.
     closeHandle(socket_.release());
@@ -126,12 +129,9 @@ Promise<void> StreamServerBase<UvStreamType, StreamType>::close() {
     // 1. listener is currently not running
     // 2. listener has yielded and is suspended there: the listener generator
     // will be cancelled when its MultiPromise is dropped.
-    if (awaiter->handle_) {
-      awaiter->stop();
-    }
+    awaiter->stop();
   }
   co_await closeHandle(socket_.get());
-  socket_.reset();
 }
 
 template <typename UvStreamType, typename StreamType>
@@ -139,13 +139,11 @@ MultiPromise<StreamType>
 StreamServerBase<UvStreamType, StreamType>::listen(int backlog) {
   BOOST_ASSERT(socket_);
   ConnectionAwaiter_ awaiter{*socket_};
-  setData(socket_.get(), &awaiter);
 
   const uv_status listenStatus =
       uv_listen((uv_stream_t *)socket_.get(), backlog,
                 StreamServerBase<UvStreamType, StreamType>::onNewConnection);
   if (listenStatus != 0) {
-    setData(socket_.get(), (void *)nullptr);
     throw UvcoException{listenStatus,
                         "StreamServerBase::listen(): failed to listen"};
   }
@@ -170,7 +168,6 @@ StreamServerBase<UvStreamType, StreamType>::listen(int backlog) {
         // and will process the remaining connections. Therefore, first remove
         // the already processed connections.
         awaiter.accepted_.erase(awaiter.accepted_.begin(), it);
-        setData(socket_.get(), (void *)nullptr);
         throw UvcoException{status,
                             "UnixStreamServer failed to accept a connection!"};
       } else {
@@ -180,14 +177,31 @@ StreamServerBase<UvStreamType, StreamType>::listen(int backlog) {
         //
         // `close()` also relies on whether `socket_->data` is `nullptr` or not
         // to decide if the socket has been closed already.
-        setData(socket_.get(), (void *)nullptr);
         co_yield std::move(std::get<1>(streamSlot));
-        setData(socket_.get(), &awaiter);
       }
     }
     awaiter.accepted_.clear();
   }
-  setData(socket_.get(), (void *)nullptr);
+}
+
+template <typename UvStreamType, typename StreamType>
+AddressHandle StreamServerBase<UvStreamType, StreamType>::getSockname() const {
+  if constexpr (std::is_same_v<UvStreamType, uv_tcp_t>) {
+    struct sockaddr_storage addr{};
+    int addrLen = sizeof(addr);
+    const uv_status status =
+        uv_tcp_getsockname(socket_.get(), (struct sockaddr *)&addr, &addrLen);
+    if (status != 0) {
+      throw UvcoException{status, "StreamServerBase::getSockname() failed"};
+    }
+    return AddressHandle{(struct sockaddr *)&addr};
+  } else if constexpr (std::is_same_v<UvStreamType, uv_pipe_t>) {
+    throw UvcoException{
+        UV_ENOSYS,
+        "StreamServerBase::getSockname() not implemented for uv_pipe_t"};
+  } else {
+    static_assert(false);
+  }
 }
 
 // Pre-instantiate templates for the known users of this class.

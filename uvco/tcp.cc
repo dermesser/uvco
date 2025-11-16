@@ -15,6 +15,7 @@
 #include "uvco/stream_server_base.h"
 #include "uvco/tcp.h"
 #include "uvco/tcp_stream.h"
+#include "uvco/util.h"
 
 #include <coroutine>
 #include <cstdint>
@@ -26,15 +27,31 @@
 namespace uvco {
 
 struct TcpClient::ConnectAwaiter_ {
+  ConnectAwaiter_();
+  ~ConnectAwaiter_();
+
   [[nodiscard]] bool await_ready() const;
   bool await_suspend(std::coroutine_handle<> handle);
   uv_status await_resume();
 
   void onConnect(uv_status status);
 
+  std::unique_ptr<uv_connect_t> req_;
   std::coroutine_handle<> handle_;
   std::optional<uv_status> status_;
 };
+
+TcpClient::ConnectAwaiter_::ConnectAwaiter_()
+    : req_{std::make_unique<uv_connect_t>()} {
+  setRequestData(req_.get(), this);
+}
+
+TcpClient::ConnectAwaiter_::~ConnectAwaiter_() {
+  if (!requestDataIsNull(req_.get())) {
+    resetRequestData(req_.get());
+    uv_cancel((uv_req_t *)req_.release());
+  }
+}
 
 bool TcpClient::ConnectAwaiter_::await_ready() const {
   return status_.has_value();
@@ -48,6 +65,7 @@ bool TcpClient::ConnectAwaiter_::await_suspend(std::coroutine_handle<> handle) {
 
 uv_status TcpClient::ConnectAwaiter_::await_resume() {
   BOOST_ASSERT(status_);
+  resetRequestData(req_.get());
   return *status_;
 }
 
@@ -65,8 +83,7 @@ TcpClient::TcpClient(const Loop &loop, std::string target_host_address,
       port_{target_host_port} {}
 
 TcpClient::TcpClient(const Loop &loop, AddressHandle address)
-    : loop_{&loop}, host_{address.address()}, af_hint_{AF_UNSPEC},
-      port_{address.port()} {}
+    : loop_{&loop}, resolvedAddress_{address} {}
 
 TcpClient::TcpClient(TcpClient &&other) noexcept
     : loop_{other.loop_}, host_{std::move(other.host_)},
@@ -80,20 +97,27 @@ TcpClient &TcpClient::operator=(TcpClient &&other) noexcept {
 }
 
 Promise<TcpStream> TcpClient::connect() {
-  Resolver resolver{*loop_};
+  AddressHandle address;
+  if (resolvedAddress_.has_value()) {
+    address = resolvedAddress_.value();
+  } else {
+    Resolver resolver{*loop_};
+    address = co_await resolver.gai(host_, port_, af_hint_);
+  }
 
-  AddressHandle address =
-      co_await resolver.gai(host_, fmt::format("{}", port_), af_hint_);
-
-  uv_connect_t req;
   ConnectAwaiter_ connect{};
-  req.data = &connect;
-
   auto tcp = std::make_unique<uv_tcp_t>();
 
+  const OnExit onExit{[&] {
+    // Unplanned exit, cancellation
+    if (tcp != nullptr && !isClosed(tcp.get())) {
+      closeHandle(tcp.release());
+    }
+  }};
+
   uv_tcp_init(loop_->uvloop(), tcp.get());
-  const uv_status connectStatus =
-      uv_tcp_connect(&req, tcp.get(), address.sockaddr(), onConnect);
+  const uv_status connectStatus = uv_tcp_connect(connect.req_.get(), tcp.get(),
+                                                 address.sockaddr(), onConnect);
   if (connectStatus < 0) {
     // Clean up handle if connect failed.
     co_await closeHandle(tcp.get());
@@ -111,7 +135,12 @@ Promise<TcpStream> TcpClient::connect() {
 }
 
 void TcpClient::onConnect(uv_connect_t *req, uv_status status) {
-  auto *connect = getRequestData<ConnectAwaiter_>(req);
+  auto *connect = getRequestDataOrNull<ConnectAwaiter_>(req);
+  if (connect == nullptr) {
+    // Cancelled
+    delete req;
+    return;
+  }
   connect->onConnect(status);
 }
 
