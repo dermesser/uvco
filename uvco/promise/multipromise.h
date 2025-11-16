@@ -91,6 +91,7 @@ public:
     if (coroutine_ != nullptr) {
       const std::coroutine_handle<> coroutine = coroutine_;
       coroutine_ = nullptr;
+      Loop::cancel(coroutine);
       // Careful: within this function, this class' dtor is called!
       coroutine.destroy();
     }
