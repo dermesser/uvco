@@ -3,7 +3,6 @@
 #include <gtest/gtest.h>
 
 #include "test_util.h"
-#include "uvco/combinators.h"
 #include "uvco/exception.h"
 #include "uvco/name_resolution.h"
 #include "uvco/promise/multipromise.h"
@@ -116,8 +115,7 @@ Promise<void> serverLoop(MultiPromise<uvco::TcpStream> clients) {
   }
 }
 
-Promise<void> sendReceivePing(const uvco::Loop &loop,
-                              const AddressHandle &addr) {
+Promise<void> sendReceivePing(const uvco::Loop &loop, AddressHandle addr) {
   TcpClient client{loop, addr};
   TcpStream stream = co_await client.connect();
 
@@ -160,6 +158,22 @@ TEST(TcpTest, repeatedConnectSingleServerCancel2) {
     }
 
     co_await server.close();
+  };
+  run_loop(setup);
+}
+
+TEST(TcpTest, repeatedConnectSingleServerCancel3) {
+  auto setup = [&](const uvco::Loop &loop) -> uvco::Promise<void> {
+    AddressHandle addr{"127.0.0.1", 0};
+    TcpServer server{loop, addr};
+    const AddressHandle actual = server.getSockname();
+    EXPECT_LT(0, actual.port());
+
+    // Just go hog-wild, cancel everything willy-nilly
+    Promise<void> serverHandler = serverLoop(server.listen());
+    co_await sendReceivePing(loop, actual);
+    co_await sendReceivePing(loop, actual);
+    sendReceivePing(loop, actual);
   };
   run_loop(setup);
 }
