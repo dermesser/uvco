@@ -98,7 +98,7 @@ TEST(UdsTest, unixStreamPingPong) {
 TEST(UdsTest, dropServer) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     UnixStreamServer server{loop, testSocketPath};
-    MultiPromise<uvco::UnixStream> listener = server.listen();
+    MultiPromise<UnixStream> listener = server.listen();
     co_return;
   };
 
@@ -112,6 +112,79 @@ TEST(UdsTest, dropPingPong) {
     co_return;
   };
 
+  run_loop(setup);
+}
+
+// The following test cases are adapted from the tcp-test suite and check that
+// cancellations in various constellations work safely.
+
+Promise<void> serverLoop(MultiPromise<UnixStream> clients) {
+  while (true) {
+    std::optional<UnixStream> maybeClient = co_await clients;
+    if (!maybeClient) {
+      co_return;
+    }
+    UnixStream client = std::move(*maybeClient);
+
+    std::optional<std::string> chunk = co_await client.read();
+    BOOST_ASSERT(chunk);
+    co_await client.writeBorrowed(*chunk);
+    co_await client.shutdown();
+    co_await client.close();
+  }
+}
+
+Promise<void> sendReceivePing(const Loop &loop) {
+  UnixStreamClient client{loop};
+  UnixStream stream = co_await client.connect(testSocketPath);
+
+  co_await stream.write("Ping");
+  std::optional<std::string> response = co_await stream.read();
+
+  EXPECT_EQ(response, "Ping");
+  co_await stream.close();
+}
+
+TEST(UdsTest, repeatedConnectSingleServerCancel1) {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    UnixStreamServer server{loop, testSocketPath};
+
+    Promise<void> serverHandler = serverLoop(server.listen());
+    co_await sendReceivePing(loop);
+    co_await sendReceivePing(loop);
+    co_await sendReceivePing(loop);
+
+    co_await server.close();
+  };
+  run_loop(setup);
+}
+
+TEST(UdsTest, repeatedConnectSingleServerCancel2) {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    UnixStreamServer server{loop, testSocketPath};
+
+    {
+      Promise<void> serverHandler = serverLoop(server.listen());
+      co_await sendReceivePing(loop);
+      co_await sendReceivePing(loop);
+      co_await sendReceivePing(loop);
+    }
+
+    co_await server.close();
+  };
+  run_loop(setup);
+}
+
+TEST(UdsTest, repeatedConnectSingleServerCancel3) {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    UnixStreamServer server{loop, testSocketPath};
+
+    // Just go hog-wild, cancel everything willy-nilly
+    Promise<void> serverHandler = serverLoop(server.listen());
+    co_await sendReceivePing(loop);
+    co_await sendReceivePing(loop);
+    sendReceivePing(loop);
+  };
   run_loop(setup);
 }
 

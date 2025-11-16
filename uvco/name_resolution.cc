@@ -255,6 +255,9 @@ void Resolver::onAddrinfo(uv_getaddrinfo_t *req, uv_status status,
     uv_freeaddrinfo(result);
     return;
   }
+  if (status == UV_ECANCELED) {
+    return;
+  }
   awaiter->addrinfo_ = result;
   awaiter->status_ = status;
   BOOST_ASSERT(awaiter->handle_ != nullptr);

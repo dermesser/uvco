@@ -86,7 +86,7 @@ TEST(TcpTest, singlePingPong) {
   bool responded = false;
   bool responseReceived = false;
 
-  auto setup = [&](const uvco::Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
     return join(echoTcpServer(loop, received, responded),
                 sendTcpClient(loop, sent, responseReceived));
   };
@@ -98,9 +98,9 @@ TEST(TcpTest, singlePingPong) {
   EXPECT_TRUE(responseReceived);
 }
 
-Promise<void> serverLoop(MultiPromise<uvco::TcpStream> clients) {
+Promise<void> serverLoop(MultiPromise<TcpStream> clients) {
   while (true) {
-    std::optional<uvco::TcpStream> maybeClient = co_await clients;
+    std::optional<TcpStream> maybeClient = co_await clients;
     if (!maybeClient) {
       co_return;
     }
@@ -115,7 +115,7 @@ Promise<void> serverLoop(MultiPromise<uvco::TcpStream> clients) {
   }
 }
 
-Promise<void> sendReceivePing(const uvco::Loop &loop, AddressHandle addr) {
+Promise<void> sendReceivePing(const Loop &loop, AddressHandle addr) {
   TcpClient client{loop, addr};
   TcpStream stream = co_await client.connect();
 
@@ -127,7 +127,7 @@ Promise<void> sendReceivePing(const uvco::Loop &loop, AddressHandle addr) {
 }
 
 TEST(TcpTest, repeatedConnectSingleServerCancel1) {
-  auto setup = [&](const uvco::Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
     AddressHandle addr{"127.0.0.1", 0};
     TcpServer server{loop, addr};
     const AddressHandle actual = server.getSockname();
@@ -144,7 +144,7 @@ TEST(TcpTest, repeatedConnectSingleServerCancel1) {
 }
 
 TEST(TcpTest, repeatedConnectSingleServerCancel2) {
-  auto setup = [&](const uvco::Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
     AddressHandle addr{"127.0.0.1", 0};
     TcpServer server{loop, addr};
     const AddressHandle actual = server.getSockname();
@@ -163,7 +163,7 @@ TEST(TcpTest, repeatedConnectSingleServerCancel2) {
 }
 
 TEST(TcpTest, repeatedConnectSingleServerCancel3) {
-  auto setup = [&](const uvco::Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
     AddressHandle addr{"127.0.0.1", 0};
     TcpServer server{loop, addr};
     const AddressHandle actual = server.getSockname();
@@ -179,7 +179,7 @@ TEST(TcpTest, repeatedConnectSingleServerCancel3) {
 }
 
 TEST(TcpTest, validBind) {
-  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
     AddressHandle addr{"127.0.0.1", 0};
     TcpServer server{loop, addr};
     const AddressHandle actual = server.getSockname();
@@ -191,7 +191,7 @@ TEST(TcpTest, validBind) {
 }
 
 TEST(TcpTest, dropListeningServer) {
-  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
     AddressHandle addr{"127.0.0.1", 0};
     TcpServer server{loop, addr};
     const AddressHandle actual = server.getSockname();
@@ -218,11 +218,11 @@ TEST(TcpTest, invalidLocalhostConnect) {
 }
 
 TEST(TcpTest, dropConnect) {
-  auto setup = [&](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
     TcpServer server{loop, {"127.0.0.1", 0}};
     const AddressHandle actual = server.getSockname();
     EXPECT_LT(0, actual.port());
-    MultiPromise<uvco::TcpStream> listen = server.listen();
+    MultiPromise<TcpStream> listen = server.listen();
 
     {
       TcpClient client{loop, actual};
