@@ -15,7 +15,6 @@
 #include "uvco/stream_server_base.h"
 #include "uvco/tcp.h"
 #include "uvco/tcp_stream.h"
-#include "uvco/util.h"
 
 #include <coroutine>
 #include <cstdint>
@@ -32,24 +31,29 @@ struct TcpClient::ConnectAwaiter_ {
 
   [[nodiscard]] bool await_ready() const;
   bool await_suspend(std::coroutine_handle<> handle);
-  uv_status await_resume();
+  TcpStream await_resume();
 
   void onConnect(uv_status status);
 
   std::unique_ptr<uv_connect_t> req_;
+  std::unique_ptr<uv_tcp_t> socket_;
   std::coroutine_handle<> handle_;
   std::optional<uv_status> status_;
 };
 
 TcpClient::ConnectAwaiter_::ConnectAwaiter_()
-    : req_{std::make_unique<uv_connect_t>()} {
+    : req_{std::make_unique<uv_connect_t>()},
+      socket_{std::make_unique<uv_tcp_t>()} {
   setRequestData(req_.get(), this);
 }
 
 TcpClient::ConnectAwaiter_::~ConnectAwaiter_() {
+  if (socket_ != nullptr) {
+    closeHandle(socket_.release());
+  }
   if (!requestDataIsNull(req_.get())) {
     resetRequestData(req_.get());
-    uv_cancel((uv_req_t *)req_.release());
+    uv_cancel((uv_req_t *)req_.get());
   }
 }
 
@@ -63,10 +67,14 @@ bool TcpClient::ConnectAwaiter_::await_suspend(std::coroutine_handle<> handle) {
   return true;
 }
 
-uv_status TcpClient::ConnectAwaiter_::await_resume() {
-  BOOST_ASSERT(status_);
+TcpStream TcpClient::ConnectAwaiter_::await_resume() {
   resetRequestData(req_.get());
-  return *status_;
+  BOOST_ASSERT(status_);
+  if (status_.value() != 0) {
+    throw UvcoException{status_.value(),
+                        "TcpClient::connect() connection failed"};
+  }
+  return TcpStream{std::move(socket_)};
 }
 
 void TcpClient::ConnectAwaiter_::onConnect(uv_status status) {
@@ -105,33 +113,36 @@ Promise<TcpStream> TcpClient::connect() {
     address = co_await resolver.gai(host_, port_, af_hint_);
   }
 
-  ConnectAwaiter_ connect{};
-  auto tcp = std::make_unique<uv_tcp_t>();
+  ConnectAwaiter_ connect;
 
-  const OnExit onExit{[&] {
-    // Unplanned exit, cancellation
-    if (tcp != nullptr && !isClosed(tcp.get())) {
-      closeHandle(tcp.release());
-    }
-  }};
+  const uv_status initStatus =
+      uv_tcp_init(loop_->uvloop(), connect.socket_.get());
+  if (initStatus < 0) {
+    throw UvcoException(initStatus,
+                        "TcpClient::connect() uv_tcp_init() failed");
+  }
 
-  uv_tcp_init(loop_->uvloop(), tcp.get());
-  const uv_status connectStatus = uv_tcp_connect(connect.req_.get(), tcp.get(),
-                                                 address.sockaddr(), onConnect);
+  const uv_status connectStatus = uv_tcp_connect(
+      connect.req_.get(), connect.socket_.get(), address.sockaddr(), onConnect);
   if (connectStatus < 0) {
     // Clean up handle if connect failed.
-    co_await closeHandle(tcp.get());
+    co_await closeHandle(connect.socket_.get());
+    connect.socket_.reset();
     throw UvcoException(connectStatus,
                         "TcpClient::connect() failed immediately");
   }
 
-  const uv_status awaitStatus = co_await connect;
-  if (awaitStatus < 0) {
-    co_await closeHandle(tcp.get());
-    throw UvcoException(awaitStatus, "TcpClient::connect() failed");
+  std::optional<UvcoException> maybeError;
+  try {
+    co_return (co_await connect);
+  } catch (const UvcoException &e) {
+    maybeError = e;
   }
 
-  co_return TcpStream{std::move(tcp)};
+  std::unique_ptr<uv_tcp_t> tcpSocket = std::move(connect.socket_);
+  co_await closeHandle(tcpSocket.get());
+  BOOST_ASSERT(maybeError.has_value());
+  throw std::move(maybeError.value());
 }
 
 void TcpClient::onConnect(uv_connect_t *req, uv_status status) {
@@ -139,6 +150,9 @@ void TcpClient::onConnect(uv_connect_t *req, uv_status status) {
   if (connect == nullptr) {
     // Cancelled
     delete req;
+    return;
+  }
+  if (status == UV_ECANCELED) {
     return;
   }
   connect->onConnect(status);
