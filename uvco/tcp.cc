@@ -53,7 +53,7 @@ TcpClient::ConnectAwaiter_::~ConnectAwaiter_() {
   }
   if (!requestDataIsNull(req_.get())) {
     resetRequestData(req_.get());
-    uv_cancel((uv_req_t *)req_.get());
+    uv_cancel((uv_req_t *)req_.release());
   }
 }
 

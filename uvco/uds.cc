@@ -75,7 +75,7 @@ UnixStreamClient::ConnectAwaiter_::~ConnectAwaiter_() {
   }
   if (!requestDataIsNull(request_.get())) {
     resetRequestData(request_.get());
-    uv_cancel((uv_req_t *)request_.get());
+    uv_cancel((uv_req_t *)request_.release());
   }
 }
 
