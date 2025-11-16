@@ -42,6 +42,7 @@ TEST(PqxxTest, DISABLED_basic) {
     EXPECT_EQ(2, co_await promise);
 
     co_await pqxx.withTx<void>(doTeardown);
+    pqxx.close();
     co_return;
   };
 

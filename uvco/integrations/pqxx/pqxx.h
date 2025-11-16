@@ -53,8 +53,7 @@ Promise<R> Pqxx::withTx(F f) {
   ThreadLocalKey<std::optional<pqxx::connection>> threadLocalConn{conn_};
   auto connectionString = connectionString_;
 
-  auto work = [threadLocalConn = std::move(threadLocalConn),
-               connectionString = std::move(connectionString),
+  auto work = [threadLocalConn, connectionString = std::move(connectionString),
                f = std::forward<F>(f)]() mutable -> R {
     auto &maybeConnection = threadLocalConn.getOrDefault();
     if (!maybeConnection.has_value()) {

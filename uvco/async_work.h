@@ -17,7 +17,7 @@ namespace uvco {
 /// @addtogroup threadpool
 /// @{
 
-/// Do not use; instead, usetubmitWork<void>().
+/// Do not use; instead, use submitWork<void>().
 Promise<void> innerSubmitWork(const Loop &loop, std::function<void()> work);
 
 /// Submit a function to be run on the libuv threadpool. The promise will return
@@ -62,7 +62,7 @@ public:
   /// Destruct the stored value. The key will be empty afterwards, and
   /// getOrDefault() will create a new value.
   void del() {
-    auto *value = uv_key_get(&key_);
+    void *value = uv_key_get(&key_);
     if (value != nullptr) {
       delete static_cast<T *>(value);
       uv_key_set(&key_, nullptr);
