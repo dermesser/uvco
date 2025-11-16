@@ -8,7 +8,6 @@
 
 #include <boost/assert.hpp>
 #include <coroutine>
-#include <optional>
 
 namespace uvco {
 
@@ -19,7 +18,7 @@ namespace uvco {
 
 /// An awaiter for closing a libuv handle.
 struct CloseAwaiter {
-  explicit CloseAwaiter(uv_handle_t *handle) : uvHandle_{handle} {}
+  explicit CloseAwaiter(uv_handle_t *handle);
   CloseAwaiter(const CloseAwaiter &) = delete;
   CloseAwaiter(CloseAwaiter &&) = delete;
   CloseAwaiter &operator=(const CloseAwaiter &) = delete;
@@ -56,10 +55,8 @@ Promise<void> closeHandle(Handle *handle,
                                          void (*)(uv_handle_t *))) {
   BOOST_ASSERT(handle != nullptr);
   CloseAwaiter awaiter{(uv_handle_t *)handle};
-  setData(handle, &awaiter);
   closer((CloserArg *)handle, onCloseCallback);
   co_await awaiter;
-  setData(handle, (void *)nullptr);
   BOOST_ASSERT(awaiter.closed_);
 }
 
