@@ -112,7 +112,7 @@ Promise<void> innerSubmitWork(const Loop &loop, std::function<void()> work) {
 template <>
 Promise<void> submitWork(const Loop &loop, std::function<void()> work) {
   std::optional<std::exception_ptr> result;
-  // Erase return type and use generic submitWork().
+  // Transport exception back to submitter.
   std::function<void()> agnosticWork = [&result, work = std::move(work)]() {
     try {
       work();
