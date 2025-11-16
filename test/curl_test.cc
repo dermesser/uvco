@@ -54,6 +54,37 @@ TEST(CurlTest, simpleDownload) {
   run_loop(setup);
 }
 
+TEST(CurlTest, simpleDownloadCancelled0) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Curl curl{loop};
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(CurlTest, simpleDownloadCancelled1) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Curl curl{loop};
+    auto req = curl.get("https://borgac.net/");
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
+TEST(CurlTest, simpleDownloadCancelled2) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    Curl curl{loop};
+    auto req = curl.get("https://borgac.net/");
+    auto gen = req.start();
+    co_await gen;
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
 TEST(CurlTest, cancel1) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     Curl curl{loop};

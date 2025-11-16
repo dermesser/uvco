@@ -75,6 +75,18 @@ public:
   UvCurlContext_ &operator=(const UvCurlContext_ &) = delete;
   UvCurlContext_ &operator=(UvCurlContext_ &&) = delete;
   ~UvCurlContext_() {
+    if (multi_ != nullptr) {
+      curl_multi_cleanup(multi_);
+      multi_ = nullptr;
+    }
+
+    for (auto &[socket, poll] : polls_) {
+      closeHandle(poll.poll.release());
+    }
+    polls_.clear();
+    if (timer_ != nullptr) {
+      closeHandle(timer_.release());
+    }
     BOOST_ASSERT_MSG(polls_.empty(),
                      "UvCurlContext_ must be closed before destruction");
   }
@@ -117,8 +129,9 @@ public:
       it->second.request = request;
       return;
     }
-    const auto newPollCtx = polls_.emplace(newSocket, uv_poll_t{});
-    uv_poll_t &poll = newPollCtx.first->second.poll;
+    const auto newPollCtx =
+        polls_.emplace(newSocket, std::make_unique<uv_poll_t>());
+    uv_poll_t &poll = *newPollCtx.first->second.poll;
     newPollCtx.first->second.request = request;
     uv_poll_init_socket(loop_, &poll, newSocket);
     setData(&poll, this);
@@ -127,7 +140,7 @@ public:
   void uvStartPoll(curl_socket_t socket, unsigned int events) noexcept {
     const auto it = polls_.find(socket);
     BOOST_ASSERT(it != polls_.end());
-    uv_poll_t &poll = it->second.poll;
+    uv_poll_t &poll = *it->second.poll;
     uv_poll_start(&poll, static_cast<int>(events),
                   UvCurlContext_::onCurlSocketActive);
   }
@@ -135,7 +148,7 @@ public:
   void uvStopPoll(curl_socket_t socket) noexcept {
     const auto it = polls_.find(socket);
     if (it != polls_.end()) {
-      uv_poll_stop(&it->second.poll);
+      uv_poll_stop(it->second.poll.get());
     }
   }
 
@@ -150,30 +163,34 @@ public:
 
   /// Close all open sockets and the timer.
   Promise<void> close() {
-    curl_multi_cleanup(multi_);
+    if (multi_ != nullptr) {
+      curl_multi_cleanup(multi_);
+      multi_ = nullptr;
+    }
 
     std::vector<Promise<void>> promises;
     promises.reserve(polls_.size());
     for (auto &[socket, poll] : polls_) {
-      promises.push_back(closeHandle(&poll.poll));
+      promises.push_back(closeHandle(poll.poll.get()));
     }
     for (auto &promise : promises) {
       co_await promise;
     }
     polls_.clear();
-    co_await closeHandle(&timer_);
+    co_await closeHandle(timer_.get());
+    timer_.reset();
   }
 
 private:
   /// A uv poll handle with its associated CurlRequest_.
   struct PollCtx {
-    uv_poll_t poll;
+    std::unique_ptr<uv_poll_t> poll;
     CurlRequestCore_ *request;
   };
 
   CURLM *multi_;
   uv_loop_t *loop_;
-  uv_timer_t timer_;
+  std::unique_ptr<uv_timer_t> timer_;
   std::map<curl_socket_t, PollCtx> polls_;
 };
 
@@ -198,10 +215,10 @@ public:
   }
 
   ~CurlRequestCore_() {
-    curl_easy_cleanup(easyHandle_);
     if (!context_.expired()) {
       context_.lock()->removeHandle(easyHandle_);
     }
+    curl_easy_cleanup(easyHandle_);
     easyHandle_ = nullptr;
   }
 
@@ -383,10 +400,11 @@ size_t CurlRequestCore_::onCurlDataAvailable(char *data, size_t size,
 }
 
 UvCurlContext_::UvCurlContext_(const Loop &loop)
-    : multi_{curl_multi_init()}, loop_{loop.uvloop()}, timer_{} {
-  uv_timer_init(loop_, &timer_);
+    : multi_{curl_multi_init()}, loop_{loop.uvloop()},
+      timer_{std::make_unique<uv_timer_t>()} {
+  uv_timer_init(loop_, timer_.get());
   // Set handle data for onUvTimeout callback.
-  setData(&timer_, this);
+  setData(timer_.get(), this);
 
   // Initialize Curl callbacks.
   curl_multi_setopt(multi_, CURLMOPT_SOCKETFUNCTION,
@@ -426,7 +444,7 @@ void UvCurlContext_::checkCurlInfo() const {
 int UvCurlContext_::curlTimerFunction(CURLM * /* multi */, long timeoutMs,
                                       void *userp) {
   auto *curl = static_cast<UvCurlContext_ *>(userp);
-  uv_timer_t &timer = curl->timer_;
+  uv_timer_t &timer = *curl->timer_;
   if (timeoutMs < 0) {
     uv_timer_stop(&timer);
   } else {
