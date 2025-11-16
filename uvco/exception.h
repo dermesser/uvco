@@ -28,9 +28,6 @@ struct UvcoException : public std::exception {
   /// Provide information about the error.
   [[nodiscard]] const char *what() const noexcept override;
 
-  /// Like `what()`.
-  explicit operator std::string() const;
-
   /// The error message.
   std::string message;
   /// The status. An UvcoException may not be caused by a libuv error, in which

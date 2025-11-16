@@ -20,6 +20,4 @@ UvcoException::UvcoException(uv_status status, std::string_view where) noexcept
 
 const char *UvcoException::what() const noexcept { return message.c_str(); }
 
-UvcoException::operator std::string() const { return message; }
-
 } // namespace uvco
