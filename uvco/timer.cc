@@ -25,22 +25,6 @@ void onMultiTimerFired(uv_timer_t *handle);
 
 class TimerAwaiter {
 public:
-  TimerAwaiter(const TimerAwaiter &) = delete;
-  TimerAwaiter(TimerAwaiter &&other) noexcept
-      : timer_{std::move(other.timer_)}, handle_{other.handle_},
-        stopped_{other.stopped_} {
-    setData(timer_.get(), this);
-    other.closed_ = true;
-  }
-  TimerAwaiter &operator=(const TimerAwaiter &) = delete;
-  TimerAwaiter &operator=(TimerAwaiter &&other) noexcept {
-    timer_ = std::move(other.timer_);
-    handle_ = other.handle_;
-    stopped_ = other.stopped_;
-    setData(timer_.get(), this);
-    other.closed_ = true;
-    return *this;
-  }
   TimerAwaiter(const Loop &loop, uint64_t millis, bool repeating = false)
       : timer_{std::make_unique<uv_timer_t>()} {
     uv_timer_init(loop.uvloop(), timer_.get());
@@ -51,6 +35,10 @@ public:
       uv_timer_start(timer_.get(), onSingleTimerDone, millis, 0);
     }
   }
+  TimerAwaiter(const TimerAwaiter &) = delete;
+  TimerAwaiter(TimerAwaiter &&other) = delete;
+  TimerAwaiter &operator=(const TimerAwaiter &) = delete;
+  TimerAwaiter &operator=(TimerAwaiter &&other) = delete;
   ~TimerAwaiter() {
     stop();
     if (!closed_ && timer_) {
@@ -105,6 +93,13 @@ private:
   bool stopped_ = false;
 };
 
+Promise<void> sleep(const Loop &loop, uint64_t millis) {
+  TimerAwaiter awaiter{loop, millis};
+  BOOST_VERIFY(!co_await awaiter);
+  co_await awaiter.close();
+  co_return;
+}
+
 void onSingleTimerDone(uv_timer_t *handle) {
   auto *awaiter = getData<TimerAwaiter>(handle);
   awaiter->stop();
@@ -114,13 +109,6 @@ void onSingleTimerDone(uv_timer_t *handle) {
 void onMultiTimerFired(uv_timer_t *handle) {
   auto *awaiter = getData<TimerAwaiter>(handle);
   awaiter->resume();
-}
-
-Promise<void> sleep(const Loop &loop, uint64_t millis) {
-  TimerAwaiter awaiter{loop, millis};
-  BOOST_VERIFY(!co_await awaiter);
-  co_await awaiter.close();
-  co_return;
 }
 
 /// Non-movable, non-copyable: because the awaiter is called by a callback.
