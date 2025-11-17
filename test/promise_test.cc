@@ -206,11 +206,8 @@ TYPED_TEST(RvalueCoroutineFixture, rvalueCoroutine) {
 // builds
 //
 // Tests how efficient the event loop is at suspending/resuming a coroutine.
-//
-// Intel Core i5-7300U @ 2.6 GHz: 15 million iterations per second / 70 ns per
-// iteration
 TEST(PromiseTest, DISABLED_yieldBench) {
-  static constexpr unsigned iterations = 1'000'000;
+  static constexpr unsigned iterations = 10'000'000;
   auto setup = [](const Loop &loop) -> Promise<void> {
     for (unsigned i = 0; i < iterations; ++i) {
       co_await yield();
@@ -235,7 +232,7 @@ struct YieldAwaiter_ {
 Promise<int> yieldInt() { co_return (co_await YieldAwaiter_{}); }
 
 TEST(PromiseTest, DISABLED_yieldIntBench) {
-  static constexpr unsigned iterations = 1'000'000;
+  static constexpr unsigned iterations = 10'000'000;
   auto setup = [](const Loop &loop) -> Promise<void> {
     for (unsigned i = 0; i < iterations; ++i) {
       co_await yieldInt();
@@ -264,11 +261,8 @@ TEST(PromiseTest, yieldInt) {
   run_loop(setup);
 }
 
-// Same as above, but with a separate coroutine, i.e. two levels of awaiting.
-// Intel Core i5-7300U @ 2.6 GHz: 8.3 million iterations per second / 120 ns per
-// iteration
 TEST(PromiseTest, DISABLED_yieldCallBench) {
-  static constexpr unsigned iterations = 1'000'000;
+  static constexpr unsigned iterations = 10'000'000;
   auto coroutine = [](const Loop &loop) -> Promise<void> { co_await yield(); };
   auto setup = [&](const Loop &loop) -> Promise<void> {
     for (unsigned i = 0; i < iterations; ++i) {
@@ -281,7 +275,7 @@ TEST(PromiseTest, DISABLED_yieldCallBench) {
 }
 
 TEST(PromiseTest, DISABLED_yieldIntCallBench) {
-  static constexpr unsigned iterations = 1'000'000;
+  static constexpr unsigned iterations = 10'000'000;
   auto coroutine = [](const Loop &loop) -> Promise<int> {
     co_return (co_await yieldInt());
   };
@@ -295,10 +289,8 @@ TEST(PromiseTest, DISABLED_yieldIntCallBench) {
   run_loop(setup);
 }
 
-// This appears especially efficient; back-and-forth yielding occurs
-// at only 32 ns overhead (that's 31 million iterations per second).
 TEST(PromiseTest, DISABLED_multiYieldBench) {
-  static constexpr unsigned iterations = 1'000'000;
+  static constexpr unsigned iterations = 10'000'000;
   auto setup = [](const Loop &loop) -> Promise<void> {
     MultiPromise<unsigned> multi = yield(iterations);
     for (unsigned i = 0; i < iterations; ++i) {
