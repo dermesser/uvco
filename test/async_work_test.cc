@@ -145,4 +145,42 @@ TEST(AsyncWorkTest, exceptionThrownForValue) {
   run_loop(setup);
 }
 
+TEST(ThreadLocalKeyTest, basicSingleThread) {
+  ThreadLocalKey<unsigned> key;
+
+  key.set(42);
+  EXPECT_EQ(key.get(), 42);
+
+  key.set(100);
+  EXPECT_EQ(key.get(), 100);
+
+  key.del();
+  EXPECT_NO_THROW({
+    key.set(7);
+    EXPECT_EQ(key.get(), 7);
+  });
+}
+
+TEST(ThreadLocalKeyTest, differentThreadsDifferentValues) {
+  ThreadLocalKey<unsigned> key;
+
+  auto setup = [&key](const Loop &loop) -> Promise<void> {
+    key.set(1);
+    EXPECT_EQ(key.get(), 1);
+
+    co_await submitWork<void>(loop, [&key]() {
+      key.set(2);
+      EXPECT_EQ(key.get(), 2);
+      key.del();
+    });
+
+    EXPECT_EQ(1, key.get());
+
+    co_return;
+  };
+
+  run_loop(setup);
+  key.del();
+}
+
 } // namespace
