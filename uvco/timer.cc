@@ -15,7 +15,6 @@
 #include <coroutine>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <utility>
 
 namespace uvco {
@@ -41,7 +40,7 @@ public:
   TimerAwaiter &operator=(TimerAwaiter &&other) = delete;
   ~TimerAwaiter() {
     stop();
-    if (!closed_ && timer_) {
+    if (!closed_ && timer_ != nullptr) {
       closeHandle(timer_.release());
     }
   }
@@ -66,7 +65,10 @@ public:
     handle_ = handle;
     return true;
   }
-  [[nodiscard]] bool await_resume() const { return !stopped_; }
+  [[nodiscard]] bool await_resume() {
+    handle_ = nullptr;
+    return !stopped_;
+  }
 
   bool isReady() {
     uint64_t due = uv_timer_get_due_in(timer_.get());
@@ -80,15 +82,14 @@ public:
   }
   void resume() {
     if (handle_) {
-      auto handle = *handle_;
-      handle_.reset();
-      Loop::enqueue(handle);
+      Loop::enqueue(handle_);
+      handle_ = nullptr;
     }
   }
 
 private:
   std::unique_ptr<uv_timer_t> timer_;
-  std::optional<std::coroutine_handle<>> handle_;
+  std::coroutine_handle<> handle_;
   bool closed_ = false;
   bool stopped_ = false;
 };
