@@ -51,7 +51,6 @@ Promise<void> pingPongServer(const Loop &loop) {
   }
 
   fmt::print(stderr, "Closing server\n");
-  co_await server.close();
   fmt::print(stderr, "Listen finished\n");
 }
 
@@ -154,7 +153,6 @@ TEST(UdsTest, repeatedConnectSingleServerCancel1) {
     co_await sendReceivePing(loop);
     co_await sendReceivePing(loop);
 
-    co_await server.close();
   };
   run_loop(setup);
 }
@@ -170,7 +168,6 @@ TEST(UdsTest, repeatedConnectSingleServerCancel2) {
       co_await sendReceivePing(loop);
     }
 
-    co_await server.close();
   };
   run_loop(setup);
 }
@@ -207,7 +204,6 @@ TEST(UdsTest, unixStreamListenerStop) {
     UnixStreamServer server{loop, testSocketPath};
     auto listener = server.listen();
     co_await yield();
-    co_await server.close();
     // The following line would result in a crash (intentional) because the
     // listener generator has returned.
     // co_await listener;

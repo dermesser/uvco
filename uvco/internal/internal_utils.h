@@ -40,6 +40,7 @@ R callWithNullTerminated(std::string_view view, F &&f) {
 
 /// Obtain data pointer set on handle with nullptr check and type cast.
 template <typename Into, typename Handle> Into *getData(const Handle *handle) {
+  BOOST_ASSERT(handle != nullptr);
   const void *data = uv_handle_get_data((const uv_handle_t *)handle);
   BOOST_ASSERT(nullptr != data);
   return (Into *)data;
@@ -48,6 +49,7 @@ template <typename Into, typename Handle> Into *getData(const Handle *handle) {
 /// is set.
 template <typename Into, typename Handle>
 Into *getDataOrNull(const Handle *handle) {
+  BOOST_ASSERT(handle != nullptr);
   const void *data = uv_handle_get_data((const uv_handle_t *)handle);
   return (Into *)data;
 }
@@ -55,6 +57,7 @@ Into *getDataOrNull(const Handle *handle) {
 /// Obtain data pointer set on request with nullptr check and type cast.
 template <typename Into, typename Request>
 Into *getRequestData(const Request *req) {
+  BOOST_ASSERT(req != nullptr);
   const void *data = uv_req_get_data((const uv_req_t *)req);
   BOOST_ASSERT(nullptr != data);
   return (Into *)data;
@@ -64,6 +67,7 @@ Into *getRequestData(const Request *req) {
 /// is nullptr.
 template <typename Into, typename Request>
 Into *getRequestDataOrNull(const Request *req) {
+  BOOST_ASSERT(req != nullptr);
   const void *data = uv_req_get_data((const uv_req_t *)req);
   return (Into *)data;
 }
@@ -89,11 +93,13 @@ void setRequestData(Request *req, Data *data) {
 }
 
 template <typename Request> void resetRequestData(Request *req) {
+  BOOST_ASSERT(req != nullptr);
   uv_req_set_data((uv_req_t *)req, (void *)nullptr);
 }
 
 /// Check if handle data is null.
 template <typename Handle> bool dataIsNull(Handle *handle) {
+  BOOST_ASSERT(handle != nullptr);
   return nullptr == uv_handle_get_data((const uv_handle_t *)handle);
 }
 

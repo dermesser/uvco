@@ -49,10 +49,16 @@ public:
   /// This generator may not be `co_await`ed on after having called `close()`.
   MultiPromise<StreamType> listen(int backlog = 128);
 
-  AddressHandle getSockname() const;
+  /// Get the address the server is bound to.
+  [[nodiscard]] AddressHandle getSockname() const;
 
-  /// Close server and stop accepting client connections; must be awaited.
-  Promise<void> close();
+  /// Close server and stop accepting client connections. As opposed to many
+  /// other close() methods, it's synchronous, and therefore needs not be
+  /// called, as the destructor calls it.
+  ///
+  /// Internally it makes use of the quasi-sync behavior of closeHandle(),
+  /// making it actually more robust than a coroutine (against dropping etc.)
+  void close();
 
 protected:
   explicit StreamServerBase(std::unique_ptr<UvStreamType> socket)

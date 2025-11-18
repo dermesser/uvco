@@ -112,7 +112,6 @@ Promise<void> server(const Options &opt) {
     }
     promises.push_back(handleConnection(hub, std::move(*maybeStream)));
   }
-  co_await server.close();
 }
 
 Promise<void> copyIncomingToStdout(const Loop &loop,

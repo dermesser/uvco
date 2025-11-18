@@ -48,12 +48,12 @@ TcpClient::ConnectAwaiter_::ConnectAwaiter_()
 }
 
 TcpClient::ConnectAwaiter_::~ConnectAwaiter_() {
-  if (socket_ != nullptr) {
-    closeHandle(socket_.release());
-  }
   if (!requestDataIsNull(req_.get())) {
     resetRequestData(req_.get());
     uv_cancel((uv_req_t *)req_.release());
+  }
+  if (socket_ != nullptr) {
+    closeHandle(socket_.release());
   }
 }
 
@@ -126,7 +126,7 @@ Promise<TcpStream> TcpClient::connect() {
       connect.req_.get(), connect.socket_.get(), address.sockaddr(), onConnect);
   if (connectStatus < 0) {
     // Clean up handle if connect failed.
-    co_await closeHandle(connect.socket_.get());
+    closeHandle(connect.socket_.release());
     connect.socket_.reset();
     throw UvcoException(connectStatus,
                         "TcpClient::connect() failed immediately");
@@ -140,7 +140,7 @@ Promise<TcpStream> TcpClient::connect() {
   }
 
   std::unique_ptr<uv_tcp_t> tcpSocket = std::move(connect.socket_);
-  co_await closeHandle(tcpSocket.get());
+  closeHandle(tcpSocket.release());
   BOOST_ASSERT(maybeError.has_value());
   throw std::move(maybeError.value());
 }

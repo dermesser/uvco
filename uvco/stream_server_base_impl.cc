@@ -113,16 +113,13 @@ void StreamServerBase<UvStreamType, StreamType>::onNewConnection(
 
 template <typename UvStreamType, typename StreamType>
 StreamServerBase<UvStreamType, StreamType>::~StreamServerBase() {
-  if (socket_ != nullptr && !isClosed(socket_.get())) {
-    // closeHandle takes care of freeing the memory if its own promise is
-    // dropped.
-    closeHandle(socket_.release());
-  }
+  // Quasi-sync method.
+  close();
 }
 
 template <typename UvStreamType, typename StreamType>
-Promise<void> StreamServerBase<UvStreamType, StreamType>::close() {
-  if (!dataIsNull(socket_.get())) {
+void StreamServerBase<UvStreamType, StreamType>::close() {
+  if (socket_ != nullptr && !dataIsNull(socket_.get())) {
     auto *awaiter = getData<ConnectionAwaiter_>(socket_.get());
     // Resume listener coroutine and tell it to exit.
     // If awaiter == nullptr, one of two things is true:
@@ -131,7 +128,11 @@ Promise<void> StreamServerBase<UvStreamType, StreamType>::close() {
     // will be cancelled when its MultiPromise is dropped.
     awaiter->stop();
   }
-  co_await closeHandle(socket_.get());
+  if (socket_ != nullptr && !isClosed(socket_.get())) {
+    // closeHandle takes care of freeing the memory if its own promise is
+    // dropped.
+    closeHandle(socket_.release());
+  }
 }
 
 template <typename UvStreamType, typename StreamType>

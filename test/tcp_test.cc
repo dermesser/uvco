@@ -52,7 +52,6 @@ Promise<void> echoTcpServer(const Loop &loop, bool &received, bool &responded) {
   Promise<void> clientLoop =
       echoReceived(std::move(client), received, responded);
   co_await clientLoop;
-  co_await server.close();
 }
 
 Promise<void> sendTcpClient(const Loop &loop, bool &sent,
@@ -138,7 +137,7 @@ TEST(TcpTest, repeatedConnectSingleServerCancel1) {
     co_await sendReceivePing(loop, actual);
     co_await sendReceivePing(loop, actual);
 
-    co_await server.close();
+    co_return;
   };
   run_loop(setup);
 }
@@ -157,7 +156,7 @@ TEST(TcpTest, repeatedConnectSingleServerCancel2) {
       co_await sendReceivePing(loop, actual);
     }
 
-    co_await server.close();
+    co_return;
   };
   run_loop(setup);
 }
@@ -174,6 +173,7 @@ TEST(TcpTest, repeatedConnectSingleServerCancel3) {
     co_await sendReceivePing(loop, actual);
     co_await sendReceivePing(loop, actual);
     sendReceivePing(loop, actual);
+    co_return;
   };
   run_loop(setup);
 }
@@ -184,7 +184,7 @@ TEST(TcpTest, validBind) {
     TcpServer server{loop, addr};
     const AddressHandle actual = server.getSockname();
     EXPECT_LT(0, actual.port());
-    co_await server.close();
+    co_return;
   };
 
   run_loop(setup);
@@ -212,6 +212,7 @@ TEST(TcpTest, invalidLocalhostConnect) {
           co_await stream.close();
         },
         UvcoException);
+    co_return;
   };
 
   run_loop(main);
@@ -228,8 +229,23 @@ TEST(TcpTest, dropConnect) {
       TcpClient client{loop, actual};
       Promise<TcpStream> streamPromise = client.connect();
     }
+    co_return;
+  };
 
-    co_await server.close();
+  run_loop(setup);
+}
+
+TEST(TcpTest, dropConnect2) {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    TcpServer server{loop, {"127.0.0.1", 0}};
+    const AddressHandle actual = server.getSockname();
+    EXPECT_LT(0, actual.port());
+    MultiPromise<TcpStream> listen = server.listen();
+
+    TcpClient client{loop, actual};
+    Promise<TcpStream> streamPromise = client.connect();
+
+    co_return;
   };
 
   run_loop(setup);

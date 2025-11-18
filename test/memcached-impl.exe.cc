@@ -187,7 +187,6 @@ Promise<void> mainLoop(const Loop &loop) {
     clients.push_back(handleClient(std::move(*stream), cache, std::move(peer)));
   }
 
-  co_await server.close();
   co_return;
 }
 
