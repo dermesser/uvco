@@ -43,7 +43,6 @@ Promise<void> udpServer(const Loop &loop, unsigned expect, unsigned &received) {
   // Necessary for the receiver promise to return and not leak memory!
   server.stopReceiveMany(packets);
   EXPECT_FALSE((co_await packets).has_value());
-  co_await server.close();
   co_return;
 }
 
@@ -76,8 +75,6 @@ Promise<void> udpClient(const Loop &loop, unsigned send, unsigned &sent) {
     ++sent;
     auto response = co_await client.receiveOne();
   }
-
-  co_await client.close();
   co_return;
 }
 
@@ -135,7 +132,6 @@ Promise<void> udpSource(const Loop &loop, unsigned send, unsigned &sent) {
     ++sent;
   }
 
-  co_await client.close();
   co_return;
 }
 
@@ -163,7 +159,6 @@ Promise<void> udpSink(const Loop &loop, unsigned expect, unsigned &received) {
   received += tolerance;
   server.stopReceiveMany(packets);
   EXPECT_FALSE((co_await packets).has_value());
-  co_await server.close();
   co_return;
 }
 
@@ -201,12 +196,9 @@ TEST(UdpTest, testDropReceiver) {
 
     std::string msg = "Hello there!";
     co_await server.send(msg, AddressHandle{"::1", 7777});
-    co_await server.close();
 
     const auto receivedFromServer = co_await client.receiveOne();
     EXPECT_EQ(msg, receivedFromServer);
-
-    co_await client.close();
   };
 
   run_loop(setup);
@@ -219,8 +211,6 @@ TEST(UdpTest, dropWhileReceiving) {
 
     MultiPromise<std::pair<std::string, AddressHandle>> packets =
         server.receiveMany();
-
-    co_await server.close();
   };
 
   run_loop(setup);
@@ -256,8 +246,6 @@ TEST(UdpTest, dropWhileReceivingWithNewPacket) {
 
     // Here somewhere, the onReceiveOne handler will be called despite the
     // `packets` coroutine having already been dropped.
-
-    co_await server.close();
   };
 
   run_loop(setup);
@@ -273,7 +261,6 @@ TEST(UdpTest, cancelWhileReceiving) {
 
     co_await yield();
     server.stopReceiveMany(packets);
-    co_await server.close();
   };
 
   run_loop(setup);
@@ -284,7 +271,6 @@ TEST(UdpTest, testTtl) {
     Udp server{loop};
     co_await server.bind("::1", 9999, 0);
     server.setTtl(10);
-    co_await server.close();
   };
 
   run_loop(setup);
@@ -301,7 +287,6 @@ TEST(UdpTest, testBroadcast) {
     } catch (const UvcoException &e) {
       fmt::print(stderr, "Caught exception: {}\n", e.what());
     }
-    co_await server.close();
   };
 
   run_loop(setup);
@@ -316,8 +301,6 @@ TEST(UdpTest, simultaneousReceiveDies) {
         server.receiveMany();
 
     EXPECT_DEATH({ auto packets2 = server.receiveMany(); }, "dataIsNull");
-
-    co_await server.close();
   };
 
   run_loop(setup);
@@ -330,8 +313,6 @@ TEST(UdpTest, simultaneousReceiveOneDies) {
 
     Promise<std::string> packet = server.receiveOne();
     EXPECT_DEATH({ auto packet = server.receiveOne(); }, "dataIsNull");
-
-    co_await server.close();
   };
 
   run_loop(setup);
@@ -375,7 +356,6 @@ TEST(UdpTest, sendNoAddress) {
     } catch (const UvcoException &e) {
       fmt::print(stderr, "Caught exception: {}\n", e.what());
     }
-    co_await udp.close();
   };
 
   run_loop(setup);
@@ -387,7 +367,7 @@ TEST(UdpTest, closedWhileReceiving) {
     co_await udp.bind("::1", 9999);
     MultiPromise<std::pair<std::string, AddressHandle>> receiver =
         udp.receiveMany();
-    co_await udp.close();
+    udp.close();
 
     try {
       // We cannot use receiver afterwards anymore.
@@ -408,7 +388,7 @@ TEST(UdpTest, closedWhileReceiving2) {
     co_await udp.bind("::1", 9999);
     MultiPromise<std::pair<std::string, AddressHandle>> receiver =
         udp.receiveMany();
-    co_await udp.close();
+    udp.close();
 
     Promise<std::optional<std::pair<std::string, uvco::AddressHandle>>> next =
         receiver.next();
@@ -435,7 +415,7 @@ TEST(UdpTest, closeWhileReceivingInOtherCoroutine) {
     co_await udp.bind("::1", 9999);
     auto receiver = udp.receiveMany();
     Promise<void> waiter = co_waiter(std::move(receiver));
-    co_await udp.close();
+    udp.close();
   };
 
   run_loop(setup);

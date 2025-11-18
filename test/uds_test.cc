@@ -152,7 +152,6 @@ TEST(UdsTest, repeatedConnectSingleServerCancel1) {
     co_await sendReceivePing(loop);
     co_await sendReceivePing(loop);
     co_await sendReceivePing(loop);
-
   };
   run_loop(setup);
 }
@@ -167,7 +166,6 @@ TEST(UdsTest, repeatedConnectSingleServerCancel2) {
       co_await sendReceivePing(loop);
       co_await sendReceivePing(loop);
     }
-
   };
   run_loop(setup);
 }

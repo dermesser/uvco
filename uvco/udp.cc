@@ -98,9 +98,10 @@ Promise<void> Udp::bind(std::string_view address, uint16_t port,
 Promise<void> Udp::bind(const AddressHandle &address, unsigned int flag) {
   const uv_status status = uv_udp_bind(udp_.get(), address.sockaddr(), flag);
   if (status != 0) {
-    co_await close();
+    close();
     throw UvcoException{status, "binding UDP socket"};
   }
+  co_return;
 }
 
 Promise<void> Udp::connect(std::string_view address, uint16_t port,
@@ -112,20 +113,22 @@ Promise<void> Udp::connect(std::string_view address, uint16_t port,
   uv_udp_connect(udp_.get(), nullptr);
   const uv_status status = uv_udp_connect(udp_.get(), addressHandle.sockaddr());
   if (status != 0) {
-    co_await close();
+    close();
     throw UvcoException{status, "connecting UDP socket"};
   }
   connected_ = true;
+  co_return;
 }
 
 Promise<void> Udp::connect(const AddressHandle &address) {
   uv_udp_connect(udp_.get(), nullptr);
   const uv_status status = uv_udp_connect(udp_.get(), address.sockaddr());
   if (status != 0) {
-    co_await close();
+    close();
     throw UvcoException{status, "connecting UDP socket"};
   }
   connected_ = true;
+  co_return;
 }
 
 Promise<void> Udp::send(std::span<const char> buffer,
@@ -212,9 +215,9 @@ MultiPromise<std::pair<std::string, AddressHandle>> Udp::receiveMany() {
   co_return;
 }
 
-Promise<void> Udp::close() {
-  if (!udp_) {
-    co_return;
+void Udp::close() {
+  if (udp_ == nullptr) {
+    return;
   }
   if (!dataIsNull(udp_.get())) {
     auto *const awaiter = getData<RecvAwaiter_>(udp_.get());
@@ -229,8 +232,7 @@ Promise<void> Udp::close() {
       h.resume();
     }
   }
-  const std::unique_ptr<uv_udp_t> udp{std::move(udp_)};
-  co_await closeHandle(udp.get());
+  closeHandle(udp_.release());
   connected_ = false;
 }
 

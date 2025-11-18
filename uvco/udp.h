@@ -100,9 +100,10 @@ public:
   /// Obtain peer name if connected.
   [[nodiscard]] std::optional<AddressHandle> getPeername() const;
 
-  /// Close UDP socket. Await on the returned promise to ensure that the socket
-  /// is fully closed.
-  Promise<void> close();
+  /// Close UDP socket. The socket is not closed immediately; it typically takes
+  /// another turn of the libuv event loop before the closing operation is
+  /// finished. In most cases you don't need to care about that.
+  void close();
 
 private:
   const Loop *loop_;

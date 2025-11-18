@@ -24,9 +24,7 @@ bool CloseAwaiter::await_suspend(std::coroutine_handle<> handle) {
   handle_ = handle;
   return true;
 }
-void CloseAwaiter::await_resume() {
-  BOOST_ASSERT(closed_);
-}
+void CloseAwaiter::await_resume() { BOOST_ASSERT(closed_); }
 
 void onCloseCallback(uv_handle_t *handle) {
   auto *awaiter = getDataOrNull<CloseAwaiter>(handle);
