@@ -30,7 +30,7 @@ public:
   /// std::nullopt.
   virtual MultiPromise<uint64_t> ticker() = 0;
   /// Immediately stop the ticker.
-  virtual Promise<void> close() = 0;
+  virtual void close() = 0;
 };
 
 /// Yields a counter value, counting up from 0, at interval `millis`. If `count`

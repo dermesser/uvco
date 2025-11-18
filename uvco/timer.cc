@@ -40,24 +40,21 @@ public:
   TimerAwaiter &operator=(TimerAwaiter &&other) = delete;
   ~TimerAwaiter() {
     stop();
-    if (!closed_ && timer_ != nullptr) {
-      closeHandle(timer_.release());
-    }
+    close();
   }
 
-  Promise<void> close() {
+  void close() {
     if (!timer_ || closed_) {
-      co_return;
+      return;
     }
     closed_ = true;
     // If the timer is already closing, we don't need to close it again.
     // This would cause an error in libuv.
-    if (isClosed(timer_.get())) {
-      co_return;
+    if (timer_ != nullptr && isClosed(timer_.get())) {
+      return;
     }
     stop();
-    co_await closeHandle(timer_.get());
-    timer_.reset();
+    closeHandle(timer_.release());
   }
 
   bool await_ready() { return isReady(); }
@@ -97,7 +94,6 @@ private:
 Promise<void> sleep(const Loop &loop, uint64_t millis) {
   TimerAwaiter awaiter{loop, millis};
   BOOST_VERIFY(!co_await awaiter);
-  co_await awaiter.close();
   co_return;
 }
 
@@ -124,7 +120,7 @@ public:
   ~TickerImpl() override = default;
 
   MultiPromise<uint64_t> ticker() override;
-  Promise<void> close() override;
+  void close() override;
 
 private:
   std::unique_ptr<TimerAwaiter> awaiter_;
@@ -151,17 +147,17 @@ MultiPromise<uint64_t> TickerImpl::ticker() {
   if (!stopped_) {
     // Need to close timer so that libuv isn't blocked by the active handle on
     // the loop.
-    co_await close();
+    close();
   }
 }
 
-Promise<void> TickerImpl::close() {
+void TickerImpl::close() {
   stopped_ = true;
   // The stopped awaiter will yield a false event, and then break out of the
   // loop (ticker() method).
   awaiter_->resume();
   awaiter_->stop();
-  co_await awaiter_->close();
+  awaiter_->close();
 }
 
 std::unique_ptr<Ticker> tick(const Loop &loop, uint64_t millis,

@@ -41,7 +41,7 @@ TEST(TimerTest, tickerTest) {
         break;
       }
     }
-    co_await ticker->close();
+    ticker->close();
   };
 
   run_loop(setup);
@@ -57,7 +57,7 @@ TEST(TimerTest, infiniteTickerTest) {
     for (counter = 0; counter < count; ++counter) {
       EXPECT_EQ(counter, *(co_await tickerProm));
     }
-    co_await ticker->close();
+    ticker->close();
   };
 
   run_loop(setup);
@@ -73,7 +73,7 @@ TEST(TimerTest, finiteTickerTest) {
     for (counter = 0; counter < stopAfter; ++counter) {
       EXPECT_EQ(counter, *(co_await tickerProm));
     }
-    co_await ticker->close();
+    ticker->close();
   };
 
   run_loop(setup);
