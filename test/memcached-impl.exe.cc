@@ -161,7 +161,7 @@ Promise<void> handleClient(TcpStream stream,
     BOOST_LOG_TRIVIAL(debug) << "Sent response to " << peer;
   }
 
-  co_await stream.closeReset();
+  stream.close();
   co_return;
 }
 

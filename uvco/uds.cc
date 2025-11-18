@@ -87,8 +87,7 @@ Promise<UnixStream> UnixStreamClient::connect(std::string_view path) {
       uv_pipe_connect2(connect.request_.get(), connect.pipe_.get(), path.data(),
                        path.size(), 0, ConnectAwaiter_::onConnect);
   if (connectStatus != 0) {
-    co_await closeHandle(connect.pipe_.get());
-    connect.pipe_.reset();
+    closeHandle(connect.pipe_.release());
     throw UvcoException(connectStatus,
                         "UnixStreamClient::connect() failed immediately");
   }
@@ -104,8 +103,7 @@ Promise<UnixStream> UnixStreamClient::connect(std::string_view path) {
   } catch (const UvcoException &e) {
     maybeError = e;
   }
-  const std::unique_ptr<uv_pipe_t> pipe = std::move(connect.pipe_);
-  co_await closeHandle(pipe.get());
+  closeHandle(connect.pipe_.release());
   BOOST_ASSERT(maybeError);
   throw std::move(maybeError.value());
 }

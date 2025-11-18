@@ -92,12 +92,9 @@ public:
   /// can still write. The result of `shutdown()` *must be `co_await`ed*.
   [[nodiscard]] Promise<void> shutdown();
 
-  /// The result of `close()` *must be `co_await`ed*; otherwise memory may be
-  /// leaked. (this is not an issue just before termination of a process)
-  ///
   /// Informs pending readers and writers of the close and causes them to return
   /// an empty optional.
-  [[nodiscard]] Promise<void> close();
+  void close();
 
   /// Return the underlying UV stream object.
   [[nodiscard]] const uv_stream_t *underlying() const { return stream_.get(); }

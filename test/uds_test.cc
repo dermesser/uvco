@@ -44,7 +44,7 @@ Promise<void> pingPongServer(const Loop &loop) {
 
     co_await stream->write(
         fmt::format("Hello, back! I received '{}'\n", message.value()));
-    co_await stream->close();
+    stream->close();
   } catch (const UvcoException &e) {
     fmt::print(stderr, "Error: {}\n", e.what());
     throw;
@@ -70,7 +70,7 @@ Promise<void> pingPongClient(const Loop &loop) {
       throw UvcoException{UV_EOF, "No data from server"};
     }
     fmt::print(stderr, "Received: {}", *buf);
-    co_await stream.close();
+    stream.close();
   } catch (const UvcoException &e) {
     fmt::print(stderr, "Error: {}\n", e.what());
     throw;
@@ -129,7 +129,7 @@ Promise<void> serverLoop(MultiPromise<UnixStream> clients) {
     BOOST_ASSERT(chunk);
     co_await client.writeBorrowed(*chunk);
     co_await client.shutdown();
-    co_await client.close();
+    client.close();
   }
 }
 
@@ -141,7 +141,7 @@ Promise<void> sendReceivePing(const Loop &loop) {
   std::optional<std::string> response = co_await stream.read();
 
   EXPECT_EQ(response, "Ping");
-  co_await stream.close();
+  stream.close();
 }
 
 TEST(UdsTest, repeatedConnectSingleServerCancel1) {

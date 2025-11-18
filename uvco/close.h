@@ -2,12 +2,10 @@
 
 #pragma once
 
+#include <boost/assert.hpp>
 #include <uv.h>
 
-#include "uvco/promise/promise.h"
-
-#include <boost/assert.hpp>
-#include <coroutine>
+#include "uvco/internal/internal_utils.h"
 
 namespace uvco {
 
@@ -15,24 +13,6 @@ namespace uvco {
 /// Internally used by various classes to safely close and deallocate libuv
 /// handles.
 /// @{
-
-/// An awaiter for closing a libuv handle.
-struct CloseAwaiter {
-  explicit CloseAwaiter(uv_handle_t *handle);
-  CloseAwaiter(const CloseAwaiter &) = delete;
-  CloseAwaiter(CloseAwaiter &&) = delete;
-  CloseAwaiter &operator=(const CloseAwaiter &) = delete;
-  CloseAwaiter &operator=(CloseAwaiter &&) = delete;
-  ~CloseAwaiter();
-
-  [[nodiscard]] bool await_ready() const;
-  bool await_suspend(std::coroutine_handle<> handle);
-  void await_resume();
-
-  std::coroutine_handle<> handle_;
-  uv_handle_t *uvHandle_;
-  bool closed_ = false;
-};
 
 void onCloseCallback(uv_handle_t *handle);
 
@@ -54,19 +34,16 @@ template <typename Handle> bool isClosed(const Handle *h) {
 /// always done when it detects that the closeHandle coroutine has been
 /// cancelled (due to the returned promise having been dropped).
 template <typename Handle, typename CloserArg>
-Promise<void> closeHandle(Handle *handle,
-                          void (*closer)(CloserArg *,
-                                         void (*)(uv_handle_t *))) {
+void closeHandle(Handle *handle,
+                 void (*closer)(CloserArg *, void (*)(uv_handle_t *))) {
   BOOST_ASSERT(handle != nullptr);
-  CloseAwaiter awaiter{(uv_handle_t *)handle};
+  resetData(handle);
   closer((CloserArg *)handle, onCloseCallback);
-  co_await awaiter;
-  BOOST_ASSERT(awaiter.closed_);
 }
 
 /// Specialization for uv_handle_t handles.
-template <typename Handle> Promise<void> closeHandle(Handle *handle) {
-  return closeHandle<Handle, uv_handle_t>(handle, uv_close);
+template <typename Handle> void closeHandle(Handle *handle) {
+  closeHandle<Handle, uv_handle_t>(handle, uv_close);
 }
 
 /// @}

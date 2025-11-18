@@ -26,7 +26,7 @@ Promise<void> testHttpRequest(const Loop &loop) {
       break;
     }
   } while (true);
-  co_await stream.closeReset();
+  stream.close();
 }
 
 // Manual setup: this will be part of uvco later.

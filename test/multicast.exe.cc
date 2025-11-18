@@ -77,7 +77,7 @@ Promise<void> sendSome(const Options &opt, AddressHandle dst,
     co_await udp.send(message, dst);
     co_await sleep(opt.loop, 50 * interval);
   }
-  co_await udp.close();
+  udp.close();
 }
 
 Promise<void> printPackets(Options opt) {
@@ -98,7 +98,7 @@ Promise<void> printPackets(Options opt) {
   } catch (const UvcoException &e) {
     fmt::print(stderr, "exception: {}\n", e.what());
   }
-  co_await udp.close();
+  udp.close();
 }
 
 int main(int argc, const char **argv) {

@@ -397,8 +397,8 @@ Promise<FsWatch> FsWatch::createWithFlag(const Loop &loop,
                                          std::string_view path,
                                          uv_fs_event_flags flags) {
   FsWatch fsWatch;
-  uv_fs_event_t &uv_handle = *fsWatch.uv_handle_;
-  const uv_status initStatus = uv_fs_event_init(loop.uvloop(), &uv_handle);
+  std::unique_ptr<uv_fs_event_t> &uv_handle = fsWatch.uv_handle_;
+  const uv_status initStatus = uv_fs_event_init(loop.uvloop(), uv_handle.get());
   if (initStatus != 0) {
     throw UvcoException{
         initStatus,
@@ -406,14 +406,13 @@ Promise<FsWatch> FsWatch::createWithFlag(const Loop &loop,
   }
   const int startStatus =
       callWithNullTerminated<uv_status>(path, [&](std::string_view safePath) {
-        return uv_fs_event_start(&uv_handle, onFsWatcherEvent, safePath.data(),
-                                 flags);
+        return uv_fs_event_start(uv_handle.get(), onFsWatcherEvent,
+                                 safePath.data(), flags);
       });
   if (startStatus != 0) {
-    uv_fs_event_stop(&uv_handle);
+    uv_fs_event_stop(uv_handle.get());
     // This works with the current Loop::~Loop implementation.
-    co_await closeHandle(&uv_handle);
-    fsWatch.uv_handle_.reset();
+    closeHandle(uv_handle.release());
     throw UvcoException{
         startStatus, "uv_fs_event_start returned error while starting FsWatch"};
   }

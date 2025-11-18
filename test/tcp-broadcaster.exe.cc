@@ -94,7 +94,7 @@ Promise<void> handleConnection(Hub &hub, TcpStream stream) {
     hub.broadcast(peerStr, std::move(*chunk));
   }
   hub.clients_.erase(peerStr);
-  co_await streamPtr->closeReset();
+  streamPtr->close();
 }
 
 Promise<void> server(const Options &opt) {
@@ -128,7 +128,7 @@ Promise<void> copyIncomingToStdout(const Loop &loop,
   }
 
   fmt::print(stderr, "> copier done\n");
-  co_await out.close();
+  out.close();
   fmt::print(stderr, "> copier really done\n");
 }
 
@@ -153,9 +153,9 @@ Promise<void> client(Options opt) {
   co_await raceIgnore(std::move(copier), std::move(sender));
 
   fmt::print(stderr, "> loop left due to remote close or EOF\n");
-  co_await conn->close();
+  conn->close();
   fmt::print(stderr, "> conn closed\n");
-  co_await input.close();
+  input.close();
   fmt::print(stderr, "> client done\n");
 }
 

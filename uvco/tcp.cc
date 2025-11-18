@@ -47,13 +47,26 @@ TcpClient::ConnectAwaiter_::ConnectAwaiter_()
   setRequestData(req_.get(), this);
 }
 
+namespace {
+
+void uvCloseReset(uv_handle_t *tcpHandle, void (*onClose)(uv_handle_t *)) {
+  BOOST_ASSERT(UV_TCP == uv_handle_get_type(tcpHandle));
+  const uv_status status = uv_tcp_close_reset((uv_tcp_t *)tcpHandle, onClose);
+  if (status != 0) {
+    fmt::print(stderr, "Warning: uv_tcp_close_reset() failed with status {}\n",
+               status);
+  }
+}
+
+} // namespace
+
 TcpClient::ConnectAwaiter_::~ConnectAwaiter_() {
   if (!requestDataIsNull(req_.get())) {
     resetRequestData(req_.get());
     uv_cancel((uv_req_t *)req_.release());
   }
   if (socket_ != nullptr) {
-    closeHandle(socket_.release());
+    closeHandle(socket_.release(), uvCloseReset);
   }
 }
 
@@ -126,8 +139,6 @@ Promise<TcpStream> TcpClient::connect() {
       connect.req_.get(), connect.socket_.get(), address.sockaddr(), onConnect);
   if (connectStatus < 0) {
     // Clean up handle if connect failed.
-    closeHandle(connect.socket_.release());
-    connect.socket_.reset();
     throw UvcoException(connectStatus,
                         "TcpClient::connect() failed immediately");
   }
@@ -140,7 +151,7 @@ Promise<TcpStream> TcpClient::connect() {
   }
 
   std::unique_ptr<uv_tcp_t> tcpSocket = std::move(connect.socket_);
-  closeHandle(tcpSocket.release());
+  closeHandle(tcpSocket.release(), uvCloseReset);
   BOOST_ASSERT(maybeError.has_value());
   throw std::move(maybeError.value());
 }

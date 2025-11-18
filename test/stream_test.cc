@@ -36,7 +36,7 @@ TEST(TtyTest, DISABLED_stdioTest) {
     for (auto &tty : ttys) {
       co_await tty.write(" ");
       ++counter;
-      co_await tty.close();
+      tty.close();
       ++counter;
     }
   };
@@ -71,21 +71,11 @@ TEST(TtyTest, closeWhileReading) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     TtyStream tty = TtyStream::stdin(loop);
     Promise<std::optional<std::string>> reader = tty.read();
-    co_await tty.close();
+    tty.close();
     EXPECT_FALSE((co_await reader).has_value());
   };
 
   run_loop(setup);
-}
-
-TEST(PipeTest, danglingReadDies) {
-  auto f = [](const Loop &loop) -> Promise<std::optional<std::string>> {
-    auto [read, write] = pipe(loop);
-    auto _ = write.write("Hello");
-    return read.read();
-  };
-  auto setup = [&f](const Loop &loop) -> Promise<void> { co_await f(loop); };
-  EXPECT_DEATH(run_loop(setup), R"(stream must outlive reader coroutine)");
 }
 
 TEST(PipeTest, pipePingPong) {
@@ -95,8 +85,8 @@ TEST(PipeTest, pipePingPong) {
     co_await write.write("Hello\n");
     co_await write.write("Hello");
     EXPECT_EQ(co_await read.read(), std::make_optional("Hello\nHello"));
-    co_await read.close();
-    co_await write.close();
+    read.close();
+    write.close();
   };
 
   run_loop(setup);
@@ -108,8 +98,8 @@ TEST(PipeTest, doubleReadDies) {
 
     Promise<std::optional<std::string>> readPromise = read.read();
     EXPECT_THROW({ co_await read.read(); }, UvcoException);
-    co_await read.close();
-    co_await write.close();
+    read.close();
+    write.close();
   };
 
   run_loop(setup);
@@ -127,7 +117,7 @@ TEST(PipeTest, largeWriteRead) {
       EXPECT_EQ(buffer.size(), co_await write.write(
                                    std::string(buffer.data(), buffer.size())));
     }
-    co_await write.close();
+    write.close();
 
     size_t bytesRead{};
 
@@ -140,7 +130,7 @@ TEST(PipeTest, largeWriteRead) {
       bytesRead += chunk->size();
     }
     BOOST_ASSERT(bytesRead == 10240);
-    co_await read.close();
+    read.close();
   };
 
   run_loop(setup);
@@ -155,8 +145,8 @@ TEST(PipeTest, readIntoBuffer) {
     size_t bytesRead = co_await read.read(buffer);
     EXPECT_EQ(bytesRead, 5);
     EXPECT_EQ(std::string(buffer.data(), bytesRead), "Hello");
-    co_await read.close();
-    co_await write.close();
+    read.close();
+    write.close();
   };
   run_loop(setup);
 }

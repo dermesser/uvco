@@ -25,7 +25,7 @@ Promise<void> echoReceived(TcpStream stream, bool &received, bool &responded) {
   co_await stream.writeBorrowed(*chunk);
   responded = true;
   co_await stream.shutdown();
-  co_await stream.closeReset();
+  stream.close();
 }
 
 Promise<void> echoTcpServer(const Loop &loop, bool &received, bool &responded) {
@@ -69,7 +69,7 @@ Promise<void> sendTcpClient(const Loop &loop, bool &sent,
   responseReceived = true;
 
   EXPECT_EQ(response, "Hello World");
-  co_await stream.close();
+  stream.close();
 }
 
 Promise<void> join(Promise<void> promise1, Promise<void> promise2) {
@@ -110,7 +110,7 @@ Promise<void> serverLoop(MultiPromise<TcpStream> clients) {
     BOOST_ASSERT(chunk);
     co_await client.writeBorrowed(*chunk);
     co_await client.shutdown();
-    co_await client.closeReset();
+    client.close();
   }
 }
 
@@ -122,7 +122,7 @@ Promise<void> sendReceivePing(const Loop &loop, AddressHandle addr) {
   std::optional<std::string> response = co_await stream.read();
 
   EXPECT_EQ(response, "Ping");
-  co_await stream.close();
+  stream.close();
 }
 
 TEST(TcpTest, repeatedConnectSingleServerCancel1) {
@@ -178,6 +178,24 @@ TEST(TcpTest, repeatedConnectSingleServerCancel3) {
   run_loop(setup);
 }
 
+TEST(TcpTest, repeatedConnectSingleServerCancel4) {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    AddressHandle addr{"127.0.0.1", 0};
+    TcpServer server{loop, addr};
+    const AddressHandle actual = server.getSockname();
+    EXPECT_LT(0, actual.port());
+
+    // Just go hog-wild, cancel everything willy-nilly
+    Promise<void> serverHandler = serverLoop(server.listen());
+    co_await sendReceivePing(loop, actual);
+    co_await sendReceivePing(loop, actual);
+    server.close();
+    EXPECT_THROW({ co_await sendReceivePing(loop, actual); }, UvcoException);
+    co_return;
+  };
+  run_loop(setup);
+}
+
 TEST(TcpTest, validBind) {
   auto setup = [&](const Loop &loop) -> Promise<void> {
     AddressHandle addr{"127.0.0.1", 0};
@@ -209,7 +227,7 @@ TEST(TcpTest, invalidLocalhostConnect) {
     EXPECT_THROW(
         {
           TcpStream stream = co_await client.connect();
-          co_await stream.close();
+          stream.close();
         },
         UvcoException);
     co_return;

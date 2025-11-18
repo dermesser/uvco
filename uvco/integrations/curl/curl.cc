@@ -171,13 +171,13 @@ public:
     std::vector<Promise<void>> promises;
     promises.reserve(polls_.size());
     for (auto &[socket, poll] : polls_) {
-      promises.push_back(closeHandle(poll.poll.get()));
+      closeHandle(poll.poll.release());
     }
     for (auto &promise : promises) {
       co_await promise;
     }
     polls_.clear();
-    co_await closeHandle(timer_.get());
+    closeHandle(timer_.release());
     timer_.reset();
   }
 

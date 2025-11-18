@@ -8,7 +8,6 @@
 #include <fmt/format.h>
 
 #include "uvco/name_resolution.h"
-#include "uvco/promise/promise.h"
 #include "uvco/stream.h"
 
 #include <memory>
@@ -36,10 +35,6 @@ public:
 
   /// Return bound address of socket.
   [[nodiscard]] AddressHandle getSockName() const;
-
-  /// Sends RST to TCP peer and closes stream, frees associated memory.
-  /// Must be awaited to avoid resource leaks.
-  [[nodiscard]] Promise<void> closeReset();
 
   /// Set keep-alive delay in seconds.
   void keepAlive(bool enable, unsigned int delay = 10);

@@ -4,40 +4,12 @@
 
 #include "uvco/close.h"
 #include "uvco/internal/internal_utils.h"
-#include "uvco/loop/loop.h"
-#include "uvco/run.h"
-
-#include <coroutine>
 
 namespace uvco {
 
-CloseAwaiter::CloseAwaiter(uv_handle_t *handle) : uvHandle_{handle} {
-  setData(handle, this);
-}
-CloseAwaiter::~CloseAwaiter() {
-  resetData(uvHandle_);
-  BOOST_ASSERT(dataIsNull(uvHandle_));
-}
-
-bool CloseAwaiter::await_ready() const { return closed_; }
-bool CloseAwaiter::await_suspend(std::coroutine_handle<> handle) {
-  handle_ = handle;
-  return true;
-}
-void CloseAwaiter::await_resume() { BOOST_ASSERT(closed_); }
-
 void onCloseCallback(uv_handle_t *handle) {
-  auto *awaiter = getDataOrNull<CloseAwaiter>(handle);
-  if (awaiter == nullptr) {
-    // no CloseAwaiter associated with handle. This means that nobody is
-    // awaiting the close, i.e. `co_await X.close()` was not used.
-    UvHandleDeleter::del(handle);
-    return;
-  }
-  awaiter->closed_ = true;
-  if (awaiter->handle_ != nullptr) {
-    Loop::enqueue(awaiter->handle_);
-  }
+  BOOST_ASSERT(dataIsNull(handle));
+  UvHandleDeleter::del(handle);
 }
 
 } // namespace uvco

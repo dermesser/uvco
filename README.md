@@ -347,32 +347,25 @@ Loop::~Loop(): uv_loop_close() failed; there were still resources on the loop: r
 
 In a properly written application, this is the case once all the work has been done, i.e. no more open handles on the
 libuv event loop, and no coroutines waiting to be resumed; for example, every unit test is required to behave like this
-(see `test/`) and finish all operations before terminating.
+(see `test/`) and finish all operations before terminating. A typical case in which this occurs is working with
+channels: they are implemented outside of libuv, and if no channel operation is currently pending, the uvco loop will
+assume that no more work is to be done, and finsh the program's execution.
 
-Forgetting to `co_await` a Promise can lead to this condition, but a bug in uvco is also a potential explanation.
-The most frequent mistake leading to this kind of error is forgetting to add
-
-```cpp
-co_await obj.close();
-```
-
-at the end of `obj`'s lifetime; many sockets, clients, streams, etc. have an asynchronous `close()` method that must be
-awaited (and can therefore not be part of a destructor call). Check the documentation for whether you need to do this.
+If there are open handles on the libuv event loop at this point, you will receive the exception described above.
 
 ## Exceptions
 
-Exceptions are propagated through the coroutine stack. If a coroutine throws an exception,
-it will be thrown at the point of the `co_await` that started the coroutine.
+Exceptions are propagated through the coroutine stack. If a coroutine throws an exception, it will be thrown at the
+point of the `co_await` that started the coroutine.
 
 There are two difficulties:
 
-1. Many uvco types must be `close()`d explicitly, because closing is an asynchronous operation.
-Complaints will be printed to the console if you forget to close a resource. Usually though, the
-resource will be closed asynchronously although a small amount of memory may be leaked (see
-`StreamBase::~StreamBase()`).
-2. Exceptions are only rethrown from the `runMain()` call if the event loop has finished. If a
-single active libuv handle is present, this will not be the case, and the application will appear
-to hang. Therefore, prefer handling exceptions within your asynchronous code.
+1. `libuv` close() operations are asynchronous. In almost all cases, you should run `co_await obj.close()` to ensure
+   correct freeing of resources. However, almost all uvco types emulate synchronous close in their destructor, so even
+   if an exception is thrown or you forget to explicitly close an object, no resources nor memory will be leaked.
+2. Exceptions are only rethrown from the `runMain()` call if the event loop has finished. If a single active libuv
+   handle is present, this will not be the case, and the application will appear to hang. Therefore, prefer handling
+   exceptions within your asynchronous code.
 
 ## Dependencies
 
@@ -433,9 +426,11 @@ Link first against `libuv-co-lib`, then `-promise`, then `-base` so that all sym
 The code is tested by unit tests in `test/`; the coverage is currently > 90%.
 Unit tests are especially helpful when built and run with `-DENABLE_ASAN=1
 -DENABLE_COVERAGE=1`, detecting memory leaks and illegal accesses - the most
-frequent bugs when writing asynchronous code.
+frequent bugs when writing asynchronous code. I've found that Address Sanitizer
+does not find all issues - `valgrind` is even more thorough.
 
-For coverage information, you need `gcovr`.
+For coverage information, you need `gcovr` or `grcov`. Typically these work
+best when building with clang.
 
 Generally, run it like this:
 

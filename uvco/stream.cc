@@ -81,18 +81,7 @@ struct StreamBase::OutStreamAwaiter_ {
   StreamBase &stream_;
 };
 
-StreamBase::~StreamBase() {
-  if (stream_) {
-    // stream_ will be freed by closeHandle() mechanics.
-    closeHandle(stream_.release());
-  }
-  BOOST_ASSERT_MSG(
-      !reader_,
-      "StreamBase::~StreamBase(): stream must outlive reader coroutines.");
-  BOOST_ASSERT_MSG(
-      !writer_,
-      "StreamBase::~StreamBase(): stream must outlive writer coroutines.");
-}
+StreamBase::~StreamBase() { close(); }
 
 TtyStream TtyStream::tty(const Loop &loop, int fd) {
   auto tty = std::make_unique<uv_tty_t>();
@@ -163,16 +152,19 @@ Promise<void> StreamBase::shutdown() {
   co_return;
 }
 
-Promise<void> StreamBase::close() {
-  auto stream = std::move(stream_);
-  co_await closeHandle(stream.get());
+void StreamBase::close() {
+  if (stream_ != nullptr) {
+    closeHandle(stream_.release());
+  }
   if (reader_ != nullptr) {
-    Loop::enqueue(reader_);
+    std::coroutine_handle<> reader = reader_;
     reader_ = nullptr;
+    reader.resume();
   }
   if (writer_ != nullptr) {
-    Loop::enqueue(writer_);
+    std::coroutine_handle<> writer = writer_;
     writer_ = nullptr;
+    writer.resume();
   }
 }
 
@@ -210,7 +202,7 @@ bool StreamBase::InStreamAwaiter_::await_suspend(
 
 size_t StreamBase::InStreamAwaiter_::await_resume() {
   if (!status_ && !stream_.stream_) {
-    return {};
+    return 0;
   }
   BOOST_ASSERT(status_);
   stream_.reader_ = nullptr;
