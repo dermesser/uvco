@@ -443,10 +443,7 @@ Promise<void> FsWatch::stopWatch(MultiPromise<FsWatch::FileEvent> watcher) {
   co_await watcher;
 }
 
-Promise<void> FsWatch::close() {
-  co_await closeHandle(uv_handle_.get());
-  uv_handle_.reset();
-}
+void FsWatch::close() { closeHandle(uv_handle_.release()); }
 
 void FsWatch::onFsWatcherEvent(uv_fs_event_t *handle, const char *path,
                                int events, uv_status status) {

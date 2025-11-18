@@ -231,7 +231,7 @@ TEST(FsWatchTest, basicFileWatch) {
     EXPECT_EQ(event->events, UV_CHANGE);
 
     co_await watch.stopWatch(std::move(watcher));
-    co_await watch.close();
+    watch.close();
     co_await file.close();
     co_await File::unlink(loop, std::string{filename});
     co_return;
@@ -268,7 +268,7 @@ TEST(FsWatchTest, basicDirWatch) {
     EXPECT_EQ(event->events, UV_CHANGE);
 
     co_await watch.stopWatch(std::move(watcher));
-    co_await watch.close();
+    watch.close();
     co_await file.close();
     co_await file2.close();
     co_await File::unlink(loop, std::string{filename});
@@ -306,7 +306,7 @@ TEST(DISABLED_FsWatchTest, watchRecursive) {
     EXPECT_EQ(event->events, UV_CHANGE);
 
     co_await watch.stopWatch(std::move(watcher));
-    co_await watch.close();
+    watch.close();
     co_await file.close();
     co_await File::unlink(loop, std::string{filename});
     co_await Directory::rmdir(loop, subdirName);
@@ -352,7 +352,7 @@ TEST(FsWatchTest, repeatedWatchFails) {
     }
 
     co_await watch.stopWatch(std::move(watcher));
-    co_await watch.close();
+    watch.close();
     co_await file.close();
     co_await File::unlink(loop, std::string{filename});
     co_return;

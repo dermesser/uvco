@@ -158,7 +158,7 @@ public:
   Promise<void> stopWatch(MultiPromise<FileEvent> watcher);
 
   // Call this to retire the libuv handle.
-  Promise<void> close();
+  void close();
 
 private:
   FsWatch();
