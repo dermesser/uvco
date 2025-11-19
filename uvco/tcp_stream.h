@@ -27,7 +27,6 @@ public:
   TcpStream(TcpStream &&) = default;
   TcpStream &operator=(const TcpStream &) = delete;
   TcpStream &operator=(TcpStream &&) = default;
-
   ~TcpStream() override = default;
 
   /// Return address of peer.

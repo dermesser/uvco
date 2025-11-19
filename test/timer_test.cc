@@ -80,4 +80,20 @@ TEST(TimerTest, finiteTickerTest) {
   EXPECT_EQ(counter, stopAfter);
 }
 
+TEST(TimerTest, finiteTickerIncompleteTest) {
+  constexpr static uint64_t count = 10;
+  constexpr static uint64_t stopAfter = count - 1;
+  uint64_t counter = 0;
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    auto ticker = tick(loop, 1, count);
+    MultiPromise<uint64_t> tickerProm = ticker->ticker();
+    for (counter = 0; counter < stopAfter; ++counter) {
+      EXPECT_EQ(counter, *(co_await tickerProm));
+    }
+  };
+
+  run_loop(setup);
+  EXPECT_EQ(counter, stopAfter);
+}
+
 } // namespace
