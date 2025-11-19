@@ -57,7 +57,7 @@ public:
   Promise<unsigned int> read(std::span<DirEnt> buffer);
 
   /// Close the directory.
-  Promise<void> close();
+  void close();
 
 private:
   explicit Directory(uv_loop_t *loop, uv_dir_t *dir) : loop_{loop}, dir_{dir} {}
@@ -69,6 +69,12 @@ private:
 /// A file descriptor.
 class File {
 public:
+  File(const File &) = delete;
+  File(File &&other) noexcept;
+  File &operator=(const File &) = delete;
+  File &operator=(File &&other) noexcept;
+  ~File();
+
   /// Open a file asynchronously; flags and mode are optional and analogous to
   /// `open(2)`.
   static Promise<File> open(const Loop &loop, std::string_view path,
@@ -92,8 +98,8 @@ public:
   /// Access the libuv file handle.
   [[nodiscard]] uv_file file() const;
 
-  /// Close a file asynchronously.
-  Promise<void> close();
+  /// Close a file.
+  void close();
 
 private:
   File(uv_loop_t *loop, uv_file file) : loop_{loop}, file_(file) {}

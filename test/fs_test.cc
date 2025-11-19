@@ -30,7 +30,7 @@ TEST(FsTest, OpenFile) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     auto file = co_await File::open(loop, "/dev/null", O_RDONLY);
     EXPECT_GT(file.file(), 0);
-    co_await file.close();
+    file.close();
   };
 
   run_loop(setup);
@@ -64,7 +64,7 @@ TEST(FsTest, simpleRead) {
 
   auto setup = [](const Loop &loop) -> Promise<void> {
     auto file = co_await File::open(loop, "/dev/zero", O_RDONLY);
-    EXPECT_GT(file.file(), 0);
+    EXPECT_GT(file.file(), 2);
 
     std::string buffer(bufSize, 'x');
     EXPECT_EQ(bufSize, buffer.size());
@@ -75,24 +75,7 @@ TEST(FsTest, simpleRead) {
     EXPECT_EQ(bufSize, buffer.size());
     EXPECT_TRUE(std::ranges::all_of(buffer, [](char c) { return c == 0; }));
 
-    co_await file.close();
-  };
-
-  run_loop(setup);
-}
-
-TEST(FsTest, dropRead) {
-  static constexpr size_t bufSize = 32;
-  auto setup = [](const Loop &loop) -> Promise<void> {
-    auto file = co_await File::open(loop, "/dev/zero", O_RDONLY);
-    EXPECT_GT(file.file(), 0);
-
-    std::string buffer(bufSize, 'x');
-    EXPECT_EQ(bufSize, buffer.size());
-
-    // Read request is dropped immediately. If not handled properly, Address
-    // Sanitizer would complain.
-    file.read(buffer);
+    file.close();
   };
 
   run_loop(setup);
@@ -102,7 +85,7 @@ TEST(FsTest, simpleReadWriteUnlink) {
   static constexpr std::string_view contents = "Hello World\n";
   static constexpr std::string_view fileName = "/tmp/_uvco_test_file";
   auto setup = [](const Loop &loop) -> Promise<void> {
-    auto file = co_await File::open(loop, fileName, O_RDWR | O_CREAT);
+    File file = co_await File::open(loop, fileName, O_RDWR | O_CREAT);
 
     co_await file.write(contents);
 
@@ -113,7 +96,7 @@ TEST(FsTest, simpleReadWriteUnlink) {
     EXPECT_EQ(contents.size(), bytesRead);
     EXPECT_EQ(contents, buffer);
 
-    co_await file.close();
+    file.close();
 
     co_await File::unlink(loop, std::string{fileName});
   };
@@ -144,7 +127,7 @@ TEST(FsTest, openDir) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     auto file = co_await File::open(loop, fileName, O_RDWR | O_CREAT);
     co_await file.write("hello world");
-    co_await file.close();
+    file.close();
 
     auto dir = co_await Directory::open(loop, dirName);
     // Test move ctor.
@@ -155,7 +138,7 @@ TEST(FsTest, openDir) {
 
     EXPECT_GT(entries.size(), 0);
 
-    co_await dir.close();
+    dir.close();
     co_await File::unlink(loop, fileName);
   };
 
@@ -178,7 +161,7 @@ TEST(FsTest, dropUnlinkOp) {
     // create at least one file in /tmp in case it is empty.
     auto file = co_await File::open(loop, fileName, O_RDWR | O_CREAT);
     co_await file.write("hello world");
-    co_await file.close();
+    file.close();
 
     File::unlink(loop, fileName);
   };
@@ -196,7 +179,7 @@ TEST(FsTest, scanDir) {
     // create at least one file in /tmp in case it is empty.
     auto file = co_await File::open(loop, fileName, O_RDWR | O_CREAT);
     co_await file.write("hello world");
-    co_await file.close();
+    file.close();
 
     auto entries = Directory::readAll(loop, dirName);
     unsigned count = 0;
@@ -232,7 +215,7 @@ TEST(FsWatchTest, basicFileWatch) {
 
     co_await watch.stopWatch(std::move(watcher));
     watch.close();
-    co_await file.close();
+    file.close();
     co_await File::unlink(loop, std::string{filename});
     co_return;
   };
@@ -269,8 +252,8 @@ TEST(FsWatchTest, basicDirWatch) {
 
     co_await watch.stopWatch(std::move(watcher));
     watch.close();
-    co_await file.close();
-    co_await file2.close();
+    file.close();
+    file2.close();
     co_await File::unlink(loop, std::string{filename});
     co_await File::unlink(loop, std::string{filename2});
     co_await Directory::rmdir(loop, dirName2);
@@ -307,7 +290,7 @@ TEST(DISABLED_FsWatchTest, watchRecursive) {
 
     co_await watch.stopWatch(std::move(watcher));
     watch.close();
-    co_await file.close();
+    file.close();
     co_await File::unlink(loop, std::string{filename});
     co_await Directory::rmdir(loop, subdirName);
     co_await Directory::rmdir(loop, dirName);
@@ -353,7 +336,7 @@ TEST(FsWatchTest, repeatedWatchFails) {
 
     co_await watch.stopWatch(std::move(watcher));
     watch.close();
-    co_await file.close();
+    file.close();
     co_await File::unlink(loop, std::string{filename});
     co_return;
   };

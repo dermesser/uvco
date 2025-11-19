@@ -142,11 +142,7 @@ void onDirectoryDtorDone(uv_fs_t *req) { delete req; }
 
 } // namespace
 
-Directory::~Directory() {
-  if (dir_ != nullptr) {
-    uv_fs_closedir(loop_, new uv_fs_t, dir_, onDirectoryDtorDone);
-  }
-}
+Directory::~Directory() { close(); }
 
 Promise<void> Directory::mkdir(const Loop &loop, std::string_view path,
                                int mode) {
@@ -225,12 +221,32 @@ MultiPromise<Directory::DirEnt> Directory::readAll(const Loop &loop,
   }
 }
 
-Promise<void> Directory::close() {
-  FileOpAwaiter_ awaiter;
-  uv_fs_closedir(loop_, &awaiter.req(), dir_, FileOpAwaiter_::uvCallback());
-  co_await awaiter;
+void Directory::close() {
+  if (dir_ != nullptr) {
+    uv_fs_closedir(loop_, new uv_fs_t{}, dir_, onDirectoryDtorDone);
+  }
   dir_ = nullptr;
-  co_return;
+}
+
+File::~File() { close(); }
+File::File(File &&other) noexcept {
+  if (this == &other) {
+    return;
+  }
+  loop_ = other.loop_;
+  file_ = other.file_;
+  other.file_ = -1;
+}
+
+File &File::operator=(File &&other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
+  close();
+  loop_ = other.loop_;
+  file_ = other.file_;
+  other.file_ = -1;
+  return *this;
 }
 
 Promise<File> File::open(const Loop &loop, std::string_view path, int flags,
@@ -296,15 +312,11 @@ uv_file File::file() const {
   return file_;
 }
 
-Promise<void> File::close() {
-  FileOpAwaiter_ awaiter;
-  uv_fs_t &req = awaiter.req();
-
-  uv_fs_close(loop_, &req, file(), FileOpAwaiter_::uvCallback());
-
+void File::close() {
+  if (file_ != -1) {
+    uv_fs_close(loop_, new uv_fs_t{}, file(), FileOpAwaiter_::uvCallback());
+  }
   file_ = -1;
-
-  co_await awaiter;
 }
 
 struct FsWatch::FsWatchAwaiter_ {
