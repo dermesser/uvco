@@ -47,6 +47,50 @@ equivalent C program are most handles: in order to enable a safe and robust clos
 handles are allocated behind a `unique_ptr`, as handles that have gone out of scope may still need
 to be touched by the `libuv` loop, and therefore live on the heap.
 
+## Implementation
+
+There are just a few core types to know about to start using uvco effectively.
+
+### `Promise<T>`
+
+`Promise<T>` is the value returned by `Coroutine<T>::get_return_object()`. A `Promise<T>` object is
+the only handle to its corresponding coroutine; it can be awaited (suspending the awaiting coroutine
+and resuming it when the awaited coroutine has returned), moved, or dropped (cancelling the awaited
+coroutine by immediately destroying its coroutine frame, which cancels any ongoing operations).
+
+
+### `Coroutine<T>`
+
+Any library user of `uvco` will not interact with the `Coroutine<T>` class template, but it is
+important for the inner workings of `uvco`. It's the `promise_type` of `Promise<T>`, meaning it
+controls the execution of the coroutine. The `Promise<T>` is a unique handle to the coroutine used
+to communicate completion, exceptions, and result values.
+
+A `Coroutine<T>` object contains a `PromiseCore<T>`, which encapsulates the actual completion and
+result exchange.
+
+### `MultiPromise<T>`
+
+A `MultiPromise<T>` object is like a `Promise<T>`, except that it can yield more than once. It is
+therefore used for generator-style coroutines which yield repeatedly - typically for socket read
+operations etc. Like a `Promise<T>`, it can convey exceptions and cancels an underlying coroutine
+when dropped.
+
+### `Generator<T>`
+
+A `Generator<T>` is to the `MultiPromise<T>` what `Coroutine<T>` is to `Promise<T>`. It is the
+`promise_type` for generator-style coroutines.
+
+### `PromiseCore<T>`, `MultiPromiseCore<T>`
+
+The core types are used by the `Coroutine` and `Generator` classes to mediate completion, exception,
+and value exchange between an awaited coroutine and its awaiting coroutine.
+
+### `Loop`
+
+The `Loop` class is the central point for enqueueing coroutines for later resumption, cancelling
+scheduled coroutines, and access to the current `libuv` event loop.
+
 ## Examples
 
 To run a coroutine, you need to set up an event loop. This is done by calling `uvco::runMain` with a
