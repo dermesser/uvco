@@ -40,7 +40,12 @@ handle but not super efficient. This may need to be generalized.
 ## Goal
 
 uvco's goal is to provide ergonomic asynchronous abstractions of all libuv functionality, at
-satisfactory performance.
+satisfactory performance. C++ coroutines have some shortcomings, one of which being forced dynamic
+allocations of coroutine frames, which slow down a program making extensive use of coroutines,
+especially the short-lived ones used by uvco. Another place using more allocations than an
+equivalent C program are most handles: in order to enable a safe and robust close operation, libuv
+handles are allocated behind a `unique_ptr`, as handles that have gone out of scope may still need
+to be touched by the `libuv` loop, and therefore live on the heap.
 
 ## Examples
 
@@ -52,13 +57,13 @@ threw one.
 A `Promise<T>` is a coroutine promise, and can be awaited. It is the basic unit, and only access to
 concurrency; there is no `Task` or such. Awaiting a promise will save the current execution state,
 and resume it as soon as the promise is ready. A single coroutine is represented by a single
-`Promise` object. Dropping the `Promise` will destroy (cancel) the coroutine. Some handles, like UDP
-and stream sockets as well as timers have asynchronous close methods. It's best practice to `co_await` the
-returned `Promise<void>`. If those handles are dropped, or inside a coroutine that has been
-cancelled, the close operation will proceed asynchronously, and uvco will ensure that no memory is
-leaked.
+`Promise` object. Dropping the `Promise` will destroy (cancel) the coroutine. Many handles have a
+synchronous `void close()` method, which is typically called by the destructor anyway, but can be
+used to close a handle in advance. The closing operation is not actually synchronous; most of the
+time it finishes within one turn of the `libuv` event loop, though.
 
-When in doubt, refer to the examples in `test/`; they are actively maintained.
+When in doubt, refer to the examples in `test/`; they are actively maintained, and also cover edge
+cases.
 
 ### Basic event loop set-up
 
@@ -73,7 +78,7 @@ promised result, or throw an exception if a coroutine threw one. The event loop 
 all callbacks are finished and all coroutines have been completed. Callbacks (by libuv)
 trigger coroutine resumption from the event loop, which is defined in `src/run.cc`.
 
-```cpp
+```c++
 #include <uvco/loop/loop.h>
 #include <uvco/promise/promise.h>
 #include <uvco/run.h>
@@ -113,7 +118,7 @@ independent.
 
 Note: add the flags `-lcurl -luv-co-curl` after the `-luv` flag in the command shown above.
 
-```cpp
+```c++
 #include <uvco/integrations/curl/curl.h>
 #include <uvco/loop/loop.h>
 #include <uvco/promise/promise.h>
@@ -158,8 +163,7 @@ int main() {
 
 Build the project, and run the `test-http10` binary. It works like the following code:
 
-```cpp
-
+```c++
 #include <uvco/loop/loop.h>
 #include <uvco/promise/promise.h>
 #include <uvco/tcp.h>
@@ -198,7 +202,7 @@ int main() {
 
 ### TCP Echo server
 
-```cpp
+```c++
 #include <uvco/promise/multipromise.h>
 #include <uvco/promise/promise.h>
 #include <uvco/tcp.h>
@@ -258,7 +262,7 @@ Passing references and pointers into a coroutine (i.e. a function returning `[Mu
 fine as long as the underlying value outlives the coroutine returning. Typically, this is done like
 this:
 
-```cpp
+```c++
 Promise<void> fun() {
     StackLocated value;
     Promise<void> promise = asynchronousFunction(&value);
@@ -279,7 +283,7 @@ awaited promise is finished, the result will be an illegal stack access. Don't d
 make sure to e.g. use a `shared_ptr` instead of a reference, or a `std::string` instead of a
 `std::string_view`.
 
-```cpp
+```c++
 // BAD
 Promise<void> coroutineBad(std::string_view sv) {
     // use-after-return once coroutine is scheduled to run
@@ -300,7 +304,7 @@ Promise<void> fun() {
 
 Another typical pattern that will not work is the following:
 
-```cpp
+```c++
 Promise<void> returnsPromise(const Loop& loop) {
     auto in = TtyStream::stdin(loop);
     return in.read();
@@ -312,7 +316,7 @@ specific scenario.
 
 Be extra careful of the following dangerous pattern around temporary values:
 
-```cpp
+```c++
 Promise<void> takesStringView(std::string_view sv) {
     // sv is a reference to a temporary string, which will be destroyed
     // when the coroutine returns.
@@ -370,14 +374,9 @@ If there are open handles on the libuv event loop at this point, you will receiv
 Exceptions are propagated through the coroutine stack. If a coroutine throws an exception, it will be thrown at the
 point of the `co_await` that started the coroutine.
 
-There are two difficulties:
-
-1. `libuv` close() operations are asynchronous. In almost all cases, you should run `co_await obj.close()` to ensure
-   correct freeing of resources. However, almost all uvco types emulate synchronous close in their destructor, so even
-   if an exception is thrown or you forget to explicitly close an object, no resources nor memory will be leaked.
-2. Exceptions are only rethrown from the `runMain()` call if the event loop has finished. If a single active libuv
-   handle is present, this will not be the case, and the application will appear to hang. Therefore, prefer handling
-   exceptions within your asynchronous code.
+Exceptions are only rethrown from the `runMain()` call if the event loop has finished. If a single active libuv
+handle is present, this will not be the case, and the application will appear to hang. Therefore, prefer handling
+exceptions within your asynchronous code.
 
 ## Dependencies
 
