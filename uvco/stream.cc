@@ -33,7 +33,7 @@ struct StreamBase::ShutdownAwaiter_ {
   bool await_suspend(std::coroutine_handle<> handle);
   void await_resume();
 
-  std::optional<std::coroutine_handle<>> handle_;
+  std::coroutine_handle<> handle_;
   std::optional<uv_status> status_;
 };
 
@@ -57,7 +57,7 @@ struct StreamBase::InStreamAwaiter_ {
   StreamBase &stream_;
   std::span<char> buffer_;
   std::optional<ssize_t> status_;
-  std::optional<std::coroutine_handle<>> handle_;
+  std::coroutine_handle<> handle_;
 };
 
 struct StreamBase::OutStreamAwaiter_ {
@@ -72,7 +72,7 @@ struct StreamBase::OutStreamAwaiter_ {
 
   static void onOutStreamWrite(uv_write_t *write, uv_status status);
 
-  std::optional<std::coroutine_handle<>> handle_;
+  std::coroutine_handle<> handle_;
   std::optional<uv_status> status_;
 
   // State necessary for both immediate and delayed writing.
@@ -254,9 +254,8 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
   awaiter->status_ = nread;
 
   if (awaiter->handle_) {
-    const std::coroutine_handle<void> handle = awaiter->handle_.value();
-    awaiter->handle_.reset();
-    Loop::enqueue(handle);
+    Loop::enqueue(awaiter->handle_);
+    awaiter->handle_ = nullptr;
   }
   setData(stream, (void *)nullptr);
 }
@@ -308,9 +307,8 @@ void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
   BOOST_ASSERT(awaiter != nullptr);
   awaiter->status_ = status;
   BOOST_ASSERT(awaiter->handle_);
-  const std::coroutine_handle<void> handle = awaiter->handle_.value();
-  awaiter->handle_.reset();
-  Loop::enqueue(handle);
+  Loop::enqueue(awaiter->handle_);
+  awaiter->handle_ = nullptr;
   setData(write, (void *)nullptr);
 }
 
@@ -335,9 +333,8 @@ void StreamBase::ShutdownAwaiter_::onShutdown(uv_shutdown_t *req,
   auto *awaiter = getRequestData<ShutdownAwaiter_>(req);
   awaiter->status_ = status;
   if (awaiter->handle_) {
-    const std::coroutine_handle<void> handle = awaiter->handle_.value();
-    awaiter->handle_.reset();
-    Loop::enqueue(handle);
+    Loop::enqueue(awaiter->handle_);
+    awaiter->handle_ = nullptr;
   }
 }
 

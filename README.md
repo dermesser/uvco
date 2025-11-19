@@ -62,6 +62,12 @@ When in doubt, refer to the examples in `test/`; they are actively maintained.
 
 ### Basic event loop set-up
 
+This and the following examples can be compiled using
+
+```shell
+$CXX -std=c++23 <file> -lfmt -luv -luv-co-lib -luv-co-base -luv-co-promise
+```
+
 Return a promise from the main function run by `runMain()`. `runMain()` will return a
 promised result, or throw an exception if a coroutine threw one. The event loop runs until
 all callbacks are finished and all coroutines have been completed. Callbacks (by libuv)
@@ -69,26 +75,28 @@ trigger coroutine resumption from the event loop, which is defined in `src/run.c
 
 ```cpp
 #include <uvco/loop/loop.h>
-#include <uvco/run.h>
 #include <uvco/promise/promise.h>
+#include <uvco/run.h>
+#include <uvco/timer.h>
 
 using namespace uvco;
 
-Promise<void> someAsynchronousFunction(const Loop& loop) {
+Promise<void> someAsynchronousFunction(const Loop &loop) {
   fmt::print("Hello from someAsynchronousFunction\n");
   co_await sleep(loop, 1000);
   fmt::print("Goodbye from someAsynchronousFunction\n");
 }
 
-void run_loop() {
+int main() {
   // A coroutine promise is run without having to wait on it: every co_await
   // triggers a callback subscription with libuv.
   // The `loop` mediates access to the event loop and is used by uvco's types.
   // Create a "root" promise by calling a coroutine, e.g. one that
   // sets up a server.
-  runMain<void>([](const Loop& loop) -> Promise<void> {
+  runMain<void>([](const Loop &loop) -> Promise<void> {
     co_await someAsynchronousFunction(loop);
   });
+  return 0;
 }
 ```
 
@@ -102,6 +110,8 @@ server, make sure to have `libcurl` and its headers installed. CMake should find
 
 Of course, more than one download can be triggered at once: `download()` MultiPromises are
 independent.
+
+Note: add the flags `-lcurl -luv-co-curl` after the `-luv` flag in the command shown above.
 
 ```cpp
 #include <uvco/integrations/curl/curl.h>
@@ -149,6 +159,7 @@ int main() {
 Build the project, and run the `test-http10` binary. It works like the following code:
 
 ```cpp
+
 #include <uvco/loop/loop.h>
 #include <uvco/promise/promise.h>
 #include <uvco/tcp.h>
@@ -158,7 +169,7 @@ using namespace uvco;
 
 // Using co_await in a function turns it into a coroutine. You can co_await all
 // Promise and MultiPromise values; the right thing will happen.
-Promise<void> testHttpRequest(const Loop& loop) {
+Promise<void> testHttpRequest(const Loop &loop) {
   TcpClient client{loop, "borgac.net", 80, AF_INET6};
   TcpStream stream = co_await client.connect();
 
@@ -171,23 +182,27 @@ Promise<void> testHttpRequest(const Loop& loop) {
     else
       break;
   } while (true);
-  co_await stream.closeReset();
+  stream.close();
 }
 
 // Manual setup: this will be part of uvco later.
-void run_loop() {
+int main() {
   // As described in the first example.
-  runMain<void>([](const Loop& loop) -> Promise<void> {
+  runMain<void>([](const Loop &loop) -> Promise<void> {
     Promise<void> p = testHttpRequest(loop);
     co_await p;
   });
+  return 0;
 }
 ```
 
 ### TCP Echo server
 
 ```cpp
-// includes ...
+#include <uvco/promise/multipromise.h>
+#include <uvco/promise/promise.h>
+#include <uvco/tcp.h>
+#include <uvco/tcp_stream.h>
 
 using namespace uvco;
 
@@ -204,14 +219,13 @@ Promise<void> echoReceived(TcpStream stream) {
     fmt::print("[{}] {}", addressStr, *p);
     co_await stream.write(std::move(*p));
   }
-  co_await stream.close();
+  stream.close();
 }
 
-Promise<void> echoTcpServer(const Loop& loop) {
+Promise<void> echoTcpServer(const Loop &loop) {
   AddressHandle addr{"127.0.0.1", 8090};
   TcpServer server{loop, addr};
   std::vector<Promise<void>> clientLoops{};
-
   MultiPromise<TcpStream> clients = server.listen();
 
   while (true) {
@@ -220,18 +234,16 @@ Promise<void> echoTcpServer(const Loop& loop) {
       break;
     }
     Promise<void> clientLoop = echoReceived(std::move(*client));
-    clientLoops.push_back(clientLoop);
+    clientLoops.push_back(std::move(clientLoop));
   }
 }
 
-int main(void) {
+int main() {
   // It also works with a plain function: awaiting a promise is not necessary
   // (but more intuitive).
-  runMain<void>([](const Loop& loop) -> Promise<void> {
-    return echoTcpServer(loop);
-  });
+  runMain<void>(
+      [](const Loop &loop) -> Promise<void> { return echoTcpServer(loop); });
 }
-
 ```
 
 Some more examples can be found in the `test/` directory. Those test files
