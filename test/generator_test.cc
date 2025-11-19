@@ -128,6 +128,33 @@ TEST(MultiPromiseTest, cancel) {
     }();
 
     EXPECT_EQ(co_await gen, 1);
+    gen.cancel();
+    EXPECT_EQ(std::nullopt, co_await gen);
+  };
+
+  run_loop(setup);
+  EXPECT_FALSE(finished);
+  EXPECT_TRUE(cancelled);
+}
+
+TEST(MultiPromiseTest, drop) {
+  bool cancelled = false;
+  bool finished = false;
+  auto setup = [&cancelled,
+                &finished](const Loop &loop) -> uvco::Promise<void> {
+    {
+      MultiPromise<int> gen = [&cancelled,
+                               &finished]() -> uvco::MultiPromise<int> {
+        const OnExit onExit{[&] { cancelled = true; }};
+        co_yield 1;
+        co_yield 2;
+        co_yield 3;
+        finished = true;
+      }();
+
+      EXPECT_EQ(co_await gen, 1);
+    }
+    // gen is dropped here
   };
 
   run_loop(setup);

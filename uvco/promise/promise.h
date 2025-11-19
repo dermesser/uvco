@@ -3,7 +3,6 @@
 #pragma once
 
 #include "uvco/exception.h"
-#include "uvco/internal/internal_utils.h"
 #include "uvco/promise/promise_core.h"
 
 #include <boost/assert.hpp>
