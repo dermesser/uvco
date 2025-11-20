@@ -18,6 +18,7 @@ find_package(Boost 1.80
     log_setup
     program_options
   REQUIRED)
+find_package(benchmark)
 find_package(CURL)
 find_package(libpqxx)
 find_package(GTest)
@@ -223,6 +224,23 @@ if(GTest_FOUND)
 
 else()
   message(WARNING "GTest not found, skipping tests")
+endif()
+
+# Benchmarks
+
+if (benchmark_FOUND)
+  foreach(BENCHMARKCASE IN ITEMS stream)
+    add_executable(${BENCHMARKCASE}-benchmark benchmark/${BENCHMARKCASE}_bench.cc)
+    target_link_libraries(${BENCHMARKCASE}-benchmark
+      PRIVATE
+        uv-co-lib
+        benchmark::benchmark
+        benchmark::benchmark_main
+        GTest::gtest
+    )
+  endforeach()
+else()
+  message(WARNING "Google Benchmark not found, skipping benchmarks")
 endif()
 
 # Coverage

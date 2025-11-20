@@ -47,7 +47,7 @@ public:
   /// libuv loop.
   virtual ~StreamBase();
 
-  static constexpr size_t defaultMaxReadSize = 4095;
+  static constexpr size_t defaultMaxReadSize = 4080;
 
   /// Read available data (up to `maxSize` bytes) from stream. Returns
   /// `std::nullopt` on EOF or closed handle (`close()`).

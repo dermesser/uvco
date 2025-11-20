@@ -428,6 +428,7 @@ exceptions within your asynchronous code.
 * libfmt (tested with 9.0)
 * boost (boost-assert)
 * gtest for unit testing (enabled by default).
+* Google benchmark for building benchmarks.
 
 ## Building
 

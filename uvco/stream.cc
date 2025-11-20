@@ -170,9 +170,11 @@ void StreamBase::close() {
 
 // Especially important for cancelled reads.
 StreamBase::InStreamAwaiter_::~InStreamAwaiter_() {
-  stop_read();
+  if (stream_.underlying() != nullptr &&
+      1 == uv_is_active((const uv_handle_t *)stream_.underlying())) {
+    stop_read();
+  }
   // A cancelled read is signalled to the callback by a nullptr.
-  // // A cancelled read is signalled to the callback by a nullptr.
   if (stream_.stream_ != nullptr) {
     resetData(&stream_.stream());
   }
@@ -180,7 +182,7 @@ StreamBase::InStreamAwaiter_::~InStreamAwaiter_() {
 }
 
 bool StreamBase::InStreamAwaiter_::await_ready() {
-  uv_status state = uv_is_readable(&stream_.stream());
+  const int state = uv_is_readable(&stream_.stream());
   if (state == 1) {
     // If data is available, the callback onInStreamRead will be called
     // immediately. In that case we don't have to wait.
