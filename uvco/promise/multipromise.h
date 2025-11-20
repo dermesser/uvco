@@ -124,16 +124,11 @@ template <typename T> class Generator;
 ///
 /// As an adapter, for example for SelectSet, the `next()` method returns a
 /// promise returning the next yielded value.
-///
-/// NOTE: currently uses a `shared_ptr` PromiseCore, due to issues with
-/// inheritance. It is expected that normal `Promise<T>` will be used most
-/// frequently, therefore the slight overhead of using shared_ptr is accepted.
 template <typename T> class MultiPromise {
 protected:
   struct MultiPromiseAwaiter_;
 
   using PromiseCore_ = MultiPromiseCore<T>;
-  using SharedCore_ = std::shared_ptr<PromiseCore_>;
 
 public:
   /// Part of the coroutine protocol: the `MultiPromise` is both return type and
@@ -144,20 +139,27 @@ public:
   static_assert(!std::is_void_v<T>);
 
   /// An unfulfilled `MultiPromise`.
-  MultiPromise(MultiPromise<T> &&) noexcept = default;
+  MultiPromise(MultiPromise<T> &&other) noexcept : core_{other.core_} {
+    other.core_ = nullptr;
+  }
   MultiPromise &operator=(const MultiPromise<T> &) = delete;
-  MultiPromise &operator=(MultiPromise<T> &&) noexcept = default;
+  MultiPromise &operator=(MultiPromise<T> &&other) noexcept {
+    if (this == &other) {
+      return *this;
+    }
+    if (core_ != nullptr) {
+      core_->destroyCoroutine();
+    }
+    core_ = other.core_;
+    other.core_ = nullptr;
+    return *this;
+  }
   MultiPromise(const MultiPromise<T> &other) = delete;
   ~MultiPromise() {
-    // Us and the coroutine frame; but we're about to be destroyed
-    if (core_.use_count() == 2) {
-      // -> cancel generator. Because the coroutine frame keeps a reference to
-      // the core, we can't do this in the core's destructor.
-      PromiseCore_ *weakCore = core_.get();
-      core_.reset();
-      // The core's dtor is called while cancelGenerator runs.
-      weakCore->cancelGenerator();
+    if (core_ != nullptr) {
+      core_->cancelGenerator();
     }
+    core_ = nullptr;
   }
 
   /// Obtain the next value yielded by a generator coroutine. This is less
@@ -170,13 +172,14 @@ public:
   /// Used when `co_await`ing a MultiPromise created by a generator coroutine.
   /// The awaiter handles the actual suspension and resumption.
   MultiPromiseAwaiter_ operator co_await() const {
-    BOOST_ASSERT(core_);
     return MultiPromiseAwaiter_{core_};
   }
 
   /// Returns true if a value is available, or the generator has returned or
   /// thrown.
-  bool ready() { return core_->slot.has_value() || core_->isTerminated(); }
+  bool ready() {
+    return core_ == nullptr || core_->slot.has_value() || core_->isTerminated();
+  }
 
   /// Immediately cancel the suspended generator coroutine. This will drop all
   /// stack variables inside the generator (and run their destructors), and
@@ -192,15 +195,20 @@ public:
   /// this MultiPromiseCore, and the caller contains a strong reference. The
   /// core's destructor cancels the generator once the caller doesn't require
   /// it anymore.)
-  void cancel() { core_->cancelGenerator(); }
+  void cancel() {
+    if (core_ == nullptr) {
+      return;
+    }
+    core_->cancelGenerator();
+    core_ = nullptr;
+  }
 
 protected:
   /// A `MultiPromiseAwaiter_` handles suspension and resumption of coroutines
   /// receiving values from a generating (yielding) coroutine. This awaiter is
   /// used when applying the `co_await` operator on a `MultiPromise`.
   struct MultiPromiseAwaiter_ {
-    constexpr explicit MultiPromiseAwaiter_(SharedCore_ core)
-        : core_{std::move(core)} {}
+    constexpr explicit MultiPromiseAwaiter_(PromiseCore_ *core) : core_{core} {}
     MultiPromiseAwaiter_(MultiPromiseAwaiter_ &&) = delete;
     MultiPromiseAwaiter_(const MultiPromiseAwaiter_ &) = delete;
     MultiPromiseAwaiter_ &operator=(MultiPromiseAwaiter_ &&) = delete;
@@ -210,11 +218,15 @@ protected:
     /// Part of the coroutine protocol. Returns `true` if the MultiPromise
     /// already has a value.
     [[nodiscard]] bool await_ready() const {
-      return core_->isTerminated() || core_->slot.has_value();
+      return core_ == nullptr || core_->isTerminated() ||
+             core_->slot.has_value();
     }
     /// Part of the coroutine protocol. Always returns `true`; stores the
     /// suspension handle in the MultiPromiseCore for later resumption.
     [[nodiscard]] bool await_suspend(std::coroutine_handle<> handle) const {
+      if (core_ == nullptr) {
+        return false;
+      }
       BOOST_ASSERT_MSG(!core_->isAwaited(),
                        "promise is already being waited on!\n");
       core_->setHandle(handle);
@@ -228,6 +240,9 @@ protected:
     /// If an exception has been thrown, repeatedly rethrows this exception upon
     /// awaiting.
     std::optional<T> await_resume() const {
+      if (core_ == nullptr) {
+        return std::nullopt;
+      }
       if (!core_->slot) {
         // Terminated by co_return
         return std::nullopt;
@@ -247,14 +262,14 @@ protected:
       }
     }
 
-    SharedCore_ core_;
+    PromiseCore_ *core_;
   };
 
   template <typename U> friend class Generator;
 
-  explicit MultiPromise(SharedCore_ core) : core_{std::move(core)} {}
+  explicit MultiPromise(PromiseCore_ &core) : core_{&core} {}
 
-  SharedCore_ core_;
+  PromiseCore_ *core_;
 };
 
 /// Generator is the promise object type for generator-type coroutines (those
@@ -262,11 +277,10 @@ protected:
 template <typename T> class Generator {
   struct YieldAwaiter_;
   using PromiseCore_ = MultiPromiseCore<T>;
-  using SharedCore_ = std::shared_ptr<PromiseCore_>;
 
 public:
   // A generator promise object is pinned in memory (copy/move forbidden).
-  Generator() : core_{std::make_shared<PromiseCore_>()} {}
+  Generator() = default;
   Generator(Generator<T> &&) noexcept = delete;
   Generator &operator=(const Generator<T> &) = delete;
   Generator &operator=(Generator<T> &&) noexcept = delete;
@@ -279,26 +293,26 @@ public:
   /// A MultiPromise coroutine ultimately returns void. This is signaled to the
   /// caller by returning an empty `std::optional`.
   void return_void() {
-    core_->setTerminated();
-    core_->resume();
+    core_.setTerminated();
+    core_.resume();
   }
 
   /// Part of the coroutine protocol (see `Promise`).
   // Note: if suspend_always is chosen, we can better control when the
   // MultiPromise will be scheduled.
   std::suspend_never initial_suspend() noexcept {
-    core_->setRunning(std::coroutine_handle<Generator<T>>::from_promise(*this));
+    core_.setRunning(std::coroutine_handle<Generator<T>>::from_promise(*this));
     return {};
   }
 
   /// Part of the coroutine protocol (see `Promise`).
-  std::suspend_never final_suspend() noexcept { return {}; }
+  std::suspend_always final_suspend() noexcept { return {}; }
 
   /// Part of the coroutine protocol (see `Promise`).
   void unhandled_exception() {
-    core_->slot = std::current_exception();
-    core_->setTerminated();
-    core_->resume();
+    core_.slot = std::current_exception();
+    core_.setTerminated();
+    core_.resume();
   }
 
   /// Yield a value to the calling (awaiting) coroutine.
@@ -312,10 +326,10 @@ public:
   /// Upon the next `co_await`, the returned `MultiPromiseAwaiter_` will
   /// immediately return the value without resuming the generator.
   YieldAwaiter_ yield_value(T value) {
-    BOOST_ASSERT(!core_->slot);
-    core_->slot = std::move(value);
-    core_->resume();
-    return YieldAwaiter_{*core_};
+    BOOST_ASSERT(!core_.slot);
+    core_.slot = std::move(value);
+    core_.resume();
+    return YieldAwaiter_{core_};
   }
 
 private:
@@ -340,7 +354,7 @@ private:
     PromiseCore_ &core_;
   };
 
-  SharedCore_ core_;
+  PromiseCore_ core_;
 };
 
 /// @}

@@ -16,7 +16,6 @@
 #include "uvco/loop/loop.h"
 #include "uvco/name_resolution.h"
 #include "uvco/promise/multipromise.h"
-#include "uvco/promise/promise.h"
 #include "uvco/stream_server_base.h"
 #include "uvco/tcp_stream.h"
 #include "uvco/uds_stream.h"
@@ -88,6 +87,9 @@ void StreamServerBase<UvStreamType, StreamType>::onNewConnection(
     uv_stream_t *stream, uv_status status) {
   const auto *server = (UvStreamType *)stream;
   auto *connectionAwaiter = getData<ConnectionAwaiter_>(server);
+  if (connectionAwaiter == nullptr) {
+    return;
+  }
   uv_loop_t *const loop = connectionAwaiter->socket_.loop;
 
   if (status == 0) {
