@@ -23,6 +23,7 @@ Supported functionality:
 * A libpqxx integration, for asynchronous interaction with PostgreSQL databases.
 * A threadpool for running synchronous or CPU-bound tasks
 * A `SelectSet` for polling multiple promises at once
+* A set of combinators for control flow composition from coroutines
 * Cancellation safety: dropped promises will cancel the underlying coroutine.
 
 ## Context
@@ -40,56 +41,19 @@ handle but not super efficient. This may need to be generalized.
 ## Goal
 
 uvco's goal is to provide ergonomic asynchronous abstractions of all libuv functionality, at
-satisfactory performance. C++ coroutines have some shortcomings, one of which being forced dynamic
+satisfactory performance, integrating other libraries to some extent in order to leverage existing
+C++ code bases when writing asynchronous code.
+
+## Drawbacks
+
+C++ coroutines have some shortcomings, one of which being forced dynamic
 allocations of coroutine frames, which slow down a program making extensive use of coroutines,
 especially the short-lived ones used by uvco. Another place using more allocations than an
 equivalent C program are most handles: in order to enable a safe and robust close operation, libuv
 handles are allocated behind a `unique_ptr`, as handles that have gone out of scope may still need
-to be touched by the `libuv` loop, and therefore live on the heap.
-
-## Implementation
-
-There are just a few core types to know about to start using uvco effectively.
-
-### `Promise<T>`
-
-`Promise<T>` is the value returned by `Coroutine<T>::get_return_object()`. A `Promise<T>` object is
-the only handle to its corresponding coroutine; it can be awaited (suspending the awaiting coroutine
-and resuming it when the awaited coroutine has returned), moved, or dropped (cancelling the awaited
-coroutine by immediately destroying its coroutine frame, which cancels any ongoing operations).
-
-
-### `Coroutine<T>`
-
-Any library user of `uvco` will not interact with the `Coroutine<T>` class template, but it is
-important for the inner workings of `uvco`. It's the `promise_type` of `Promise<T>`, meaning it
-controls the execution of the coroutine. The `Promise<T>` is a unique handle to the coroutine used
-to communicate completion, exceptions, and result values.
-
-A `Coroutine<T>` object contains a `PromiseCore<T>`, which encapsulates the actual completion and
-result exchange.
-
-### `MultiPromise<T>`
-
-A `MultiPromise<T>` object is like a `Promise<T>`, except that it can yield more than once. It is
-therefore used for generator-style coroutines which yield repeatedly - typically for socket read
-operations etc. Like a `Promise<T>`, it can convey exceptions and cancels an underlying coroutine
-when dropped.
-
-### `Generator<T>`
-
-A `Generator<T>` is to the `MultiPromise<T>` what `Coroutine<T>` is to `Promise<T>`. It is the
-`promise_type` for generator-style coroutines.
-
-### `PromiseCore<T>`, `MultiPromiseCore<T>`
-
-The core types are used by the `Coroutine` and `Generator` classes to mediate completion, exception,
-and value exchange between an awaited coroutine and its awaiting coroutine.
-
-### `Loop`
-
-The `Loop` class is the central point for enqueueing coroutines for later resumption, cancelling
-scheduled coroutines, and access to the current `libuv` event loop.
+to be touched by the `libuv` loop, and therefore live on the heap. Ultimately, this cost is due to
+using libuv as I/O backend, instead of having written a custom one which is more suited to this
+area of application.
 
 ## Examples
 
@@ -474,8 +438,9 @@ This will result in the following compiler invocations:
 ```
 
 Please let me know if this doesn't work for you (although I don't promise any help, I'm tired enough
-of cmake already). Please note that - as usual - the order of libraries matters a great deal!
-Link first against `libuv-co-lib`, then `-promise`, then `-base` so that all symbols can be resolved.
+of cmake already). Please note that - as usual - the order of libraries matters a great deal! Link
+first against `libuv-co-lib`, then `libuv-co-promise`, then `libuv-co-base` so that all symbols can
+be resolved.
 
 ## Testing
 
@@ -518,3 +483,52 @@ doxygen
 ```
 
 and is delivered to the `doxygen/` directory.
+
+## Internals
+
+There are just a few core types to know about to start using uvco effectively.
+
+### `Promise<T>`
+
+`Promise<T>` is the value returned by `Coroutine<T>::get_return_object()`. A `Promise<T>` object is
+the only handle to its corresponding coroutine; it can be awaited (suspending the awaiting coroutine
+and resuming it when the awaited coroutine has returned), moved, or dropped (cancelling the awaited
+coroutine by immediately destroying its coroutine frame, which cancels any ongoing operations).
+
+`Promise<void>` is a specialized class template. Even though it represents an empty result, this
+makes it slower than, for example, a `Promise<int>`! The latter uses the fully generic template,
+which is present as a header file and therefore benefits from inlining, and may allow the compiler
+to elide the coroutine frame allocation in some cases.
+
+### `Coroutine<T>`
+
+Any library user of `uvco` will not interact with the `Coroutine<T>` class template, but it is
+important for the inner workings of `uvco`. It's the `promise_type` of `Promise<T>`, meaning it
+controls the execution of the coroutine. The `Promise<T>` is a unique handle to the coroutine used
+to communicate completion, exceptions, and result values.
+
+A `Coroutine<T>` object contains a `PromiseCore<T>`, which encapsulates the actual completion and
+result exchange.
+
+### `MultiPromise<T>`
+
+A `MultiPromise<T>` object is like a `Promise<T>`, except that it can yield more than once. It is
+therefore used for generator-style coroutines which yield repeatedly - typically for socket read
+operations etc. Like a `Promise<T>`, it can convey exceptions and cancels an underlying coroutine
+when dropped.
+
+### `Generator<T>`
+
+A `Generator<T>` is to the `MultiPromise<T>` what `Coroutine<T>` is to `Promise<T>`. It is the
+`promise_type` for generator-style coroutines.
+
+### `PromiseCore<T>`, `MultiPromiseCore<T>`
+
+The core types are used by the `Coroutine` and `Generator` classes to mediate completion, exception,
+and value exchange between an awaited coroutine and its awaiting coroutine.
+
+### `Loop`
+
+The `Loop` class is the central point for enqueueing coroutines for later resumption, cancelling
+scheduled coroutines, and access to the current `libuv` event loop.
+
