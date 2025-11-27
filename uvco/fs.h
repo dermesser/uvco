@@ -84,8 +84,14 @@ public:
   /// Read up to `buffer.size()` bytes into that buffer, starting at `offset`
   /// (if `offset >= 0`) or at the current file position.
   ///
-  /// `buffer` is resized to the number of bytes read, if it could not be filled
-  /// completely; The number of bytes read is also returned.
+  /// The provided `buffer` must be pre-sized to the desired number of bytes to
+  /// read. The number of bytes read will be at most `buffer.length()`. After
+  /// the operation, `buffer` is resized to the actual number of bytes read.
+  ///
+  /// @param buffer A pre-sized string to read data into.
+  /// @param offset The offset in the file to read from. Defaults to -1 (current
+  /// file position).
+  /// @return The number of bytes read.
   ///
   /// TODO: generalize to any buffer type.
   Promise<size_t> read(std::string &buffer, int64_t offset = -1);

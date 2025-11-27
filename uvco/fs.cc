@@ -64,7 +64,8 @@ public:
         // This is known to trigger a nullptr dereference in uv__fs_read()
         // rarely due to a race condition with libuv. Best practice - don't
         // cancel file operations, as they occur on a threadpool thread and may
-        // not always be cancelled safely.
+        // not always be cancelled safely. We can't really avoid this situation
+        // as any operation can be cancelled, in principle.
         fmt::print(
             "uv_cancel failed in FileOpAwaiter_ dtor. This happened "
             "because an fs operation was cancelled - try not to do that\n");

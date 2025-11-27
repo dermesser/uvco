@@ -12,6 +12,7 @@
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
+#include "uvco/util.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -26,7 +27,7 @@ namespace {
 
 using namespace uvco;
 
-TEST(FsTest, OpenFile) {
+TEST(FsTest, openFile) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     auto file = co_await File::open(loop, "/dev/null", O_RDONLY);
     EXPECT_GT(file.file(), 0);
@@ -36,7 +37,7 @@ TEST(FsTest, OpenFile) {
   run_loop(setup);
 }
 
-TEST(FsTest, FileNotFound) {
+TEST(FsTest, fileNotFound) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     try {
       co_await File::open(loop, "/dev/does_not_exist", O_RDONLY);
