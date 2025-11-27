@@ -148,7 +148,8 @@ Promise<void> Directory::mkdir(const Loop &loop, std::string_view path,
                                int mode) {
   FileOpAwaiter_ awaiter;
 
-  uv_fs_mkdir(loop.uvloop(), &awaiter.req(), path.data(), mode,
+  const std::string path_str(path);
+  uv_fs_mkdir(loop.uvloop(), &awaiter.req(), path_str.c_str(), mode,
               FileOpAwaiter_::uvCallback());
 
   co_await awaiter;
@@ -159,7 +160,8 @@ Promise<void> Directory::mkdir(const Loop &loop, std::string_view path,
 Promise<void> Directory::rmdir(const Loop &loop, std::string_view path) {
   FileOpAwaiter_ awaiter;
 
-  uv_fs_rmdir(loop.uvloop(), &awaiter.req(), path.data(),
+  const std::string path_str(path);
+  uv_fs_rmdir(loop.uvloop(), &awaiter.req(), path_str.c_str(),
               FileOpAwaiter_::uvCallback());
 
   co_await awaiter;
@@ -170,7 +172,8 @@ Promise<void> Directory::rmdir(const Loop &loop, std::string_view path) {
 Promise<Directory> Directory::open(const Loop &loop, std::string_view path) {
   FileOpAwaiter_ awaiter;
 
-  uv_fs_opendir(loop.uvloop(), &awaiter.req(), path.data(),
+  const std::string path_str(path);
+  uv_fs_opendir(loop.uvloop(), &awaiter.req(), path_str.c_str(),
                 FileOpAwaiter_::uvCallback());
 
   co_await awaiter;
@@ -253,7 +256,8 @@ Promise<File> File::open(const Loop &loop, std::string_view path, int flags,
                          int mode) {
   FileOpAwaiter_ awaiter;
 
-  uv_fs_open(loop.uvloop(), &awaiter.req(), path.data(), flags, mode,
+  const std::string path_str(path);
+  uv_fs_open(loop.uvloop(), &awaiter.req(), path_str.c_str(), flags, mode,
              FileOpAwaiter_::uvCallback());
 
   co_await awaiter;
@@ -266,7 +270,8 @@ Promise<File> File::open(const Loop &loop, std::string_view path, int flags,
 Promise<void> File::unlink(const Loop &loop, std::string_view path) {
   FileOpAwaiter_ awaiter;
 
-  uv_fs_unlink(loop.uvloop(), &awaiter.req(), path.data(),
+  const std::string path_str(path);
+  uv_fs_unlink(loop.uvloop(), &awaiter.req(), path_str.c_str(),
                FileOpAwaiter_::uvCallback());
 
   co_await awaiter;
@@ -416,11 +421,9 @@ Promise<FsWatch> FsWatch::createWithFlag(const Loop &loop,
         initStatus,
         "uv_fs_event_init returned error while initializing FsWatch"};
   }
-  const int startStatus =
-      callWithNullTerminated<uv_status>(path, [&](std::string_view safePath) {
-        return uv_fs_event_start(uv_handle.get(), onFsWatcherEvent,
-                                 safePath.data(), flags);
-      });
+  const std::string path_str(path);
+  const int startStatus = uv_fs_event_start(uv_handle.get(), onFsWatcherEvent,
+                                            path_str.c_str(), flags);
   if (startStatus != 0) {
     uv_fs_event_stop(uv_handle.get());
     // This works with the current Loop::~Loop implementation.
