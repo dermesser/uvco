@@ -119,6 +119,7 @@ TEST(PipeTest, largeWriteRead) {
     }
     write.close();
 
+    [[maybe_unused]]
     size_t bytesRead{};
 
     while (true) {

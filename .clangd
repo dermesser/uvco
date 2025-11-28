@@ -1,5 +1,5 @@
 If:
-  PathMatch: .*/src/.*\.cc
+  PathMatch: uvco/.+|test/.+
 Diagnostics:
   UnusedIncludes: Strict
   MissingIncludes: Strict
