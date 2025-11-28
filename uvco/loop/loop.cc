@@ -1,7 +1,6 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
-#include <coroutine>
-#include <fmt/base.h>
+#include <fmt/format.h>
 #include <uv.h>
 
 #include "uvco/exception.h"
@@ -9,7 +8,7 @@
 #include "uvco/loop/loop.h"
 #include "uvco/loop/scheduler.h"
 
-#include <fmt/format.h>
+#include <coroutine>
 
 namespace uvco {
 

@@ -1,7 +1,6 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #include <boost/assert.hpp>
-#include <fmt/base.h>
 #include <fmt/core.h>
 #include <utility>
 #include <uv.h>

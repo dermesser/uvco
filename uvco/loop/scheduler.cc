@@ -2,7 +2,6 @@
 
 #include <array>
 #include <cstdint>
-#include <fmt/base.h>
 #include <fmt/core.h>
 #include <uv.h>
 
