@@ -35,6 +35,7 @@ class FileOpAwaiter_ {
     auto *awaiter = getRequestDataOrNull<FileOpAwaiter_>(req);
     if (awaiter == nullptr) {
       // cancelled
+      uv_fs_req_cleanup(req);
       delete req;
       return;
     }
@@ -55,21 +56,13 @@ public:
   FileOpAwaiter_ &operator=(FileOpAwaiter_ &&) = delete;
 
   ~FileOpAwaiter_() {
-    uv_fs_req_cleanup(req_.get());
     if (!requestDataIsNull(req_.get())) {
       // A callback is pending and the FileOp is aborted. Clean up.
       resetRequestData(req_.get());
       // The onFileOpDone callback will clean up after us.
-      if (0 != uv_cancel((uv_req_t *)req_.release())) {
-        // This is known to trigger a nullptr dereference in uv__fs_read()
-        // rarely due to a race condition with libuv. Best practice - don't
-        // cancel file operations, as they occur on a threadpool thread and may
-        // not always be cancelled safely. We can't really avoid this situation
-        // as any operation can be cancelled, in principle.
-        fmt::print(
-            "uv_cancel failed in FileOpAwaiter_ dtor. This happened "
-            "because an fs operation was cancelled - try not to do that\n");
-      }
+      uv_cancel((uv_req_t *)req_.release());
+    } else {
+      uv_fs_req_cleanup(req_.get());
     }
   }
 

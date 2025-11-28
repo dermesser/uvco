@@ -82,6 +82,21 @@ TEST(FsTest, simpleRead) {
   run_loop(setup);
 }
 
+TEST(FsTest, dropRead)
+{
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto file = co_await File::open(loop, "/dev/zero", O_RDONLY);
+    EXPECT_GT(file.file(), 2);
+
+    std::string buffer(32, 'x');
+    EXPECT_EQ(32, buffer.size());
+
+    file.read(buffer);
+  };
+
+  run_loop(setup);
+}
+
 TEST(FsTest, simpleReadWriteUnlink) {
   static constexpr std::string_view contents = "Hello World\n";
   static constexpr std::string_view fileName = "/tmp/_uvco_test_file";
