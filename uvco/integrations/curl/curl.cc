@@ -317,7 +317,7 @@ public:
     if (!chunks_.empty()) {
       std::string thisResult = std::move(chunks_.front());
       chunks_.erase(chunks_.begin());
-      return std::move(thisResult);
+      return thisResult;
     }
 
     // Signal end of stream.

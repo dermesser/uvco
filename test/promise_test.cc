@@ -1,4 +1,6 @@
+#include <coroutine>
 #include <fmt/core.h>
+#include <fmt/format.h>
 #include <gtest/gtest.h>
 
 #include "test_util.h"
@@ -9,6 +11,9 @@
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
 
+#include <iostream>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -17,7 +22,7 @@ using namespace uvco;
 namespace {
 
 TEST(PromiseTest, moveCtor) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     Promise<int> promise1 = []() -> Promise<int> { co_return 1; }();
     Promise<int> promise2 = std::move(promise1);
     EXPECT_EQ(co_await promise2, 1);
@@ -27,7 +32,7 @@ TEST(PromiseTest, moveCtor) {
 }
 
 TEST(PromiseTest, moveCtor2) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     Promise<int> promise1 = []() -> Promise<int> { co_return 1; }();
     Promise<int> promise2 = std::move(promise1);
     promise1 = std::move(promise2);
@@ -38,7 +43,7 @@ TEST(PromiseTest, moveCtor2) {
 }
 
 TEST(PromiseTest, moveCtorVoid) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     Promise<void> promise1 = []() -> Promise<void> { co_return; }();
     Promise<void> promise2 = std::move(promise1);
     promise1 = std::move(promise2);
@@ -49,7 +54,7 @@ TEST(PromiseTest, moveCtorVoid) {
 }
 
 TEST(PromiseTest, moveCtorVoid2) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     Promise<void> promise1 = []() -> Promise<void> { co_return; }();
     Promise<void> promise2 = std::move(promise1);
     promise1 = []() -> Promise<void> {
@@ -64,7 +69,7 @@ TEST(PromiseTest, moveCtorVoid2) {
 }
 
 TEST(PromiseTest, awaitTwice) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     Promise<int> promise = []() -> Promise<int> {
       co_await yield();
       co_return 1;
@@ -77,7 +82,7 @@ TEST(PromiseTest, awaitTwice) {
 }
 
 TEST(PromiseTest, awaitConst) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     const Promise<int> promise = []() -> Promise<int> {
       co_await yield();
       co_return 1;
@@ -89,7 +94,7 @@ TEST(PromiseTest, awaitConst) {
 }
 
 TEST(PromiseTest, assignmentEquivalent) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     auto coroutine = []() -> Promise<int> {
       co_await yield();
       co_return 1;
@@ -106,7 +111,7 @@ TEST(PromiseTest, assignmentEquivalent) {
 }
 
 TEST(PromiseTest, awaitTwiceImmediateReturn) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     Promise<int> promise = []() -> Promise<int> { co_return 1; }();
     EXPECT_EQ(co_await promise, 1);
     EXPECT_THROW({ co_await promise; }, UvcoException);
@@ -124,7 +129,7 @@ struct MovableOnly {
 };
 
 TEST(PromiseTest, awaitReturnsMovableOnly) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     Promise<MovableOnly> promise = []() -> Promise<MovableOnly> {
       co_await yield();
       co_return MovableOnly{};
@@ -137,7 +142,7 @@ TEST(PromiseTest, awaitReturnsMovableOnly) {
 }
 
 TEST(PromiseTest, unwrapReturnsMovableOnly) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     Promise<MovableOnly> promise = []() -> Promise<MovableOnly> {
       co_await yield();
       co_return MovableOnly{};
@@ -152,7 +157,7 @@ TEST(PromiseTest, unwrapReturnsMovableOnly) {
 }
 
 TEST(PromiseTest, unrwapRethrows) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     Promise<int> promise = []() -> Promise<int> {
       co_await yield();
       throw UvcoException("test exception");
@@ -172,7 +177,7 @@ TYPED_TEST_SUITE(RvalueCoroutineFixture, RvalueCoroutineTypes);
 
 // Tests that temporary values passed to a coroutine don't wreak havoc.
 TYPED_TEST(RvalueCoroutineFixture, rvalueCoroutine) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     // An rvalue `stringArg` is forbidden by the Coroutine constructors.
     const auto coroutine = [](std::string stringArg) -> Promise<TypeParam> {
       co_await yield();
@@ -185,7 +190,9 @@ TYPED_TEST(RvalueCoroutineFixture, rvalueCoroutine) {
       }
     };
 
-    std::optional<Promise<TypeParam>> promise1, promise2, promise3;
+    std::optional<Promise<TypeParam>> promise1;
+    std::optional<Promise<TypeParam>> promise2;
+    std::optional<Promise<TypeParam>> promise3;
 
     {
       std::string string{"abc"};
@@ -208,7 +215,7 @@ TYPED_TEST(RvalueCoroutineFixture, rvalueCoroutine) {
 // Tests how efficient the event loop is at suspending/resuming a coroutine.
 TEST(PromiseTest, DISABLED_yieldBench) {
   static constexpr unsigned iterations = 10'000'000;
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     for (unsigned i = 0; i < iterations; ++i) {
       co_await yield();
     }
@@ -233,7 +240,7 @@ Promise<int> yieldInt() { co_return (co_await YieldAwaiter_{}); }
 
 TEST(PromiseTest, DISABLED_yieldIntBench) {
   static constexpr unsigned iterations = 10'000'000;
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     for (unsigned i = 0; i < iterations; ++i) {
       co_await yieldInt();
     }
@@ -244,7 +251,7 @@ TEST(PromiseTest, DISABLED_yieldIntBench) {
 }
 
 TEST(PromiseTest, yield) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     co_await yield();
     co_return;
   };
@@ -253,7 +260,7 @@ TEST(PromiseTest, yield) {
 }
 
 TEST(PromiseTest, yieldInt) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     BOOST_VERIFY(1 == co_await yieldInt());
     co_return;
   };
@@ -263,10 +270,10 @@ TEST(PromiseTest, yieldInt) {
 
 TEST(PromiseTest, DISABLED_yieldCallBench) {
   static constexpr unsigned iterations = 10'000'000;
-  auto coroutine = [](const Loop &loop) -> Promise<void> { co_await yield(); };
-  auto setup = [&](const Loop &loop) -> Promise<void> {
+  auto coroutine = []() -> Promise<void> { co_await yield(); };
+  auto setup = [&](const Loop &) -> Promise<void> {
     for (unsigned i = 0; i < iterations; ++i) {
-      co_await coroutine(loop);
+      co_await coroutine();
     }
     co_return;
   };
@@ -276,12 +283,10 @@ TEST(PromiseTest, DISABLED_yieldCallBench) {
 
 TEST(PromiseTest, DISABLED_yieldIntCallBench) {
   static constexpr unsigned iterations = 10'000'000;
-  auto coroutine = [](const Loop &loop) -> Promise<int> {
-    co_return (co_await yieldInt());
-  };
-  auto setup = [&](const Loop &loop) -> Promise<void> {
+  auto coroutine = []() -> Promise<int> { co_return (co_await yieldInt()); };
+  auto setup = [&](const Loop &) -> Promise<void> {
     for (unsigned i = 0; i < iterations; ++i) {
-      co_await coroutine(loop);
+      co_await coroutine();
     }
     co_return;
   };
@@ -291,7 +296,7 @@ TEST(PromiseTest, DISABLED_yieldIntCallBench) {
 
 TEST(PromiseTest, DISABLED_multiYieldBench) {
   static constexpr unsigned iterations = 10'000'000;
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     MultiPromise<unsigned> multi = yield(iterations);
     for (unsigned i = 0; i < iterations; ++i) {
       co_await multi;
@@ -302,16 +307,16 @@ TEST(PromiseTest, DISABLED_multiYieldBench) {
   run_loop(setup);
 }
 
-Promise<void> testTemporaryFunction(const Loop &loop,
-                                    std::string_view message) {
+Promise<void> testTemporaryFunction(std::string_view message) {
   co_await yield();
+  std::cout << message << "\n";
   co_return;
 }
 
 TEST(PromiseTest, temporaryOk) {
-  auto setup = [](const Loop &loop) -> Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     // Temporary promise.
-    co_await testTemporaryFunction(loop, fmt::format("Hello {}", "World"));
+    co_await testTemporaryFunction(fmt::format("Hello {}", "World"));
   };
   run_loop(setup);
 }
@@ -324,7 +329,7 @@ TEST(PromiseTest, movePromiseBetweenFunctions) {
     co_return co_await coro1(std::move(promise));
   };
 
-  auto setup = [&](const Loop &loop) -> Promise<void> {
+  auto setup = [&](const Loop &) -> Promise<void> {
     Promise<int> promise1 = []() -> Promise<int> {
       co_await yield();
       co_return 42;
@@ -339,7 +344,7 @@ TEST(PromiseTest, movePromiseBetweenFunctions) {
 TEST(PromiseTest, destroyWithoutResume) {
   bool initialized = false;
   bool ran = false;
-  auto setup = [&](const Loop &loop) -> Promise<void> {
+  auto setup = [&](const Loop &) -> Promise<void> {
     Promise<int> promise = [&]() -> Promise<int> {
       initialized = true;
       co_await yield();
@@ -358,7 +363,7 @@ TEST(PromiseTest, destroyWithoutResume) {
 TEST(PromiseTest, destroyVoidWithoutResume) {
   bool initialized = false;
   bool ran = false;
-  auto setup = [&](const Loop &loop) -> Promise<void> {
+  auto setup = [&](const Loop &) -> Promise<void> {
     Promise<void> promise = [&]() -> Promise<void> {
       initialized = true;
       co_await yield();

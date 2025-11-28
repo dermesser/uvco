@@ -1,5 +1,8 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
+#include <array>
+#include <cstdint>
+#include <fmt/base.h>
 #include <fmt/core.h>
 #include <uv.h>
 
@@ -40,8 +43,6 @@ void Scheduler::enqueue(std::coroutine_handle<> handle) {
   BOOST_ASSERT(resumableActive_.capacity() > 0);
   resumableActive_.push_back(handle);
 }
-
-void Scheduler::setUpLoop(uv_loop_t *loop) {}
 
 Scheduler::~Scheduler() = default;
 

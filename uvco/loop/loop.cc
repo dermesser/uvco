@@ -1,6 +1,7 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #include <coroutine>
+#include <fmt/base.h>
 #include <uv.h>
 
 #include "uvco/exception.h"
@@ -14,14 +15,14 @@ namespace uvco {
 
 namespace {
 
-void handleWalkCallbackForDebug(uv_handle_t *handle, void *arg) {
+void handleWalkCallbackForDebug(uv_handle_t *handle, void * /* arg */) {
   fmt::print("A handle of type {} is still active\n",
              uv_handle_type_name(handle->type));
 }
 
 } // namespace
 
-Loop::Loop() : loop_{}, scheduler_{} {
+Loop::Loop() : loop_{} {
 
   if (defaultLoop != nullptr) {
     throw UvcoException(UV_EBUSY,
@@ -29,7 +30,6 @@ Loop::Loop() : loop_{}, scheduler_{} {
   }
 
   uv_loop_init(&loop_);
-  scheduler_.setUpLoop(&loop_);
   defaultLoop = this;
 }
 

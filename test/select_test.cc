@@ -16,12 +16,12 @@ using namespace uvco;
 namespace {
 
 TEST(SelectTest, selectBasic) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    Promise<int> promise1 = []() -> uvco::Promise<int> {
+  auto setup = [](const Loop &) -> Promise<void> {
+    Promise<int> promise1 = []() -> Promise<int> {
       co_await yield();
       co_return 123;
     }();
-    Promise<int> promise2 = []() -> uvco::Promise<int> {
+    Promise<int> promise2 = []() -> Promise<int> {
       co_await yield();
       co_await yield();
       co_return 234;
@@ -43,12 +43,12 @@ TEST(SelectTest, selectBasic) {
 }
 
 TEST(SelectTest, selectReturnsSimultaneously) {
-  auto simultaneousSelect = [](const Loop &loop) -> Promise<void> {
-    auto promise1 = []() -> uvco::Promise<int> {
+  auto simultaneousSelect = [](const Loop &) -> Promise<void> {
+    auto promise1 = []() -> Promise<int> {
       co_await yield();
       co_return 1;
     };
-    auto promise2 = []() -> uvco::Promise<int> {
+    auto promise2 = []() -> Promise<int> {
       co_await yield();
       co_return 2;
     };
@@ -69,12 +69,12 @@ TEST(SelectTest, selectReturnsSimultaneously) {
 
 TEST(SelectTest, selectLateReady) {
   auto lateReady = [](const Loop &loop) -> Promise<void> {
-    auto inner = [&loop]() -> uvco::Promise<void> {
-      auto fast = []() -> uvco::Promise<int> {
+    auto inner = [&]() -> Promise<void> {
+      auto fast = []() -> Promise<int> {
         co_await yield();
         co_return 42;
       };
-      auto slow = [&loop]() -> uvco::Promise<int> {
+      auto slow = [&]() -> Promise<int> {
         co_await sleep(loop, 100);
         co_return 84;
       };
@@ -99,22 +99,22 @@ TEST(SelectTest, selectLateReady) {
 }
 
 TEST(SelectTest, selectSetMany) {
-  auto firstPass = [](const Loop &loop) -> Promise<void> {
-    auto promise1 = []() -> uvco::Promise<int> {
+  auto firstPass = [](const Loop &) -> Promise<void> {
+    auto promise1 = []() -> Promise<int> {
       co_await yield();
       co_return 1;
     };
-    auto promise2 = []() -> uvco::Promise<int> {
+    auto promise2 = []() -> Promise<int> {
       co_await yield();
       co_await yield();
       co_return 2;
     };
-    auto promise3 = []() -> uvco::Promise<int> {
+    auto promise3 = []() -> Promise<int> {
       co_await yield();
       co_await yield();
       co_return 3;
     };
-    auto promise4 = []() -> uvco::Promise<int> {
+    auto promise4 = []() -> Promise<int> {
       co_await yield();
       co_await yield();
       co_return 4;
@@ -143,12 +143,12 @@ TEST(SelectTest, selectSetMany) {
 }
 
 TEST(SelectTest, onlyCheckOne) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    auto promise1 = []() -> uvco::Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
+    auto promise1 = []() -> Promise<void> {
       co_await yield();
       co_return;
     };
-    auto promise2 = []() -> uvco::Promise<void> {
+    auto promise2 = []() -> Promise<void> {
       co_await yield();
       co_await yield();
       co_await yield();
@@ -181,9 +181,9 @@ TEST(SelectTest, onlyCheckOne) {
 }
 
 TEST(SelectTest, selectVoid) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    auto promise1 = []() -> uvco::Promise<void> { co_await yield(); };
-    auto promise2 = []() -> uvco::Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
+    auto promise1 = []() -> Promise<void> { co_await yield(); };
+    auto promise2 = []() -> Promise<void> {
       co_await yield();
       co_await yield();
     };
@@ -202,17 +202,17 @@ TEST(SelectTest, selectVoid) {
 }
 
 TEST(SelectTest, DISABLED_benchmark) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     constexpr unsigned count = 1000000;
 
     // Finely orchestrated generators, yielding one after another.
-    MultiPromise<unsigned> gen1 = []() -> uvco::MultiPromise<unsigned> {
+    MultiPromise<unsigned> gen1 = []() -> MultiPromise<unsigned> {
       for (unsigned i = 0; i < count; ++i) {
         co_yield i;
         co_await yield();
       }
     }();
-    MultiPromise<unsigned> gen2 = []() -> uvco::MultiPromise<unsigned> {
+    MultiPromise<unsigned> gen2 = []() -> MultiPromise<unsigned> {
       for (unsigned i = 0; i < count; ++i) {
         co_await yield();
         co_yield i;
@@ -245,17 +245,17 @@ TEST(SelectTest, DISABLED_benchmark) {
 }
 
 TEST(SelectTest, reliableSelectLoop) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &) -> Promise<void> {
     constexpr unsigned count = 10;
 
     // Finely orchestrated generators, yielding one after another.
-    MultiPromise<unsigned> gen1 = []() -> uvco::MultiPromise<unsigned> {
+    MultiPromise<unsigned> gen1 = []() -> MultiPromise<unsigned> {
       for (unsigned i = 0; i < count; ++i) {
         co_yield i;
         co_await yield();
       }
     }();
-    MultiPromise<unsigned> gen2 = []() -> uvco::MultiPromise<unsigned> {
+    MultiPromise<unsigned> gen2 = []() -> MultiPromise<unsigned> {
       for (unsigned i = 0; i < count; ++i) {
         co_await yield();
         co_await yield();

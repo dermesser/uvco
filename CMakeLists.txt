@@ -25,7 +25,13 @@ find_package(GTest)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 set(CMAKE_CXX_STANDARD 23)
-add_compile_options(-Wall -pipe -fno-omit-frame-pointer)
+add_compile_options(
+  -pipe
+  -fno-omit-frame-pointer
+  -Wall
+  -Wextra
+  -Wpedantic
+)
 
 find_program(MOLD mold)
 if(MOLD)

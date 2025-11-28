@@ -49,10 +49,6 @@ public:
   Scheduler &operator=(Scheduler &&) = delete;
   ~Scheduler();
 
-  /// Set up scheduler with event loop. This is required for all uvco
-  /// code to find the scheduler.
-  void setUpLoop(uv_loop_t *loop);
-
   /// Schedule a coroutine for resumption.
   void enqueue(std::coroutine_handle<> handle);
 

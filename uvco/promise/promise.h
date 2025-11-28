@@ -290,7 +290,7 @@ public:
   /// // Compiler Error
   /// Promise<int> bad = lvalueCoroutine(fmt::format("Hello World"));
   /// ```
-  template <typename... Args> explicit Coroutine(Args &&...args) {
+  template <typename... Args> explicit Coroutine(Args &&.../* args */) {
     // Assert statically that no arg is an rvalue/xvalue reference
     static_assert(
         (!std::is_rvalue_reference_v<Args &&> && ...),
@@ -355,7 +355,7 @@ template <> class Coroutine<void> {
   using SharedCore_ = PromiseCore_ *;
 
 public:
-  template <typename... Args> explicit Coroutine(Args &&...args) {
+  template <typename... Args> explicit Coroutine(Args &&.../* args */) {
     // Assert statically that no arg is an rvalue/xvalue reference
     static_assert(
         (!std::is_rvalue_reference_v<Args &&> && ...),

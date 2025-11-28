@@ -1,10 +1,13 @@
 // uvco (c) 2024 Lewin Bormann. See LICENSE for specific terms.
 
 #include <boost/assert.hpp>
+#include <fmt/base.h>
 #include <fmt/core.h>
+#include <utility>
 #include <uv.h>
 #include <uv/unix.h>
 
+#include "uvco/bounded_queue.h"
 #include "uvco/close.h"
 #include "uvco/exception.h"
 #include "uvco/fs.h"

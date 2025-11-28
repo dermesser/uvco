@@ -7,7 +7,12 @@
 
 #include "test_util.h"
 
+#include <cstddef>
 #include <gtest/gtest.h>
+#include <string_view>
+#include <tuple>
+#include <variant>
+#include <vector>
 
 namespace {
 using namespace uvco;
@@ -16,7 +21,7 @@ TEST(CombinatorsTest, waitAndDrop) {
 
   size_t finishedNormally = 0;
 
-  const auto main = [&](const Loop &loop) -> Promise<void> {
+  const auto main = [&](const Loop &) -> Promise<void> {
     const auto oneYield = [&] -> Promise<void> {
       co_await yield();
       finishedNormally++;
@@ -38,7 +43,7 @@ TEST(CombinatorsTest, waitAndDrop) {
 }
 
 TEST(CombinatorsTest, waitEitherDoubleResult) {
-  const auto main = [&](const Loop &loop) -> Promise<void> {
+  const auto main = [&](const Loop &) -> Promise<void> {
     const auto oneYield = [&] -> Promise<std::string_view> {
       co_await yield();
       co_return "hello";
@@ -134,7 +139,7 @@ Promise<int> twoYields() {
 }
 
 TEST(CombinatorsTest, waitAll) {
-  const auto main = [&](const Loop &loop) -> Promise<void> {
+  const auto main = [&](const Loop &) -> Promise<void> {
     const auto result = co_await waitAll(oneYield(), twoYields());
     EXPECT_EQ("hello", std::get<0>(result));
     EXPECT_EQ(123, std::get<1>(result));
@@ -146,7 +151,7 @@ TEST(CombinatorsTest, waitAll) {
 }
 
 TEST(CombinatorsTest, waitAllStored) {
-  const auto main = [&](const Loop &loop) -> Promise<void> {
+  const auto main = [&](const Loop &) -> Promise<void> {
     const auto promise = waitAll(oneYield(), twoYields());
     const auto result = co_await promise;
     EXPECT_EQ(std::make_tuple("hello", 123), result);
@@ -158,7 +163,7 @@ TEST(CombinatorsTest, waitAllStored) {
 }
 
 TEST(CombinatorsTest, waitAllTwice) {
-  const auto main = [&](const Loop &loop) -> Promise<void> {
+  const auto main = [&](const Loop &) -> Promise<void> {
     auto promise = waitAll(oneYield(), twoYields());
     const auto result = co_await promise;
     EXPECT_EQ(std::make_tuple("hello", 123), result);

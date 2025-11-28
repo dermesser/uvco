@@ -82,8 +82,7 @@ TEST(FsTest, simpleRead) {
   run_loop(setup);
 }
 
-TEST(FsTest, dropRead)
-{
+TEST(FsTest, dropRead) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     auto file = co_await File::open(loop, "/dev/zero", O_RDONLY);
     EXPECT_GT(file.file(), 2);

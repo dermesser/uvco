@@ -26,7 +26,7 @@ TEST(MultiPromiseTest, standardGenerator) {
     }
   };
 
-  auto setup = [&generator](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&generator](const Loop &) -> uvco::Promise<void> {
     MultiPromise<int> ticker = generator();
     for (int i = 0; i < countMax; ++i) {
       const auto value = co_await ticker;
@@ -49,7 +49,7 @@ TEST(MultiPromiseTest, generatorThrows) {
     throw UvcoException("ticker");
   };
 
-  auto setup = [&generator](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&generator](const Loop &) -> uvco::Promise<void> {
     MultiPromise<int> ticker = generator();
     for (int i = 0; i < countMax; ++i) {
       const auto value = co_await ticker;
@@ -64,7 +64,7 @@ TEST(MultiPromiseTest, generatorThrows) {
   run_loop(setup);
 }
 
-MultiPromise<int> miniTicker(const Loop &loop) {
+MultiPromise<int> miniTicker() {
   for (int i = 0; i < 3; ++i) {
     co_yield i;
     co_await yield();
@@ -73,8 +73,8 @@ MultiPromise<int> miniTicker(const Loop &loop) {
 }
 
 TEST(MultiPromiseTest, exceptionWithTimer) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
-    MultiPromise<int> ticker = miniTicker(loop);
+  auto setup = [](const Loop &) -> uvco::Promise<void> {
+    MultiPromise<int> ticker = miniTicker();
     EXPECT_EQ(co_await ticker, 0);
     EXPECT_EQ(co_await ticker, 1);
     EXPECT_EQ(co_await ticker, 2);
@@ -85,7 +85,7 @@ TEST(MultiPromiseTest, exceptionWithTimer) {
 }
 
 TEST(MultiPromiseTest, yield) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &) -> uvco::Promise<void> {
     static constexpr unsigned count = 10;
     MultiPromise<unsigned> ticker = yield(count);
     for (unsigned i = 0; i < count; ++i) {
@@ -97,7 +97,7 @@ TEST(MultiPromiseTest, yield) {
 }
 
 TEST(MultiPromiseTest, nextValue) {
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &) -> uvco::Promise<void> {
     MultiPromise<int> gen = []() -> uvco::MultiPromise<int> {
       co_yield 1;
       co_yield 2;
@@ -116,8 +116,7 @@ TEST(MultiPromiseTest, nextValue) {
 TEST(MultiPromiseTest, cancel) {
   bool cancelled = false;
   bool finished = false;
-  auto setup = [&cancelled,
-                &finished](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&cancelled, &finished](const Loop &) -> uvco::Promise<void> {
     MultiPromise<int> gen = [&cancelled,
                              &finished]() -> uvco::MultiPromise<int> {
       const OnExit onExit{[&] { cancelled = true; }};
@@ -140,8 +139,7 @@ TEST(MultiPromiseTest, cancel) {
 TEST(MultiPromiseTest, drop) {
   bool cancelled = false;
   bool finished = false;
-  auto setup = [&cancelled,
-                &finished](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [&cancelled, &finished](const Loop &) -> uvco::Promise<void> {
     {
       MultiPromise<int> gen = [&cancelled,
                                &finished]() -> uvco::MultiPromise<int> {
@@ -164,7 +162,7 @@ TEST(MultiPromiseTest, drop) {
 
 TEST(MultiPromiseTest, DISABLED_benchmarkYield) {
   static constexpr unsigned count = 1'000'000;
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &) -> uvco::Promise<void> {
     MultiPromise<unsigned> ticker = yield(count);
     for (unsigned i = 0; i < count; ++i) {
       EXPECT_EQ(co_await ticker, i);
@@ -176,7 +174,7 @@ TEST(MultiPromiseTest, DISABLED_benchmarkYield) {
 
 TEST(MultiPromiseTest, DISABLED_benchmarkYieldNext) {
   static constexpr unsigned count = 1'000'000;
-  auto setup = [](const Loop &loop) -> uvco::Promise<void> {
+  auto setup = [](const Loop &) -> uvco::Promise<void> {
     MultiPromise<unsigned> ticker = yield(count);
     for (unsigned i = 0; i < count; ++i) {
       EXPECT_EQ((co_await ticker.next()).value(), i);
