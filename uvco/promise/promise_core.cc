@@ -48,7 +48,8 @@ void PromiseCore<void>::except(std::exception_ptr exc) {
 }
 
 void PromiseCore<void>::resetHandle() {
-  BOOST_ASSERT((state_ == PromiseState::waitedOn && waitingHandle_) ||
+  BOOST_ASSERT((state_ == PromiseState::init) ||
+               (state_ == PromiseState::waitedOn && waitingHandle_) ||
                (state_ == PromiseState::finished && !waitingHandle_));
   waitingHandle_ = nullptr;
   if (state_ == PromiseState::waitedOn) {

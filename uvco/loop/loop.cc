@@ -86,4 +86,6 @@ void Loop::cancel(std::coroutine_handle<> handle) {
   currentScheduler().cancel(handle);
 }
 
+std::coroutine_handle<> Loop::getNext() { return currentScheduler().getNext(); }
+
 } // namespace uvco

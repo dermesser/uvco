@@ -2,9 +2,11 @@
 
 #pragma once
 
+#include <cstddef>
 #include <fmt/core.h>
 #include <fmt/ranges.h>
 
+#include "uvco/loop/loop.h"
 #include "uvco/promise/promise.h"
 
 #include <coroutine>
@@ -26,7 +28,7 @@ namespace uvco {
 /// See also `waitAny()` for a more convenient approach that internally utilizes
 /// this class.
 ///
-/// The SelectSet is directly awaitable. For example:
+/// The `SelectSet` is directly awaitable. For example:
 ///
 /// ```cpp
 /// Promise<int> promise1 = []() -> Promise<int> { co_return 1; }();
@@ -43,7 +45,11 @@ namespace uvco {
 /// // Order is unspecified usually
 /// ```
 ///
-/// It is okay to add an already finished promise to a SelectSet.
+/// It is okay to add an already finished promise to a `SelectSet`.
+///
+/// A given `SelectSet` can only be awaited once. Usually, as shown above, it's
+/// best used as a temporary; it only takes references to the promises being
+/// selected from, and is therefore cheaply constructible.
 ///
 /// It is possible that no events are returned ("spurious wakeup"); make sure
 /// that you can handle an empty result vector.
@@ -62,18 +68,18 @@ public:
     }
   }
 
-  [[nodiscard]] bool await_ready() const noexcept {
-    return resumed_ || std::apply(
-                           [](auto *...promise) -> bool {
-                             return (promise->ready() || ...);
-                           },
-                           promises_);
+  [[nodiscard]] bool await_ready() noexcept {
+    BOOST_ASSERT_MSG(!resumed_, "A select set can only be used once");
+    const bool isReady = std::apply(
+        [](auto *...promise) -> bool { return (promise->ready() || ...); },
+        promises_);
+    resumed_ |= isReady;
+    return isReady;
   }
 
   /// Register the current coroutine to be resumed when one of the promises is
   /// ready.
-  void await_suspend(std::coroutine_handle<> handle) {
-    BOOST_ASSERT_MSG(!resumed_, "A select set can only be used once");
+  std::coroutine_handle<> await_suspend(std::coroutine_handle<> handle) {
     std::apply(
         [handle](auto *...promise) {
           ((!promise->core()->stale() ? promise->core()->setHandle(handle)
@@ -81,6 +87,8 @@ public:
            ...);
         },
         promises_);
+    suspended_ = handle;
+    return Loop::getNext();
   }
 
   /// Returns all promises that are ready.
@@ -96,8 +104,10 @@ public:
     checkPromises(readyPromises);
     // Prevent the current coroutine from being resumed again, if another
     // promise in the SelectSet became ready in the meantime.
-    Loop::cancel(suspended_);
-    suspended_ = nullptr;
+    if (suspended_ != nullptr) {
+      Loop::cancel(suspended_);
+      suspended_ = nullptr;
+    }
     return readyPromises;
   }
 

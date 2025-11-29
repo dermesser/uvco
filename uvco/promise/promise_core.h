@@ -12,7 +12,6 @@
 #include <coroutine>
 #include <exception>
 #include <optional>
-#include <typeinfo>
 #include <utility>
 #include <uv.h>
 #include <variant>

@@ -223,15 +223,16 @@ protected:
     }
     /// Part of the coroutine protocol. Always returns `true`; stores the
     /// suspension handle in the MultiPromiseCore for later resumption.
-    [[nodiscard]] bool await_suspend(std::coroutine_handle<> handle) const {
+    [[nodiscard]] std::coroutine_handle<>
+    await_suspend(std::coroutine_handle<> handle) const {
       if (core_ == nullptr) {
-        return false;
+        return Loop::getNext();
       }
       BOOST_ASSERT_MSG(!core_->isAwaited(),
                        "promise is already being waited on!\n");
       core_->setHandle(handle);
       core_->resumeGenerator();
-      return true;
+      return Loop::getNext();
     }
     /// Part of the coroutine protocol. Returns a value if `co_yield` was called
     /// in the generating coroutine. Otherwise, returns an empty `optional` if

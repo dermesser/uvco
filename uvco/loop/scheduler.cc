@@ -1,6 +1,5 @@
 // uvco (c) 2023 Lewin Bormann. See LICENSE for specific terms.
 
-#include <array>
 #include <cstdint>
 #include <fmt/core.h>
 #include <uv.h>
@@ -11,27 +10,27 @@
 
 namespace uvco {
 
+/// If set to true, log scheduler operations to stdout.
 static constexpr bool logSchedulerOperations = false;
 
+/// If set to true, always resume coroutines from the scheduler. Otherwise,
+/// coroutines may be resumed upon suspension of another coroutine. This can
+/// make control flow easier to understand and debug; coroutines being directly
+/// resumed upon resumption of another one may result in deep and random stacks.
+static constexpr bool useSymmetricHandoff = true;
+
 void Scheduler::runAll() {
-  while (!resumableActive_.empty()) {
-    resumableRunning_.swap(resumableActive_);
-    for (auto &handle : resumableRunning_) {
-      if (handle == nullptr || handle.done()) {
-        continue;
-      }
-
-      if constexpr (logSchedulerOperations) {
-        fmt::print("Resuming coroutine {:x}\n", (uintptr_t)handle.address());
-      }
-
-      handle.resume();
+  while (!resumable_.empty()) {
+    const std::coroutine_handle<> next = getNextInner();
+    BOOST_ASSERT(next != nullptr && !next.done());
+    if constexpr (logSchedulerOperations) {
+      fmt::print("Resuming coroutine {:x}\n", (uintptr_t)next.address());
     }
-    resumableRunning_.clear();
+    next.resume();
   }
 }
 
-void Scheduler::close() { BOOST_ASSERT(resumableActive_.empty()); }
+void Scheduler::close() { BOOST_ASSERT(resumable_.empty()); }
 
 void Scheduler::enqueue(std::coroutine_handle<> handle) {
   if constexpr (logSchedulerOperations) {
@@ -39,30 +38,47 @@ void Scheduler::enqueue(std::coroutine_handle<> handle) {
   }
 
   // Use of moved-out Scheduler?
-  BOOST_ASSERT(resumableActive_.capacity() > 0);
-  resumableActive_.push_back(handle);
+  resumable_.push_back(handle);
 }
 
 Scheduler::~Scheduler() = default;
-
-Scheduler::Scheduler() {
-  resumableActive_.reserve(16);
-  resumableRunning_.reserve(16);
-}
+Scheduler::Scheduler() = default;
 
 void Scheduler::cancel(std::coroutine_handle<> handle) {
+  BOOST_ASSERT(handle != nullptr);
   if constexpr (logSchedulerOperations) {
     fmt::print("Cancelling coroutine {:x}\n", (uintptr_t)handle.address());
   }
 
-  for (auto &resumable :
-       std::to_array({&resumableActive_, &resumableRunning_})) {
-    for (auto &it : *resumable) {
-      if (it == handle) {
-        it = nullptr;
-      }
+  for (auto &it : resumable_) {
+    if (it == handle) {
+      it = nullptr;
     }
   }
+}
+
+std::coroutine_handle<> Scheduler::getNext() {
+  if constexpr (useSymmetricHandoff) {
+    return getNextInner();
+  } else {
+    return std::noop_coroutine();
+  }
+}
+
+std::coroutine_handle<> Scheduler::getNextInner() {
+  std::coroutine_handle<> next{nullptr};
+  while (!resumable_.empty() && (next == nullptr || next.done())) {
+    next = resumable_.front();
+    resumable_.pop_front();
+  }
+  if (next == nullptr || next.done()) {
+    return std::noop_coroutine();
+  }
+  if constexpr (logSchedulerOperations) {
+    fmt::print("Dequeuing coroutine {:x}, {} left\n", (uintptr_t)next.address(),
+               resumable_.size());
+  }
+  return next;
 }
 
 } // namespace uvco

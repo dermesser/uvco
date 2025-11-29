@@ -25,6 +25,8 @@ Supported functionality:
 * A `SelectSet` for polling multiple promises at once
 * A set of combinators for control flow composition from coroutines
 * Cancellation safety: dropped promises will cancel the underlying coroutine.
+* Symmetric hand-off: one coroutine suspending will immediately jump to the
+  next runnable coroutine, reducing execution overhead.
 
 ## Context
 

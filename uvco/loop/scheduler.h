@@ -5,9 +5,8 @@
 #include <boost/assert.hpp>
 #include <uv.h>
 
-#include <array>
 #include <coroutine>
-#include <vector>
+#include <deque>
 
 namespace uvco {
 
@@ -57,6 +56,15 @@ public:
   /// Run all scheduled coroutines sequentially.
   void runAll();
 
+  /// Returns a handle to the next runnable suspended coroutine. This is mainly
+  /// used by Loop::getNext() which in turns is used to implement symmetric
+  /// hand-off, i.e. decentralized scheduling. By using this, all suspending
+  /// awaiters can hand off control directly to the next coroutine instead of
+  /// going through the scheduler first. This behavior can be disabled by
+  /// setting the `useSymmetricHandoff` compile-time variable to false in
+  /// scheduler.cc.
+  std::coroutine_handle<> getNext();
+
   /// close() should be called once the main promise has finished, and the
   /// process is preparing to exit; however, while the event loop is still
   /// running. Example: Once a user has pressed Ctrl-D in a tty application.
@@ -65,13 +73,12 @@ public:
   /// because the event loop is finishing soon after anyway).
   void close();
 
-  [[nodiscard]] bool empty() const { return resumableActive_.empty(); }
+  [[nodiscard]] bool empty() const { return resumable_.empty(); }
 
 private:
-  // Vector of coroutine handles to be resumed.
-  std::vector<std::coroutine_handle<>> resumableActive_;
-  // Vector of coroutines currently being resumed (while in runAll()).
-  std::vector<std::coroutine_handle<>> resumableRunning_;
+  std::coroutine_handle<> getNextInner();
+
+  std::deque<std::coroutine_handle<>> resumable_;
 };
 
 } // namespace uvco

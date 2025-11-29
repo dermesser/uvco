@@ -41,6 +41,8 @@ public:
   // again later, it may still be resumed.
   static void cancel(std::coroutine_handle<> handle);
 
+  static std::coroutine_handle<> getNext();
+
 private:
   // The default loop is the only loop that can be created. It is set/unset by
   // the constructor/destructor.

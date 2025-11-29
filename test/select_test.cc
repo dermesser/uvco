@@ -58,9 +58,13 @@ TEST(SelectTest, selectReturnsSimultaneously) {
 
     auto selectSet = SelectSet{promiseObject1, promiseObject2};
     auto selected = co_await selectSet;
-    EXPECT_EQ(selected.size(), 2);
+    EXPECT_EQ(selected.size(), 1);
     EXPECT_EQ(co_await *std::get<0>(selected[0]), 1);
-    EXPECT_EQ(co_await *std::get<1>(selected[1]), 2);
+
+    selected = co_await SelectSet{promiseObject1, promiseObject2};
+    EXPECT_EQ(selected.size(), 1);
+    EXPECT_EQ(co_await *std::get<1>(selected[0]), 2);
+
     co_return;
   };
 
@@ -268,9 +272,6 @@ TEST(SelectTest, reliableSelectLoop) {
     bool promise1Done = false;
     bool promise2Done = false;
 
-    // On my Core i5-7300U, this takes about 600 ns per iteration with three
-    // yields per two items. The baseline - no yield() calls - is about 270 ns
-    // per iteration.
     while (!promise1Done || !promise2Done) {
       auto result = co_await SelectSet{promise1, promise2};
       for (auto &promise : result) {

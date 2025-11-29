@@ -141,30 +141,28 @@ TEST(PromiseTest, awaitReturnsMovableOnly) {
   run_loop(setup);
 }
 
-TEST(PromiseTest, unwrapReturnsMovableOnly) {
+TEST(PromiseTest, coawaitReturnsMovableOnly) {
   auto setup = [](const Loop &) -> Promise<void> {
     Promise<MovableOnly> promise = []() -> Promise<MovableOnly> {
       co_await yield();
       co_return MovableOnly{};
     }();
     co_await yield();
-    BOOST_ASSERT(promise.ready());
-    MovableOnly value = promise.unwrap();
+    MovableOnly value = co_await promise;
     (void)value;
   };
 
   run_loop(setup);
 }
 
-TEST(PromiseTest, unrwapRethrows) {
+TEST(PromiseTest, coawaitRethrows) {
   auto setup = [](const Loop &) -> Promise<void> {
     Promise<int> promise = []() -> Promise<int> {
       co_await yield();
       throw UvcoException("test exception");
     }();
     co_await yield();
-    BOOST_ASSERT(promise.ready());
-    EXPECT_THROW({ promise.unwrap(); }, UvcoException);
+    EXPECT_THROW({ co_await promise; }, UvcoException);
   };
 
   run_loop(setup);

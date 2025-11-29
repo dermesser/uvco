@@ -22,12 +22,12 @@ bool Promise<void>::PromiseAwaiter_::await_ready() const {
   return core_.ready_ || core_.exception_;
 }
 
-bool Promise<void>::PromiseAwaiter_::await_suspend(
+std::coroutine_handle<> Promise<void>::PromiseAwaiter_::await_suspend(
     std::coroutine_handle<> handle) const {
   BOOST_ASSERT(!core_.ready_ && !core_.exception_);
   BOOST_ASSERT_MSG(!core_.isAwaited(), "promise is already being waited on!\n");
   core_.setHandle(handle);
-  return true;
+  return Loop::getNext();
 }
 
 void Promise<void>::PromiseAwaiter_::await_resume() const {

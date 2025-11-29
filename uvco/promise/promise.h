@@ -137,11 +137,12 @@ protected:
 
     /// Part of the coroutine protocol: returns if suspension is desired (always
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
-    [[nodiscard]] bool await_suspend(std::coroutine_handle<> handle) const {
+    [[nodiscard]] std::coroutine_handle<>
+    await_suspend(std::coroutine_handle<> handle) const {
       BOOST_ASSERT_MSG(!core_.isAwaited(),
                        "promise is already being waited on!");
       core_.setHandle(handle);
-      return true;
+      return Loop::getNext();
     }
     /// Part of the coroutine protocol: extracts the resulting value from the
     /// promise core and returns it.
@@ -235,7 +236,8 @@ private:
     [[nodiscard]] bool await_ready() const;
     /// Part of the coroutine protocol: returns if suspension is desired (always
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
-    [[nodiscard]] bool await_suspend(std::coroutine_handle<> handle) const;
+    [[nodiscard]] std::coroutine_handle<>
+    await_suspend(std::coroutine_handle<> handle) const;
     void await_resume() const;
 
     PromiseCore<void> &core_;
