@@ -18,7 +18,7 @@ namespace uvco {
 
 /// A bounded FIFO queue based on a contiguous array.
 ///
-/// Warning: only for internal use. The `push()/pop()` interface is not safe in
+/// Warning: only for internal use. The `put()/get()` interface is not safe in
 /// `Release` mode binaries; `BoundedQueue` is only intended to be used as part
 /// of `Channel<T>`.
 template <typename T> class BoundedQueue {

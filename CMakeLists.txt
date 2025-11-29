@@ -235,7 +235,7 @@ endif()
 # Benchmarks
 
 if (benchmark_FOUND)
-  foreach(BENCHMARKCASE IN ITEMS stream)
+  foreach(BENCHMARKCASE IN ITEMS stream promise)
     add_executable(${BENCHMARKCASE}-benchmark benchmark/${BENCHMARKCASE}_bench.cc)
     target_link_libraries(${BENCHMARKCASE}-benchmark
       PRIVATE

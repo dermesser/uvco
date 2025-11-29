@@ -209,24 +209,6 @@ TYPED_TEST(RvalueCoroutineFixture, rvalueCoroutine) {
   run_loop(setup);
 }
 
-// Only run this test with --gtest_filter=PromiseTest.yieldBench in Release
-// builds
-//
-// Tests how efficient the event loop is at suspending/resuming a coroutine.
-TEST(PromiseTest, DISABLED_yieldBench) {
-  static constexpr unsigned iterations = 10'000'000;
-  auto setup = [](const Loop &) -> Promise<void> {
-    for (unsigned i = 0; i < iterations; ++i) {
-      co_await yield();
-    }
-    co_return;
-  };
-
-  run_loop(setup);
-}
-
-// yieldIntBench: everything inline - 31% faster
-
 struct YieldAwaiter_ {
   [[nodiscard]] static bool await_ready() noexcept { return false; }
   bool await_suspend(std::coroutine_handle<> handle) noexcept {
@@ -237,18 +219,6 @@ struct YieldAwaiter_ {
 };
 
 Promise<int> yieldInt() { co_return (co_await YieldAwaiter_{}); }
-
-TEST(PromiseTest, DISABLED_yieldIntBench) {
-  static constexpr unsigned iterations = 10'000'000;
-  auto setup = [](const Loop &) -> Promise<void> {
-    for (unsigned i = 0; i < iterations; ++i) {
-      co_await yieldInt();
-    }
-    co_return;
-  };
-
-  run_loop(setup);
-}
 
 TEST(PromiseTest, yield) {
   auto setup = [](const Loop &) -> Promise<void> {
@@ -262,45 +232,6 @@ TEST(PromiseTest, yield) {
 TEST(PromiseTest, yieldInt) {
   auto setup = [](const Loop &) -> Promise<void> {
     BOOST_VERIFY(1 == co_await yieldInt());
-    co_return;
-  };
-
-  run_loop(setup);
-}
-
-TEST(PromiseTest, DISABLED_yieldCallBench) {
-  static constexpr unsigned iterations = 10'000'000;
-  auto coroutine = []() -> Promise<void> { co_await yield(); };
-  auto setup = [&](const Loop &) -> Promise<void> {
-    for (unsigned i = 0; i < iterations; ++i) {
-      co_await coroutine();
-    }
-    co_return;
-  };
-
-  run_loop(setup);
-}
-
-TEST(PromiseTest, DISABLED_yieldIntCallBench) {
-  static constexpr unsigned iterations = 10'000'000;
-  auto coroutine = []() -> Promise<int> { co_return (co_await yieldInt()); };
-  auto setup = [&](const Loop &) -> Promise<void> {
-    for (unsigned i = 0; i < iterations; ++i) {
-      co_await coroutine();
-    }
-    co_return;
-  };
-
-  run_loop(setup);
-}
-
-TEST(PromiseTest, DISABLED_multiYieldBench) {
-  static constexpr unsigned iterations = 10'000'000;
-  auto setup = [](const Loop &) -> Promise<void> {
-    MultiPromise<unsigned> multi = yield(iterations);
-    for (unsigned i = 0; i < iterations; ++i) {
-      co_await multi;
-    }
     co_return;
   };
 
