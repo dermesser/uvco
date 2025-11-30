@@ -58,9 +58,9 @@ public:
   }
 
   bool await_ready() { return isReady(); }
-  bool await_suspend(std::coroutine_handle<> handle) {
+  std::coroutine_handle<> await_suspend(std::coroutine_handle<> handle) {
     handle_ = handle;
-    return true;
+    return Loop::getNext();
   }
   [[nodiscard]] bool await_resume() {
     handle_ = nullptr;
