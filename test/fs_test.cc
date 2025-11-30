@@ -12,7 +12,6 @@
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
-#include "uvco/util.h"
 
 #include <algorithm>
 #include <cstddef>

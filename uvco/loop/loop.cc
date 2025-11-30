@@ -29,6 +29,12 @@ Loop::Loop() : loop_{} {
   }
 
   uv_loop_init(&loop_);
+  const uv_status configureStatus =
+      uv_loop_configure(&loop_, UV_LOOP_USE_IO_URING_SQPOLL);
+  if (configureStatus != 0) {
+    fmt::print(stderr, "Could not configure io_uring for file access: {}",
+               uv_strerror(configureStatus));
+  }
   defaultLoop = this;
 }
 
