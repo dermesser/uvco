@@ -33,15 +33,15 @@ add_compile_options(
   -Wpedantic
 )
 
-find_program(MOLD mold)
-if(MOLD)
-  add_link_options(-fuse-ld=mold)
-endif()
-
+# ThinLTO makes code run up to 50% faster in microbenchmarks.
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-fcolor-diagnostics)
-else()
+  add_link_options(-fuse-ld=lld)
+  add_compile_options(-flto=thin)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   add_compile_options(-fdiagnostics-color=always)
+  add_compile_options(-flto)
+  add_link_options(-flto)
 endif()
 
 if(ENABLE_ASAN)
