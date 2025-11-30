@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.27)
 project(uv-co)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    # This can cause trouble if compiling libraries for system-wide use.
+    # Generally you must use the same compiler for application code as was used
+    # to build the uvco code.
     set(ENABLE_LTO 1)
     set(ENABLE_ASAN 0)
     set(ENABLE_COVERAGE 0)
@@ -72,7 +75,7 @@ if (ENABLE_LTO)
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         add_link_options(-fuse-ld=lld)
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-        add_link_options(-fuse-ld=gold)
+        # Works by default, usually.
     endif()
 endif()
 
