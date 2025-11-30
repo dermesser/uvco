@@ -4,6 +4,7 @@
 
 #include <uv.h>
 
+#include "uvco/exception.h"
 #include "uvco/loop/scheduler.h"
 
 #include <coroutine>
@@ -60,6 +61,7 @@ private:
   // place in memory.
   mutable uv_loop_t loop_;
   Scheduler scheduler_;
+  bool stopped_ = false;
 };
 
 /// @}

@@ -35,8 +35,6 @@ void Scheduler::enqueue(std::coroutine_handle<> handle) {
   if constexpr (logSchedulerOperations) {
     fmt::print("Enqueuing coroutine {:x}\n", (uintptr_t)handle.address());
   }
-
-  // Use of moved-out Scheduler?
   resumable_.push_back(handle);
 }
 

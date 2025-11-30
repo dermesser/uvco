@@ -300,7 +300,9 @@ TEST(UdpTest, simultaneousReceiveDies) {
     MultiPromise<std::pair<std::string, AddressHandle>> packets =
         server.receiveMany();
 
+#ifndef NDEBUG
     EXPECT_DEATH({ auto packets2 = server.receiveMany(); }, "dataIsNull");
+#endif
   };
 
   run_loop(setup);
@@ -312,7 +314,9 @@ TEST(UdpTest, simultaneousReceiveOneDies) {
     co_await server.bind("::1", 9999, 0);
 
     Promise<std::string> packet = server.receiveOne();
+#ifndef NDEBUG
     EXPECT_DEATH({ auto packet = server.receiveOne(); }, "dataIsNull");
+#endif
   };
 
   run_loop(setup);
