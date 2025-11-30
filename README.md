@@ -407,6 +407,21 @@ make -j
 sudo make install
 ```
 
+This installs the uvco object files to `/usr/local/lib` and headers to `/usr/local/include`, by default.
+
+**Note:** In `Release` mode, LTO is enabled by default. This typically requires that you build any
+application code with the same compiler, as the files contain compiler-specific code. You can
+disable this behavior by setting the `ENABLE_LTO` variable explicitly to `0`. It is enabled by
+default as it comes with a significant performance advantage (around 20%).
+
+The following build variables are commonly used and can be overridden:
+
+* `ENABLE_ASAN` - enable address and undefined-behavior sanitizers (default `1` in `Debug`, else
+  `0`)
+* `ENABLE_COVERAGE` - emit coverage information (default `1` in `Debug`, else `0`)
+* `ENABLE_LTO` - enable link-time optimization with g++ or clang (default `0` in `Debug`, default
+  `1` in `Release`, `RelWithDebInfo`)
+
 ## Building on top of uvco
 
 You can then use `uvco` in your own projects by linking against `uvco`. CMake packages are exported,
