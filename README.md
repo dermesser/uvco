@@ -441,7 +441,8 @@ add_executable(your_project main.cc)
 target_link_libraries(your_project Uvco::uv-co-lib)
 ```
 
-This will result in the following compiler invocations:
+To build the project using the object files installed system-wide (by `make install` in the uvco
+project), run:
 
 ```shell
 mkdir build && cd build
