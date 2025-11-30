@@ -33,7 +33,6 @@ add_compile_options(
   -Wpedantic
 )
 
-# ThinLTO makes code run up to 50% faster in microbenchmarks.
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-fcolor-diagnostics)
   add_link_options(-fuse-ld=lld)
