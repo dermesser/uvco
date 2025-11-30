@@ -99,6 +99,8 @@ public:
   /// Return the underlying UV stream object.
   [[nodiscard]] const uv_stream_t *underlying() const { return stream_.get(); }
 
+  [[nodiscard]] uv_os_fd_t fd() const;
+
 protected:
   uv_stream_t &stream() {
     BOOST_ASSERT(stream_);

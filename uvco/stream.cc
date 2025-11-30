@@ -340,4 +340,14 @@ void StreamBase::ShutdownAwaiter_::onShutdown(uv_shutdown_t *req,
   }
 }
 
+[[nodiscard]] uv_os_fd_t StreamBase::fd() const {
+  uv_os_fd_t fd{};
+  const uv_status status = uv_fileno((uv_handle_t *)stream_.get(), &fd);
+  if (status != 0) {
+    throw UvcoException(status, "StreamBase::fd(): uv_fileno() failed: " +
+                                    std::string{uv_strerror(status)});
+  }
+  return fd;
+}
+
 } // namespace uvco
