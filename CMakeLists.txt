@@ -35,8 +35,8 @@ add_compile_options(
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-fcolor-diagnostics)
-  add_link_options(-fuse-ld=lld)
   add_compile_options(-flto=thin)
+  add_link_options(-fuse-ld=lld -flto=thin)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   add_compile_options(-fdiagnostics-color=always)
   add_compile_options(-flto)
