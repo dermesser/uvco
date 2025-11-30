@@ -1,16 +1,22 @@
 
 #include "uvco/combinators.h"
 #include "uvco/exception.h"
+#include "uvco/pipe.h"
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
+#include "uvco/stream.h"
 #include "uvco/timer.h"
 
 #include "test_util.h"
 
 #include <cstddef>
+#include <exception>
 #include <gtest/gtest.h>
 #include <string_view>
 #include <tuple>
+#include <unistd.h>
+#include <utility>
+#include <uv.h>
 #include <variant>
 #include <vector>
 
@@ -175,4 +181,166 @@ TEST(CombinatorsTest, waitAllTwice) {
   run_loop(main);
 }
 
+TEST(WaitPointTest, basic) {
+  const auto main = [&](const Loop &) -> Promise<void> {
+    WaitPoint waitPoint;
+
+    // Empty WaitPoint can release (no-op)
+    waitPoint.releaseOne();
+    waitPoint.releaseAll();
+
+    Promise<void> one = waitPoint.wait();
+    Promise<void> two = waitPoint.wait();
+
+    co_await yield();
+
+    EXPECT_FALSE(one.ready());
+    EXPECT_FALSE(two.ready());
+
+    waitPoint.releaseAll();
+
+    co_await yield();
+
+    EXPECT_TRUE(one.ready());
+    EXPECT_TRUE(two.ready());
+
+    co_return;
+  };
+
+  run_loop(main);
+}
+
+TEST(WaitPointTest, releaseOne) {
+  const auto main = [&](const Loop &) -> Promise<void> {
+    WaitPoint waitPoint;
+
+    Promise<void> one = waitPoint.wait();
+    Promise<void> two = waitPoint.wait();
+
+    co_await yield();
+
+    EXPECT_FALSE(one.ready());
+    EXPECT_FALSE(two.ready());
+
+    waitPoint.releaseOne();
+
+    co_await yield();
+
+    EXPECT_TRUE(one.ready());
+    EXPECT_FALSE(two.ready());
+
+    waitPoint.releaseOne();
+
+    co_await yield();
+
+    EXPECT_TRUE(two.ready());
+
+    co_return;
+  };
+
+  run_loop(main);
+}
+
+TEST(TaskSetTest, basic) {
+  const auto main = [&](const Loop &loop) -> Promise<void> {
+    auto taskSet = TaskSet::create();
+    bool ran = false;
+
+    EXPECT_TRUE(taskSet->empty());
+    EXPECT_TRUE(taskSet->onEmpty().ready());
+
+    {
+      taskSet->add([&loop](bool *ran) -> Promise<void> {
+        co_await sleep(loop, 1);
+        *ran = true;
+      }(&ran));
+    }
+
+    EXPECT_FALSE(ran);
+    EXPECT_FALSE(taskSet->empty());
+    co_await taskSet->onEmpty();
+    EXPECT_TRUE(taskSet->empty());
+
+    EXPECT_TRUE(ran);
+
+    co_return;
+  };
+
+  run_loop(main);
+}
+
+struct WeirdException {};
+
+TEST(TaskSetTest, throwsError) {
+  const auto main = [&](const Loop &loop) -> Promise<void> {
+    auto taskSet = TaskSet::create();
+    unsigned int numRan{};
+
+    { // Handle error without error callback having been set.
+      taskSet->add([&loop](unsigned int *ran) -> Promise<void> {
+        co_await sleep(loop, 1);
+        *ran += 1;
+        throw UvcoException(UV_EINVAL, "Test exception");
+      }(&numRan));
+    }
+
+    { // Handle error without error callback having been set.
+      taskSet->add([&loop](unsigned int *ran) -> Promise<void> {
+        co_await sleep(loop, 1);
+        *ran += 1;
+        throw WeirdException{};
+      }(&numRan));
+    }
+
+    EXPECT_FALSE(taskSet->empty());
+    co_await taskSet->onEmpty();
+    EXPECT_TRUE(taskSet->empty());
+
+    EXPECT_EQ(2, numRan);
+
+    co_return;
+  };
+
+  run_loop(main);
+}
+
+TEST(TaskSetTest, throwsErrorWithCallback) {
+  const auto main = [&](const Loop &loop) -> Promise<void> {
+    auto taskSet = TaskSet::create();
+    unsigned int numRan{};
+    unsigned int numExceptions{};
+
+    auto onError = [&numExceptions](TaskSet::Id,
+                                    const std::exception_ptr & /*eptr*/) {
+      numExceptions += 1;
+    };
+    taskSet->setOnError(std::move(onError));
+
+    {
+      taskSet->add([&loop](unsigned int *ran) -> Promise<void> {
+        co_await sleep(loop, 1);
+        *ran += 1;
+        throw UvcoException(UV_EINVAL, "Test exception");
+      }(&numRan));
+    }
+    {
+      taskSet->add([&loop](unsigned int *ran) -> Promise<void> {
+        co_await sleep(loop, 1);
+        *ran += 1;
+        throw WeirdException{};
+      }(&numRan));
+    }
+
+    EXPECT_FALSE(taskSet->empty());
+    co_await taskSet->onEmpty();
+    EXPECT_TRUE(taskSet->empty());
+
+    EXPECT_EQ(2, numRan);
+    EXPECT_EQ(2, numExceptions);
+
+    co_return;
+  };
+
+  run_loop(main);
+}
 } // namespace

@@ -5,6 +5,13 @@
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
 #include "uvco/promise/select.h"
+#include <coroutine>
+#include <cstddef>
+#include <deque>
+#include <exception>
+#include <functional>
+#include <memory>
+#include <tuple>
 
 namespace uvco {
 
@@ -28,7 +35,7 @@ MultiPromise<unsigned> yield(unsigned count);
 ///
 /// This can be called repeatedly to wait until all promises are ready.
 ///
-/// `waitEither()` is only a wrapper around `SelectSet`.
+/// `waitAny()` is only a wrapper around `SelectSet`.
 template <typename... PromiseTypes>
 Promise<std::vector<std::variant<PromiseTypes...>>>
 waitAny(Promise<PromiseTypes> &...promises) {
@@ -97,6 +104,71 @@ Promise<std::tuple<typename detail::ReplaceVoid<PromiseTypes>::type...>>
 waitAll(Promise<PromiseTypes>... promises) {
   co_return std::make_tuple(co_await detail::awaitAndReplaceVoid(promises)...);
 }
+
+/// Allows an arbitrary number of coroutines to wait on another coroutine to
+/// fulfill it.
+class WaitPoint {
+  struct WaitPointAwaiter_;
+
+public:
+  WaitPoint() = default;
+  WaitPoint(const WaitPoint &) = delete;
+  WaitPoint(WaitPoint &&) noexcept = default;
+  WaitPoint &operator=(const WaitPoint &) = delete;
+  WaitPoint &operator=(WaitPoint &&) noexcept = default;
+  ~WaitPoint() = default;
+
+  [[nodiscard]] size_t waiting() const { return waiters_.size(); }
+  Promise<void> wait();
+  void releaseOne();
+  void releaseAll();
+
+private:
+  void enqueue(std::coroutine_handle<> handle);
+  std::deque<std::coroutine_handle<>> waiters_;
+};
+
+/// TaskSet handles the common case of maintaining a set of coroutines running
+/// in the background which should not be cancelled, but should be cleaned up
+/// after finishing.
+class TaskSet {
+public:
+  TaskSet() = default;
+  TaskSet(const TaskSet &) = delete;
+  TaskSet(TaskSet &&) noexcept = default;
+  TaskSet &operator=(const TaskSet &) = delete;
+  TaskSet &operator=(TaskSet &&) noexcept = default;
+  virtual ~TaskSet() = default;
+
+  using Id = size_t;
+  using ErrorCallback = std::function<void(Id, std::exception_ptr)>;
+
+  /// Create a new TaskSet, which can be used to hold a set of background tasks,
+  /// cleaning up resources of finished tasks automatically.
+  ///
+  /// The implementation is hidden in the .cc file to hide complexity from units
+  /// including this header.
+  static std::unique_ptr<TaskSet> create();
+
+  /// Add a task to the TaskSet. It will be run to completion. If an exception
+  /// is thrown, it is printed to stderr.
+  virtual Id add(Promise<void> task) = 0;
+
+  /// Check if there are any active tasks on the TaskSet.
+  virtual bool empty() = 0;
+
+  /// Return a Promise which will be fulfilled when no tasks are left on the
+  /// TaskSet. Multiple calls to this will return Promise instances which will
+  /// become ready simultaneously; this means that depending on the scheduling
+  /// order, by the time this Promise resolves, the TaskSet instance may not be
+  /// empty anymore.
+  virtual Promise<void> onEmpty() = 0;
+
+  /// Register a callback which handles errors thrown by tasks. By default,
+  /// errors are logged to stderr. The callback is called when a task finishes
+  /// by throwing an exception.
+  virtual void setOnError(ErrorCallback callback) = 0;
+};
 
 /// @}
 
