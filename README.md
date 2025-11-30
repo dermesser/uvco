@@ -23,7 +23,7 @@ Supported functionality:
 * A libpqxx integration, for asynchronous interaction with PostgreSQL databases.
 * A threadpool for running synchronous or CPU-bound tasks
 * A `SelectSet` for polling multiple promises at once
-* A set of combinators for control flow composition from coroutines
+* A set of combinators for control flow composition from coroutines, such as `race()`, `raceIgnore()`, `TaskSet`, `WaitPoint`, etc.
 * Cancellation safety: dropped promises will cancel the underlying coroutine.
 * Symmetric hand-off: one coroutine suspending will immediately jump to the
   next runnable coroutine, reducing execution overhead.

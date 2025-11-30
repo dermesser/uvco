@@ -12,6 +12,8 @@
 #include <functional>
 #include <memory>
 #include <tuple>
+#include <variant>
+#include <vector>
 
 namespace uvco {
 
@@ -151,7 +153,8 @@ public:
   static std::unique_ptr<TaskSet> create();
 
   /// Add a task to the TaskSet. It will be run to completion. If an exception
-  /// is thrown, it is printed to stderr.
+  /// is thrown, it is printed to stderr, or an ErrorCallback will be called if
+  /// set before using setOnError().
   virtual Id add(Promise<void> task) = 0;
 
   /// Check if there are any active tasks on the TaskSet.

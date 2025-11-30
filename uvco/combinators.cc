@@ -10,7 +10,6 @@
 #include <fmt/core.h>
 
 #include <coroutine>
-#include <cstddef>
 #include <deque>
 #include <memory>
 #include <unordered_map>
