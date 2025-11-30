@@ -10,13 +10,12 @@
 
 namespace uvco {
 
-/// If set to true, log scheduler operations to stdout.
-static constexpr bool logSchedulerOperations = false;
-
 /// If set to true, always resume coroutines from the scheduler. Otherwise,
 /// coroutines may be resumed upon suspension of another coroutine. This can
 /// make control flow easier to understand and debug; coroutines being directly
-/// resumed upon resumption of another one may result in deep and random stacks.
+/// resumed upon resumption of another one may result in deep and random stacks,
+/// which is especially inconvenient when profiling code, as flamegraphs and
+/// other aggregates will show samples spread across many different stacks.
 static constexpr bool useSymmetricHandoff = true;
 
 void Scheduler::runAll() {

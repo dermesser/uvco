@@ -62,6 +62,12 @@ void Loop::run() {
     // Run any left-over coroutines, and check if they schedule callbacks.
     scheduler_.runAll();
   }
+
+  if constexpr (logSchedulerOperations) {
+    fmt::print("exiting loop due to scheduler empty? {} uv_loop_alive? {}\n",
+               scheduler_.empty() ? "yes" : "no",
+               uv_loop_alive(&loop_) != 0 ? "yes" : "no");
+  }
 }
 
 uv_loop_t *Loop::uvloop() const { return &loop_; }

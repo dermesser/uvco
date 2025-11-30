@@ -13,6 +13,9 @@ namespace uvco {
 /// @addtogroup Scheduler
 /// @{
 
+/// If set to true, log scheduler operations to stdout.
+static constexpr bool logSchedulerOperations = false;
+
 /// The Scheduler is attached to the UV loop as field `data`, and contains the
 /// coroutine scheduler. Currently, it works on a fairly simple basis: callbacks
 /// can add coroutines for resumption to the scheduler, and the scheduler runs

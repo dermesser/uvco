@@ -199,6 +199,32 @@ if(GTest_FOUND)
   target_include_directories(test-util PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(test-util PRIVATE uv-co-lib)
 
+  add_library(uv-co-example-http STATIC
+      uvco/examples/http_server.cc
+  )
+
+  target_sources(uv-co-example-http INTERFACE
+      FILE_SET HEADERS
+      TYPE HEADERS
+      FILES
+      uvco/examples/http_server.h
+  )
+
+  target_link_libraries(uv-co-example-http
+      PUBLIC
+      uv-co-lib
+  )
+
+  target_include_directories(uv-co-example-http PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+  install(TARGETS uv-co-example-http EXPORT uvco FILE_SET HEADERS DESTINATION include)
+
+  add_executable(http-server benchmark/http_server.cc)
+  target_link_libraries(http-server
+    PRIVATE
+    uv-co-example-http
+    Boost::program_options
+  )
+
   foreach(TESTCASE IN ITEMS async_work channel combinators fs generator loop name_resolution promise select stream timer udp uds tcp misc)
     add_executable(${TESTCASE}-test test/${TESTCASE}_test.cc)
     target_link_libraries(${TESTCASE}-test PRIVATE uv-co-lib test-util GTest::gtest_main)
@@ -209,6 +235,20 @@ if(GTest_FOUND)
       target_link_libraries(${TESTCASE}-test PRIVATE gcov)
     endif()
   endforeach()
+
+  add_executable(http_server-test test/http_server_test.cc)
+  target_link_libraries(http_server-test
+    PRIVATE
+    uv-co-example-http
+    test-util
+    GTest::gtest_main
+  )
+  add_test(NAME http_server-test COMMAND http_server-test)
+
+  if(ENABLE_COVERAGE)
+    target_compile_options(http_server-test PRIVATE "--coverage")
+    target_link_libraries(http_server-test PRIVATE gcov)
+  endif()
 
   foreach(TESTBINARY IN ITEMS tcp-broadcaster multicast http10 memcached-impl)
     add_executable(test-${TESTBINARY} test/${TESTBINARY}.exe.cc)
