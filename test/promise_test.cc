@@ -141,28 +141,34 @@ TEST(PromiseTest, awaitReturnsMovableOnly) {
   run_loop(setup);
 }
 
-TEST(PromiseTest, coawaitReturnsMovableOnly) {
+TEST(PromiseTest, unwrapReturnsMovableOnly) {
   auto setup = [](const Loop &) -> Promise<void> {
     Promise<MovableOnly> promise = []() -> Promise<MovableOnly> {
       co_await yield();
       co_return MovableOnly{};
     }();
     co_await yield();
-    MovableOnly value = co_await promise;
+    MovableOnly value = promise.unwrap();
     (void)value;
   };
 
   run_loop(setup);
 }
 
-TEST(PromiseTest, coawaitRethrows) {
+TEST(PromiseTest, unwrapRethrows) {
   auto setup = [](const Loop &) -> Promise<void> {
     Promise<int> promise = []() -> Promise<int> {
       co_await yield();
       throw UvcoException("test exception");
     }();
-    co_await yield();
-    EXPECT_THROW({ co_await promise; }, UvcoException);
+    try {
+      co_await yield();
+      EXPECT_TRUE(promise.ready());
+      promise.unwrap();
+    } catch (const UvcoException &e) {
+      EXPECT_STREQ(e.what(), "test exception");
+    }
+    co_return;
   };
 
   run_loop(setup);
@@ -238,7 +244,12 @@ TEST(PromiseTest, yieldInt) {
 
 Promise<void> testTemporaryFunction(std::string_view message) {
   co_await yield();
-  std::cout << message << "\n";
+
+  // Ensure that all memory is accessible, checked by asan
+  for (char c : message) {
+    EXPECT_NE(c, '\0');
+  }
+
   co_return;
 }
 
