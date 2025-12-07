@@ -35,13 +35,10 @@ namespace {
 class FileOpAwaiter_ {
   static void onFileOpDone(uv_fs_t *req) {
     auto *awaiter = getRequestDataOrNull<FileOpAwaiter_>(req);
-    if (awaiter == nullptr) {
+    if (awaiter == nullptr || req->result == UV_ECANCELED) {
       // cancelled
       uv_fs_req_cleanup(req);
       delete req;
-      return;
-    }
-    if (req->result == UV_ECANCELED) {
       return;
     }
     awaiter->result_ = req->result;

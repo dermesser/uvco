@@ -1,4 +1,5 @@
 
+#include "uvco/close.h"
 #include "uvco/combinators.h"
 #include "uvco/exception.h"
 #include "uvco/pipe.h"
@@ -12,6 +13,7 @@
 #include <cstddef>
 #include <exception>
 #include <gtest/gtest.h>
+#include <stdexcept>
 #include <string_view>
 #include <tuple>
 #include <unistd.h>
@@ -48,7 +50,7 @@ TEST(CombinatorsTest, waitAndDrop) {
   run_loop(main);
 }
 
-TEST(CombinatorsTest, waitEitherDoubleResult) {
+TEST(CombinatorsTest, waitAnyDoubleResult) {
   const auto main = [&](const Loop &) -> Promise<void> {
     const auto oneYield = [&] -> Promise<std::string_view> {
       co_await yield();
@@ -74,6 +76,34 @@ TEST(CombinatorsTest, waitEitherDoubleResult) {
     BOOST_ASSERT(result2.size() == 1);
     BOOST_ASSERT(result2[0].index() == 1);
     EXPECT_EQ(123, std::get<1>(result2[0]));
+
+    co_return;
+  };
+
+  run_loop(main);
+}
+
+TEST(CombinatorsTest, waitAnyThrows) {
+  const auto main = [&](const Loop &) -> Promise<void> {
+    const auto oneYield = [&] -> Promise<std::string_view> {
+      co_return "hello";
+    };
+    const auto throws = [&] -> Promise<int> {
+      co_await yield();
+      throw std::runtime_error("test error");
+      co_return 123;
+    };
+
+    Promise<std::string_view> p1{oneYield()};
+    Promise<int> p2{throws()};
+
+    const std::vector<std::variant<std::string_view, int>> result1 =
+        co_await waitAny(p1, p2);
+    BOOST_ASSERT(result1.size() == 1);
+    BOOST_ASSERT(result1[0].index() == 0);
+    EXPECT_EQ("hello", std::get<0>(result1[0]));
+
+    EXPECT_THROW({ co_await waitAny(p1, p2); }, std::runtime_error);
 
     co_return;
   };
@@ -109,6 +139,47 @@ TEST(CombinatorsTest, race) {
 
   run_loop(main);
   EXPECT_FALSE(twoYieldsFinished);
+}
+
+TEST(CombinatorsTest, raceThrowsIgnored) {
+  const auto main = [&](const Loop &loop) -> Promise<void> {
+    const auto oneYield = [&] -> Promise<std::string_view> {
+      co_await yield();
+      co_return "hello";
+    };
+    const auto throws = [&] -> Promise<int> {
+      // We never sleep this long, the coroutine is just cancelled.
+      co_await sleep(loop, 1000);
+      throw std::runtime_error("test error");
+      co_return 123;
+    };
+
+    EXPECT_EQ(1, (co_await race(oneYield(), throws())).size());
+
+    co_return;
+  };
+
+  run_loop(main);
+}
+
+TEST(CombinatorsTest, raceThrows) {
+  const auto main = [&](const Loop &loop) -> Promise<void> {
+    const auto oneYield = [&] -> Promise<std::string_view> {
+      co_await sleep(loop, 1000);
+      co_return "hello";
+    };
+    const auto throws = [&] -> Promise<int> {
+      // We never sleep this long, the coroutine is just cancelled.
+      co_await yield();
+      throw std::runtime_error("test error");
+    };
+
+    EXPECT_THROW({ co_await race(oneYield(), throws()); }, std::runtime_error);
+
+    co_return;
+  };
+
+  run_loop(main);
 }
 
 TEST(CombinatorsTest, raceIgnore) {
@@ -174,6 +245,23 @@ TEST(CombinatorsTest, waitAllTwice) {
     const auto result = co_await promise;
     EXPECT_EQ(std::make_tuple("hello", 123), result);
     EXPECT_THROW({ co_await promise; }, UvcoException);
+
+    co_return;
+  };
+
+  run_loop(main);
+}
+
+TEST(CombinatorsTest, waitAllThrows) {
+  const auto main = [&](const Loop &) -> Promise<void> {
+    const auto throws = [&] -> Promise<int> {
+      co_await yield();
+      throw std::runtime_error("test error");
+      co_return 123;
+    };
+
+    auto promise = waitAll(oneYield(), throws());
+    EXPECT_THROW({ co_await promise; }, std::runtime_error);
 
     co_return;
   };

@@ -103,14 +103,11 @@ Promise<void> serverLoop(MultiPromise<TcpStream> clients) {
     if (!maybeClient) {
       co_return;
     }
-    TcpStream client{nullptr};
-    client = std::move(*maybeClient);
+    TcpStream &client{maybeClient.value()};
 
     std::optional<std::string> chunk = co_await client.read();
     BOOST_ASSERT(chunk);
     co_await client.writeBorrowed(*chunk);
-    co_await client.shutdown();
-    client.close();
   }
 }
 
@@ -122,7 +119,6 @@ Promise<void> sendReceivePing(const Loop &loop, AddressHandle addr) {
   std::optional<std::string> response = co_await stream.read();
 
   EXPECT_EQ(response, "Ping");
-  stream.close();
 }
 
 TEST(TcpTest, repeatedConnectSingleServerCancel1) {
