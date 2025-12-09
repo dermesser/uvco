@@ -57,6 +57,94 @@ to be touched by the `libuv` loop, and therefore live on the heap. Ultimately, t
 using libuv as I/O backend, instead of having written a custom one which is more suited to this
 area of application.
 
+## Installation
+
+Standard cmake build:
+
+```bash
+mkdir build && cd build
+cmake -DCMAKE_BUILD_TYPE=Release ../CMakeLists.txt
+make -j
+sudo make install
+```
+
+This installs the uvco object files to `/usr/local/lib` and headers to `/usr/local/include`, by default.
+
+**Note:** In `Release` mode, LTO is enabled by default. This typically requires that you build any
+application code with the same compiler, as the files contain compiler-specific code. You can
+disable this behavior by setting the `ENABLE_LTO` variable explicitly to `0`. It is enabled by
+default as it comes with a significant performance advantage (around 20%).
+
+The following build variables are commonly used and can be overridden:
+
+* `ENABLE_ASAN` - enable address and undefined-behavior sanitizers (default `1` in `Debug`, else
+  `0`)
+* `ENABLE_COVERAGE` - emit coverage information (default `1` in `Debug`, else `0`)
+* `ENABLE_LTO` - enable link-time optimization with g++ or clang (default `0` in `Debug`, default
+  `1` in `Release`, `RelWithDebInfo`)
+
+## Building on top of uvco
+
+You can then use `uvco` in your own projects by linking against `uvco`. CMake packages are exported,
+so you can use it in your cmake project as follows:
+
+```c++
+// main.cc
+#include <uvco/run.h>
+#include <uvco/stream.h>
+
+using namespace uvco;
+
+int main(int, char **) {
+  runMain<void>([](const Loop &loop) -> Promise<void> {
+      auto stdout = TtyStream::stdout(loop);
+      co_await stdout.write("Hello World\n");
+      });
+  return 0;
+}
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20)
+project(your_project)
+
+find_package(Uvco)
+
+set(CMAKE_CXX_STANDARD 23)
+
+add_executable(your_project main.cc)
+target_link_libraries(your_project Uvco::uv-co-lib)
+```
+
+To build the project using the object files installed system-wide (by `make install` in the uvco
+project), run:
+
+```shell
+mkdir build && cd build
+cmake -DCMAKE_BUILD_TYPE=Release ..
+make
+```
+
+Please let me know if this doesn't work for you (although I don't promise any help, I'm tired enough
+of cmake already). Please note that - as usual - the order of libraries matters a great deal! Link
+first against `libuv-co-lib`, then `libuv-co-promise`, then `libuv-co-base` so that all symbols can
+be resolved. The library can be installed system-wide using `make install`, so that multiple
+projects can benefit from it. However, no dynamic libraries are produced and no effort is made to
+preserve backwards compatibility; uvco is intended to be linked statically into your application.
+
+## Documentation
+
+*[Online documentation](https://borgac.net/~lbo/doc/uvco/)*
+
+Documentation can be built using `doxygen`:
+
+```shell
+doxygen
+```
+
+and is delivered to the `doxygen/` directory.
+
 ## Examples
 
 To run a coroutine, you need to set up an event loop. This is done by calling `uvco::runMain` with a
@@ -77,7 +165,7 @@ cases.
 
 ### Basic event loop set-up
 
-This and the following examples can be compiled using
+Once uvco has been installed, this and the following examples can be compiled using
 
 ```shell
 $CXX -std=c++23 <file> -lfmt -luv -luv-co-lib -luv-co-base -luv-co-promise
@@ -358,8 +446,11 @@ execution; this changes how coroutine arguments are accessed.
 
 ### Loop Lifetime
 
-The `Loop` is singular, and outlives all coroutines running on it; therefore it's passed as `const
-Loop&` to any coroutine needing to initiate I/O.
+The `Loop` is a singleton on any given thread, and outlives all coroutines running on it; therefore
+it's passed as `const Loop&` to any coroutine needing to interact with the basic libuv event loop.
+
+Note: this is not strictly enforced, and there are some internal functions which make the loop
+available globally, so this convention may be relaxed later.
 
 ### Unfulfilled promises
 
@@ -396,80 +487,6 @@ exceptions within your asynchronous code.
 * gtest for unit testing (enabled by default).
 * Google benchmark for building benchmarks.
 
-## Building
-
-Standard cmake build:
-
-```bash
-mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release ../CMakeLists.txt
-make -j
-sudo make install
-```
-
-This installs the uvco object files to `/usr/local/lib` and headers to `/usr/local/include`, by default.
-
-**Note:** In `Release` mode, LTO is enabled by default. This typically requires that you build any
-application code with the same compiler, as the files contain compiler-specific code. You can
-disable this behavior by setting the `ENABLE_LTO` variable explicitly to `0`. It is enabled by
-default as it comes with a significant performance advantage (around 20%).
-
-The following build variables are commonly used and can be overridden:
-
-* `ENABLE_ASAN` - enable address and undefined-behavior sanitizers (default `1` in `Debug`, else
-  `0`)
-* `ENABLE_COVERAGE` - emit coverage information (default `1` in `Debug`, else `0`)
-* `ENABLE_LTO` - enable link-time optimization with g++ or clang (default `0` in `Debug`, default
-  `1` in `Release`, `RelWithDebInfo`)
-
-## Building on top of uvco
-
-You can then use `uvco` in your own projects by linking against `uvco`. CMake packages are exported,
-so you can use it in your cmake project as follows:
-
-```c++
-// main.cc
-#include <uvco/run.h>
-#include <uvco/stream.h>
-
-using namespace uvco;
-
-int main(int, char **) {
-  runMain<void>([](const Loop &loop) -> Promise<void> {
-      auto stdout = TtyStream::stdout(loop);
-      co_await stdout.write("Hello World\n");
-      });
-  return 0;
-}
-```
-
-```cmake
-# CMakeLists.txt
-cmake_minimum_required(VERSION 3.20)
-project(your_project)
-
-find_package(Uvco)
-
-set(CMAKE_CXX_STANDARD 23)
-
-add_executable(your_project main.cc)
-target_link_libraries(your_project Uvco::uv-co-lib)
-```
-
-To build the project using the object files installed system-wide (by `make install` in the uvco
-project), run:
-
-```shell
-mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make
-```
-
-Please let me know if this doesn't work for you (although I don't promise any help, I'm tired enough
-of cmake already). Please note that - as usual - the order of libraries matters a great deal! Link
-first against `libuv-co-lib`, then `libuv-co-promise`, then `libuv-co-base` so that all symbols can
-be resolved.
-
 ## Testing
 
 The code is tested by unit tests in `test/`; the coverage is currently > 90%. Unit tests are
@@ -495,18 +512,6 @@ in order to use the [`grcov`](https://github.com/mozilla/grcov) tool. The covera
 
 For coverage, I recommend using `clang++` (`-DCMAKE_CXX_COMPILER=clang++`) because `g++` does not
 take into account lines within coroutines - which is kind of pointless in a coroutine library.
-
-## Documentation
-
-*[Online documentation](https://borgac.net/~lbo/doc/uvco/)*
-
-Documentation can be built using `doxygen`:
-
-```shell
-doxygen
-```
-
-and is delivered to the `doxygen/` directory.
 
 ## Internals
 
