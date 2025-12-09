@@ -68,7 +68,9 @@ make -j
 sudo make install
 ```
 
-This installs the uvco object files to `/usr/local/lib` and headers to `/usr/local/include`, by default.
+This installs the uvco object files to `/usr/local/lib` and headers to `/usr/local/include`, by
+default. No dynamic libraries are produced and no effort is made to preserve ABI compatibility; uvco
+is intended to be linked statically into your application.
 
 **Note:** In `Release` mode, LTO is enabled by default. This typically requires that you build any
 application code with the same compiler, as the files contain compiler-specific code. You can
@@ -129,9 +131,7 @@ make
 Please let me know if this doesn't work for you (although I don't promise any help, I'm tired enough
 of cmake already). Please note that - as usual - the order of libraries matters a great deal! Link
 first against `libuv-co-lib`, then `libuv-co-promise`, then `libuv-co-base` so that all symbols can
-be resolved. The library can be installed system-wide using `make install`, so that multiple
-projects can benefit from it. However, no dynamic libraries are produced and no effort is made to
-preserve backwards compatibility; uvco is intended to be linked statically into your application.
+be resolved.
 
 ## Documentation
 
