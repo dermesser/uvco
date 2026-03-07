@@ -1,0 +1,11 @@
+prefix="@CMAKE_INSTALL_PREFIX@"
+exec_prefix="${prefix}"
+libdir="${exec_prefix}/lib"
+includedir="${prefix}/include"
+
+Name: @PROJECT_NAME@
+Description: @CMAKE_PROJECT_DESCRIPTION@
+Version: @PROJECT_VERSION@
+Requires: fmt >= 9.0, libuv >= 1.0@GENPKGCONFIG_EXTRA_REQUIRES@
+Cflags: -I${includedir}
+Libs: -L${libdir}@GENPKGCONFIG_EXTRA_LIBS@ -luv-co-lib -luv-co-base -luv-co-promise

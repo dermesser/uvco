@@ -213,6 +213,8 @@ if(CURL_FOUND)
     target_include_directories(uv-co-curl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     install(TARGETS uv-co-curl)
     install(TARGETS uv-co-curl FILE_SET HEADERS DESTINATION include/uvco)
+    set(GENPKGCONFIG_EXTRA_REQUIRES "${GENPKGCONFIG_EXTRA_REQUIRES}, libcurl")
+    set(GENPKGCONFIG_EXTRA_LIBS "${GENPKGCONFIG_EXTRA_LIBS} -luv-co-curl")
 endif()
 
 if(libpqxx_FOUND)
@@ -230,6 +232,8 @@ if(libpqxx_FOUND)
     target_include_directories(uv-co-pqxx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     install(TARGETS uv-co-pqxx)
     install(TARGETS uv-co-pqxx FILE_SET HEADERS DESTINATION include/uvco)
+    set(GENPKGCONFIG_EXTRA_REQUIRES "${GENPKGCONFIG_EXTRA_REQUIRES}, libpqxx")
+    set(GENPKGCONFIG_EXTRA_LIBS "${GENPKGCONFIG_EXTRA_LIBS} -luv-co-pqxx")
 endif()
 
 # Unit tests
@@ -339,6 +343,16 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 else()
     set(GCOV_BINARY "gcov")
 endif()
+
+# Pkg-config
+
+configure_file(uvco.pc.in
+  uvco.pc @ONLY)
+
+install(
+ FILES ${CMAKE_CURRENT_BINARY_DIR}/uvco.pc
+ DESTINATION lib/pkgconfig
+)
 
 add_custom_target(coverage
     COMMAND mkdir -p coverage
