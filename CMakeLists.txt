@@ -127,6 +127,7 @@ target_sources(uv-co-promise INTERFACE
     uvco/promise/multipromise.h
     uvco/promise/promise.h
     uvco/promise/promise_core.h
+    uvco/promise/select.h
 )
 target_link_libraries(uv-co-promise PRIVATE uv-co-base)
 target_include_directories(uv-co-promise PRIVATE .)
@@ -156,6 +157,7 @@ target_sources(uv-co-lib INTERFACE
     TYPE HEADERS
     FILES
     uvco/async_work.h
+    uvco/bounded_queue.h
     uvco/channel.h
     uvco/close.h
     uvco/combinators.h
