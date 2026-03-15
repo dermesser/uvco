@@ -106,7 +106,13 @@ private:
     errorCallback_ = std::move(ecb);
   }
 
-  Promise<void> wrap(Id taskId, Promise<void> task) {
+  Promise<void> wrap(Id taskId, Promise<void> task_) {
+    // Move task to a temporary variable so that it cleaned up immediately,
+    // rather than after another task is added to TaskSet.
+    // Normally, coroutine arguments are cleaned up only after Promise is
+    // destroyed.
+    Promise<void> task = std::move(task_);
+
     // Wait for task to finish; do regular housekeeping; then mark current task
     // as ready for cleanup.
     try {
