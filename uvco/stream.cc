@@ -61,10 +61,8 @@ struct StreamBase::InStreamAwaiter_ {
 };
 
 struct StreamBase::OutStreamAwaiter_ {
-  OutStreamAwaiter_(StreamBase &stream, std::span<const char> buffer);
+  OutStreamAwaiter_(StreamBase &stream);
   ~OutStreamAwaiter_();
-
-  [[nodiscard]] std::array<uv_buf_t, 1> prepare_buffers() const;
 
   bool await_ready();
   bool await_suspend(std::coroutine_handle<> handle);
@@ -76,7 +74,6 @@ struct StreamBase::OutStreamAwaiter_ {
   std::optional<uv_status> status_;
 
   // State necessary for both immediate and delayed writing.
-  std::span<const char> buffer_;
   uv_write_t write_{};
   StreamBase &stream_;
 };
@@ -111,34 +108,62 @@ Promise<size_t> StreamBase::read(std::span<char> buffer) {
   co_return (co_await awaiter);
 }
 
-Promise<size_t> StreamBase::write(std::string buf) {
+Promise<void> StreamBase::write(std::string buf) {
   co_return (co_await writeBorrowed(std::span{buf}));
 }
 
-Promise<size_t> StreamBase::writeBorrowed(std::span<const char> buffer) {
-  OutStreamAwaiter_ awaiter{*this, buffer};
-  std::array<uv_buf_t, 1> bufs{};
-  bufs[0] = uv_buf_init(const_cast<char *>(buffer.data()), buffer.size());
+Promise<void> StreamBase::writeBorrowed(std::span<const char> buffer) {
+  std::array<IoVec, 1> bufs{IoVec(buffer)};
+  co_return (co_await writeVectored(bufs));
+}
 
-  uv_status status = uv_try_write(&stream(), bufs.data(), bufs.size());
-  if (status > 0) {
-    // Already done, nothing had to be queued.
-    co_return static_cast<size_t>(status);
+Promise<void> StreamBase::writeVectored(std::span<IoVec> bufs) {
+  OutStreamAwaiter_ awaiter{*this};
+
+  uv_status status = uv_try_write(&stream(), (uv_buf_t*)bufs.data(), bufs.size());
+
+  if (status < 0 && status != UV_EAGAIN) {
+    throw UvcoException{
+        status, "StreamBase::writeVectored() encountered error in uv_try_write"};
   }
 
-  status = uv_write(&awaiter.write_, &stream(), bufs.data(), bufs.size(),
+  struct Restorer {
+    IoVec *target = nullptr;
+    IoVec value;
+    ~Restorer() { if (target) *target = value; }
+  } restorer;
+
+  if (status > 0) {
+    while (bufs.size() > 0) {
+      if (bufs[0].size() <= (size_t)status) {
+        status -= bufs[0].size();
+        bufs = bufs.subspan(1);
+        continue;
+      }
+
+      restorer.target = &bufs[0];
+      restorer.value = bufs[0];
+      bufs[0] = IoVec{bufs[0].data()+status, bufs[0].size()-status};
+      break;
+    }
+
+    if (bufs.size() == 0)
+      co_return;
+  }
+
+  status = uv_write(&awaiter.write_, &stream(), (uv_buf_t*)bufs.data(), bufs.size(),
                     OutStreamAwaiter_::onOutStreamWrite);
   if (status < 0) {
     throw UvcoException{
-        status, "StreamBase::writeBorrowed() encountered error in uv_write"};
+        status, "StreamBase::writeVectored() encountered error in uv_write"};
   }
   status = co_await awaiter;
   if (status < 0) {
     throw UvcoException{
         status,
-        "StreamBase::writeBorrowed() encountered error while awaiting write"};
+        "StreamBase::writeVectored() encountered error while awaiting write"};
   }
-  co_return static_cast<size_t>(status);
+  co_return;
 }
 
 Promise<void> StreamBase::shutdown() {
@@ -262,18 +287,11 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
   setData(stream, (void *)nullptr);
 }
 
-StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream,
-                                                 std::span<const char> buffer)
-    : buffer_{buffer}, write_{}, stream_{stream} {}
+StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream)
+    : write_{}, stream_{stream} {}
 
 StreamBase::OutStreamAwaiter_::~OutStreamAwaiter_() {
   stream_.writer_ = nullptr;
-}
-
-std::array<uv_buf_t, 1> StreamBase::OutStreamAwaiter_::prepare_buffers() const {
-  std::array<uv_buf_t, 1> bufs{};
-  bufs[0] = uv_buf_init(const_cast<char *>(buffer_.data()), buffer_.size());
-  return bufs;
 }
 
 bool StreamBase::OutStreamAwaiter_::await_ready() {
