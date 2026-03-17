@@ -96,13 +96,9 @@ public:
   Promise<size_t> read(std::span<char> buffer);
 
   /// Write a buffer to the stream. A copy of `buf` is taken because it is
-  /// undetermined when the actual write will occur. Await the result if the
-  /// status is important; the write will be executed even without awaiting (as
-  /// long as the process keeps running).
-  ///
-  /// NOTE: only one writer is allowed to be active at a time. If two writes
-  /// are started simultaneously, the process will be aborted in Debug mode, or
-  /// the first `write()` coroutine will not return in Release mode.
+  /// undetermined when the actual write will occur. Cancelling the operation
+  /// by destroying the returned promise before it resolves results in
+  /// undefined behavior.
   [[nodiscard]] Promise<void> write(std::string buf);
 
   /// The same as `write(std::string)`, but takes a borrowed buffer. `buf` MUST
