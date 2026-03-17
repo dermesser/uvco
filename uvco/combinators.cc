@@ -87,13 +87,32 @@ public:
   ~TaskSetImpl() override = default;
 
 private:
+  struct InitialSuspendAwaiter {
+    std::coroutine_handle<> *coro;
+
+    bool await_ready() { return false; }
+    bool await_suspend(std::coroutine_handle<> scoro) {
+      *coro = scoro;
+      return true;
+    }
+    void await_resume() {}
+  };
+
   Id add(Promise<void> task) override {
-    const Id taskId = counter_++;
-    tasks_.insert({taskId, wrap(taskId, std::move(task))});
+    Id taskId;
+    // Make sure the task id isn't taken, just in case.
+    do {
+      taskId = counter_++;
+    } while(tasks_.find(taskId) != tasks_.end());
+
+    std::coroutine_handle<> coro;
+    tasks_.insert({taskId, wrap(taskId, std::move(task), InitialSuspendAwaiter(&coro))});
+    // Resume the task, since it's starts up suspended.
+    coro();
     return taskId;
   }
 
-  bool empty() override { return 0 == tasks_.size() - doneTasks_.size(); }
+  bool empty() override { return 0 == tasks_.size(); }
 
   Promise<void> onEmpty() override {
     if (empty()) {
@@ -106,15 +125,13 @@ private:
     errorCallback_ = std::move(ecb);
   }
 
-  Promise<void> wrap(Id taskId, Promise<void> task_) {
-    // Move task to a temporary variable so that it cleaned up immediately,
-    // rather than after another task is added to TaskSet.
-    // Normally, coroutine arguments are cleaned up only after Promise is
-    // destroyed.
-    Promise<void> task = std::move(task_);
+  Promise<void> wrap(Id taskId, Promise<void> task, InitialSuspendAwaiter initial_suspend) {
+    // Suspend initially to ensure that task is inserted in add() before this
+    // function touches tasks_
+    co_await initial_suspend;
 
-    // Wait for task to finish; do regular housekeeping; then mark current task
-    // as ready for cleanup.
+    // Wait for task to finish; do regular housekeeping; then clean up the
+    // current task.
     try {
       co_await task;
     } catch (const std::exception &e) {
@@ -140,27 +157,29 @@ private:
     // Already trigger onEmpty if no more tasks are left. Otherwise this leads
     // to a deadlock-like problem, as no more tasks will run to trigger the
     // cleanup, and thus notify onEmpty.
-    if (tasks_.size() - doneTasks_.size() - 1 == 0) {
+    if (tasks_.size() - 1 == 0) {
       onEmpty_.releaseAll();
     }
 
-    // Drop finished tasks.
-    while (!doneTasks_.empty()) {
-      tasks_.erase(doneTasks_.front());
-      doneTasks_.pop_front();
-    }
+    // Using an awaiter allows the coroutine to delete itself cleanly and safely.
+    struct DestroyAwaiter {
+      decltype(tasks_) *p_tasks;
+      Id taskId;
+      DestroyAwaiter(decltype(p_tasks) tasks_, Id taskId) : p_tasks(tasks_), taskId(taskId) {}
+      bool await_ready() { return false; }
+      bool await_suspend(std::coroutine_handle<>) {
+        p_tasks->erase(taskId);
+        return true;
+      }
+      void await_resume() {}
+    } destroyAwaiter(&tasks_, taskId);
 
-    // We cannot erase the task directly here, as the task in tasks_ refers to
-    // this very coroutine. Therefore, mark it for cleanup and deal with it
-    // later.
-    doneTasks_.push_back(taskId);
+    co_await destroyAwaiter;
   }
 
   Id counter_ = 0;
   std::unordered_map<Id, Promise<void>> tasks_{};
   ErrorCallback errorCallback_;
-  // List of finished tasks for delayed clean-up.
-  std::deque<Id> doneTasks_{};
   WaitPoint onEmpty_{};
 };
 
