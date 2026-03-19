@@ -176,7 +176,8 @@ struct AddrinfoAwaiter_ {
   ~AddrinfoAwaiter_();
 
   bool await_ready();
-  bool await_suspend(std::coroutine_handle<> handle);
+  template<class T>
+  bool await_suspend(std::coroutine_handle<T> handle);
 
   struct addrinfo *await_resume();
 
@@ -184,7 +185,7 @@ struct AddrinfoAwaiter_ {
   std::unique_ptr<uv_getaddrinfo_t> req_;
   std::optional<struct addrinfo *> addrinfo_;
   std::optional<int> status_;
-  std::coroutine_handle<> handle_;
+  CoroutineHandle handle_;
 };
 
 AddrinfoAwaiter_::AddrinfoAwaiter_()
@@ -210,7 +211,8 @@ struct addrinfo *AddrinfoAwaiter_::await_resume() {
   return *addrinfo_;
 }
 
-bool AddrinfoAwaiter_::await_suspend(std::coroutine_handle<> handle) {
+template<class T>
+bool AddrinfoAwaiter_::await_suspend(std::coroutine_handle<T> handle) {
   handle_ = handle;
   setRequestData(req_.get(), this);
   return true;
@@ -260,7 +262,7 @@ void Resolver::onAddrinfo(uv_getaddrinfo_t *req, uv_status status,
   }
   awaiter->addrinfo_ = result;
   awaiter->status_ = status;
-  BOOST_ASSERT(awaiter->handle_ != nullptr);
+  BOOST_ASSERT(awaiter->handle_);
   Loop::enqueue(awaiter->handle_);
 }
 

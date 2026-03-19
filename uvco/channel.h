@@ -116,12 +116,12 @@ private:
   BoundedQueue<T> queue_;
   // TODO: a multi-reader/writer queue is easily achieved by converting the
   // optionals into queues. This may be interesting in future.
-  BoundedQueue<std::coroutine_handle<>> read_waiting_;
-  BoundedQueue<std::coroutine_handle<>> write_waiting_;
+  BoundedQueue<CoroutineHandle> read_waiting_;
+  BoundedQueue<CoroutineHandle> write_waiting_;
 
   void awake_reader() {
     while (!read_waiting_.empty()) {
-      std::coroutine_handle<void> handle = read_waiting_.get();
+      auto handle = read_waiting_.get();
       // Skip cancelled coroutines.
       if (handle != nullptr) {
         Loop::enqueue(handle);
@@ -132,7 +132,7 @@ private:
 
   void awake_writer() {
     while (!write_waiting_.empty()) {
-      std::coroutine_handle<void> handle = write_waiting_.get();
+      auto handle = write_waiting_.get();
       if (handle != nullptr) {
         Loop::enqueue(handle);
         break;
@@ -142,11 +142,11 @@ private:
 
   struct ChannelAwaiter_ {
     explicit ChannelAwaiter_(BoundedQueue<T> &queue,
-                             BoundedQueue<std::coroutine_handle<>> &slot)
+                             BoundedQueue<CoroutineHandle> &slot)
         : queue_{queue}, waiters_{slot} {}
     ~ChannelAwaiter_() {
       // Remove us from waiters.
-      waiters_.forEach([this](std::coroutine_handle<> &h) {
+      waiters_.forEach([this](CoroutineHandle &h) {
         // Remove pending coroutine from waiter queue.
         if (h == thisCoro_) {
           h = nullptr;
@@ -156,7 +156,8 @@ private:
 
     bool await_ready() { return false; }
 
-    bool await_suspend(std::coroutine_handle<> handle) {
+    template<class PT>
+    bool await_suspend(std::coroutine_handle<PT> handle) {
       if (!waiters_.hasSpace()) {
         throw UvcoException(
             UV_EBUSY,
@@ -171,7 +172,7 @@ private:
 
     // References Channel<T>::queue_
     BoundedQueue<T> &queue_;
-    BoundedQueue<std::coroutine_handle<>> &waiters_;
+    BoundedQueue<CoroutineHandle> &waiters_;
     std::coroutine_handle<> thisCoro_;
   };
 };

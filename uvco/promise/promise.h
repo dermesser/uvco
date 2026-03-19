@@ -4,6 +4,7 @@
 
 #include "uvco/exception.h"
 #include "uvco/promise/promise_core.h"
+#include "uvco/promise/promise_refcount.h"
 
 #include <boost/assert.hpp>
 #include <fmt/format.h>
@@ -65,7 +66,6 @@ public:
   Promise(Promise<T> &&other) noexcept : core_{other.core_} {
     other.core_ = nullptr;
   }
-  /// A promise can be copied at low cost.
   Promise &operator=(const Promise<T> &other) = delete;
   Promise &operator=(Promise<T> &&other) noexcept {
     if (this == &other) {
@@ -78,7 +78,6 @@ public:
     other.core_ = nullptr;
     return *this;
   }
-  // A promise can be copied at low cost.
   Promise(const Promise<T> &other) = delete;
   ~Promise() {
     if (core_ != nullptr) {
@@ -137,8 +136,9 @@ protected:
 
     /// Part of the coroutine protocol: returns if suspension is desired (always
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
+    template<class PT>
     [[nodiscard]] std::coroutine_handle<>
-    await_suspend(std::coroutine_handle<> handle) const {
+    await_suspend(std::coroutine_handle<PT> handle) const {
       BOOST_ASSERT_MSG(!core_.isAwaited(),
                        "promise is already being waited on!");
       core_.setHandle(handle);
@@ -236,8 +236,15 @@ private:
     [[nodiscard]] bool await_ready() const;
     /// Part of the coroutine protocol: returns if suspension is desired (always
     /// true), and stores the awaiting coroutine state in the `PromiseCore`.
+    template<class PT>
     [[nodiscard]] std::coroutine_handle<>
-    await_suspend(std::coroutine_handle<> handle) const;
+    await_suspend(
+        std::coroutine_handle<PT> handle) const {
+      BOOST_ASSERT(!core_.ready_ && !core_.exception_);
+      BOOST_ASSERT_MSG(!core_.isAwaited(), "promise is already being waited on!\n");
+      core_.setHandle(handle);
+      return Loop::getNext();
+    }
     void await_resume() const;
 
     PromiseCore<void> &core_;
@@ -334,7 +341,9 @@ public:
   // Note: if suspend_always is chosen, we can better control when the promise
   // will be scheduled.
   std::suspend_never initial_suspend() noexcept {
-    core_.setRunning(std::coroutine_handle<Coroutine<T>>::from_promise(*this));
+    auto handle = std::coroutine_handle<Coroutine<T>>::from_promise(*this);
+    core_.setRunning(handle);
+    RunningCoroutine::set(handle);
     return {};
   }
   /// Part of the coroutine protocol: called upon `co_return` or unhandled
@@ -350,6 +359,7 @@ public:
 
 protected:
   PromiseCore<T> core_;
+  friend class CoroutineHandle;
 };
 
 template <> class Coroutine<void> {
@@ -377,8 +387,9 @@ public:
   /// Part of the coroutine protocol: `uvco` coroutines always run until the
   /// first suspension point.
   std::suspend_never initial_suspend() noexcept {
-    core_.setRunning(
-        std::coroutine_handle<Coroutine<void>>::from_promise(*this));
+    auto handle = std::coroutine_handle<Coroutine<void>>::from_promise(*this);
+    core_.setRunning(handle);
+    RunningCoroutine::set(handle);
     return {};
   }
   /// Part of the coroutine protocol: the coroutine stays alive until the
@@ -397,6 +408,7 @@ public:
 
 private:
   PromiseCore_ core_;
+  friend class CoroutineHandle;
 };
 
 /// @}

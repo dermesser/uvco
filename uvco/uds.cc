@@ -51,12 +51,13 @@ struct UnixStreamClient::ConnectAwaiter_ {
   static void onConnect(uv_connect_t *req, uv_status status);
 
   [[nodiscard]] static bool await_ready();
-  bool await_suspend(std::coroutine_handle<> handle);
+  template<class T>
+  bool await_suspend(std::coroutine_handle<T> handle);
   UnixStream await_resume();
 
   std::unique_ptr<uv_connect_t> request_{};
   std::unique_ptr<uv_pipe_t> pipe_;
-  std::coroutine_handle<> handle_;
+  CoroutineHandle handle_;
   uv_status status_{};
 };
 
@@ -127,8 +128,9 @@ void UnixStreamClient::ConnectAwaiter_::onConnect(uv_connect_t *req,
 
 bool UnixStreamClient::ConnectAwaiter_::await_ready() { return false; }
 
+template<class T>
 bool UnixStreamClient::ConnectAwaiter_::await_suspend(
-    std::coroutine_handle<> handle) {
+    std::coroutine_handle<T> handle) {
   BOOST_ASSERT(handle_ == nullptr);
   handle_ = handle;
   setRequestData(request_.get(), this);

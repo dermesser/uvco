@@ -3,10 +3,9 @@
 #include <cstdint>
 #include <fmt/core.h>
 #include <uv.h>
+#include <coroutine>
 
 #include "uvco/loop/scheduler.h"
-
-#include <coroutine>
 
 namespace uvco {
 
@@ -20,10 +19,10 @@ static constexpr bool useSymmetricHandoff = true;
 
 void Scheduler::runAll() {
   while (!resumable_.empty()) {
-    const std::coroutine_handle<> next = getNextInner();
-    BOOST_ASSERT(next != nullptr && !next.done());
+    const auto next = getNextInner();
+    BOOST_ASSERT(next != nullptr && !((std::coroutine_handle<>)next).done());
     if constexpr (logSchedulerOperations) {
-      fmt::print("Resuming coroutine {:x}\n", (uintptr_t)next.address());
+      fmt::print("Resuming coroutine {:x}\n", (uintptr_t)((std::coroutine_handle<>)next).address());
     }
     next.resume();
   }
@@ -31,9 +30,9 @@ void Scheduler::runAll() {
 
 void Scheduler::close() { BOOST_ASSERT(resumable_.empty()); }
 
-void Scheduler::enqueue(std::coroutine_handle<> handle) {
+void Scheduler::enqueue(CoroutineHandle handle) {
   if constexpr (logSchedulerOperations) {
-    fmt::print("Enqueuing coroutine {:x}\n", (uintptr_t)handle.address());
+    fmt::print("Enqueuing coroutine {:x}\n", (uintptr_t)((std::coroutine_handle<>)handle).address());
   }
   resumable_.push_back(handle);
 }
@@ -49,30 +48,32 @@ void Scheduler::cancel(std::coroutine_handle<> handle) {
 
   for (auto &it : resumable_) {
     if (it == handle) {
-      it = nullptr;
+      it = {};
     }
   }
 }
 
 std::coroutine_handle<> Scheduler::getNext() {
   if constexpr (useSymmetricHandoff) {
-    return getNextInner();
+    auto v = getNextInner();
+    RunningCoroutine::set(v);
+    return v;
   } else {
     return std::noop_coroutine();
   }
 }
 
-std::coroutine_handle<> Scheduler::getNextInner() {
-  std::coroutine_handle<> next{nullptr};
-  while (!resumable_.empty() && (next == nullptr || next.done())) {
+CoroutineHandle Scheduler::getNextInner() {
+  CoroutineHandle next;
+  while (!resumable_.empty() && ((next == nullptr || ((std::coroutine_handle<>)next).done()))) {
     next = resumable_.front();
     resumable_.pop_front();
   }
-  if (next == nullptr || next.done()) {
-    return std::noop_coroutine();
+  if (next == nullptr || ((std::coroutine_handle<>)next).done()) {
+    return {};
   }
   if constexpr (logSchedulerOperations) {
-    fmt::print("Dequeuing coroutine {:x}, {} left\n", (uintptr_t)next.address(),
+    fmt::print("Dequeuing coroutine {:x}, {} left\n", (uintptr_t)((std::coroutine_handle<>)next).address(),
                resumable_.size());
   }
   return next;

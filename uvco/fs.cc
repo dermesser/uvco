@@ -73,7 +73,8 @@ public:
     return result_.has_value();
   }
 
-  bool await_suspend(std::coroutine_handle<> handle) {
+  template<class T>
+  bool await_suspend(std::coroutine_handle<T> handle) {
     BOOST_ASSERT(!result_);
     BOOST_ASSERT_MSG(!handle_, "FileOpAwaiter_ can only be awaited once");
     BOOST_ASSERT(requestDataIsNull(req_.get()));
@@ -99,13 +100,13 @@ public:
 
 private:
   std::unique_ptr<uv_fs_t> req_;
-  std::coroutine_handle<> handle_;
+  CoroutineHandle handle_;
   std::optional<ssize_t> result_ = std::nullopt;
 
   void schedule() {
     if (handle_) {
       Loop::enqueue(handle_);
-      handle_ = nullptr;
+      handle_ = {};
     }
   }
 };
@@ -323,7 +324,8 @@ struct FsWatch::FsWatchAwaiter_ {
   FsWatchAwaiter_();
 
   [[nodiscard]] bool await_ready() const;
-  void await_suspend(std::coroutine_handle<> handle);
+  template<class T>
+  void await_suspend(std::coroutine_handle<T> handle);
   bool await_resume();
 
   void schedule();
@@ -331,7 +333,7 @@ struct FsWatch::FsWatchAwaiter_ {
   void addError(uv_status status);
   void addEvent(FileEvent event);
 
-  std::optional<std::coroutine_handle<>> handle_;
+  std::optional<CoroutineHandle> handle_;
   BoundedQueue<FileEvent> events_;
   bool stopped_{};
 };
@@ -342,7 +344,8 @@ bool FsWatch::FsWatchAwaiter_::await_ready() const {
   return stopped_ || !events_.empty();
 }
 
-void FsWatch::FsWatchAwaiter_::await_suspend(std::coroutine_handle<> handle) {
+template<class T>
+void FsWatch::FsWatchAwaiter_::await_suspend(std::coroutine_handle<T> handle) {
   BOOST_ASSERT(!handle_);
   handle_ = handle;
 }
@@ -355,8 +358,8 @@ bool FsWatch::FsWatchAwaiter_::await_resume() {
 
 void FsWatch::FsWatchAwaiter_::schedule() {
   if (handle_) {
-    std::coroutine_handle<> handle = handle_.value();
-    handle_.reset();
+    auto handle = std::move(handle_.value());
+    handle_ = {};
     Loop::enqueue(handle);
   }
 }

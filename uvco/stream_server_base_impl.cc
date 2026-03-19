@@ -37,7 +37,12 @@ struct StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_ {
   ~ConnectionAwaiter_() { resetData(&socket_); }
 
   [[nodiscard]] bool await_ready() const;
-  bool await_suspend(std::coroutine_handle<> handle);
+  template<typename PromiseType>
+  bool await_suspend(std::coroutine_handle<PromiseType> handle) {
+    BOOST_ASSERT(!handle_);
+    handle_ = handle;
+    return true;
+  }
   // Returns true if one or more connections were accepted.
   // Returns false if the listener should stop.
   [[nodiscard]] bool await_resume() const { return !stopped_; }
@@ -46,7 +51,7 @@ struct StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_ {
   void stop();
 
   UvStreamType &socket_;
-  std::coroutine_handle<> handle_;
+  CoroutineHandle handle_;
 
   // Set of accepted connections or errors.
   using Accepted = std::variant<uv_status, StreamType>;
@@ -61,21 +66,13 @@ void StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_::stop() {
     return;
   }
   stopped_ = true;
-  if (handle_ != nullptr) {
+  if (handle_) {
     // Synchronous resume to ensure that the listener is stopped by the time
     // the function returns.
-    const std::coroutine_handle<> handle = handle_;
-    handle_ = nullptr;
+    const auto handle = handle_;
+    handle_ = {};
     handle.resume();
   }
-}
-
-template <typename UvStreamType, typename StreamType>
-bool StreamServerBase<UvStreamType, StreamType>::ConnectionAwaiter_::
-    await_suspend(std::coroutine_handle<> handle) {
-  BOOST_ASSERT(handle_ == nullptr);
-  handle_ = handle;
-  return true;
 }
 
 template <typename UvStreamType, typename StreamType>
@@ -109,9 +106,9 @@ void StreamServerBase<UvStreamType, StreamType>::onNewConnection(
     connectionAwaiter->accepted_.emplace_back(status);
   }
 
-  if (connectionAwaiter->handle_ != nullptr) {
+  if (connectionAwaiter->handle_) {
     Loop::enqueue(connectionAwaiter->handle_);
-    connectionAwaiter->handle_ = nullptr;
+    connectionAwaiter->handle_ = {};
   }
 }
 

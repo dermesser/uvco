@@ -127,6 +127,7 @@ target_sources(uv-co-promise INTERFACE
     uvco/promise/multipromise.h
     uvco/promise/promise.h
     uvco/promise/promise_core.h
+    uvco/promise/promise_refcount.h
     uvco/promise/select.h
 )
 target_link_libraries(uv-co-promise PRIVATE uv-co-base)
@@ -158,6 +159,7 @@ target_sources(uv-co-lib INTERFACE
     FILES
     uvco/async_work.h
     uvco/bounded_queue.h
+    uvco/cancellation_block.h
     uvco/channel.h
     uvco/close.h
     uvco/combinators.h

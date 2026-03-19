@@ -63,7 +63,8 @@ public:
     return status_.has_value();
   }
 
-  bool await_suspend(std::coroutine_handle<> handle) {
+  template<class T>
+  bool await_suspend(std::coroutine_handle<T> handle) {
     BOOST_ASSERT(!status_);
     BOOST_ASSERT(!handle_);
     BOOST_ASSERT_MSG(!handle_, "AsyncWorkAwaiter_ can only be awaited once");
@@ -83,7 +84,7 @@ private:
   std::unique_ptr<uv_work_t> work_;
   std::function<void()> function_;
   std::optional<uv_status> status_;
-  std::coroutine_handle<> handle_;
+  CoroutineHandle handle_;
 
   void invoke() {
     BOOST_ASSERT(function_ != nullptr);
@@ -92,8 +93,8 @@ private:
 
   void schedule() {
     if (handle_) {
-      const std::coroutine_handle<> handle = handle_;
-      handle_ = nullptr;
+      const auto handle = handle_;
+      handle_ = {};
       Loop::enqueue(handle);
     }
   }

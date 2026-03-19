@@ -21,7 +21,8 @@ namespace {
 
 struct YieldAwaiter_ {
   [[nodiscard]] static bool await_ready() noexcept { return false; }
-  bool await_suspend(std::coroutine_handle<> handle) noexcept {
+  template<class T>
+  bool await_suspend(std::coroutine_handle<T> handle) noexcept {
     Loop::enqueue(handle);
     // Ensure that loop runs existing promises.
     return true;
@@ -44,8 +45,9 @@ struct WaitPoint::WaitPointAwaiter_ {
 
   [[nodiscard]] static bool await_ready() { return false; }
 
+  template<class T>
   [[nodiscard]] std::coroutine_handle<>
-  await_suspend(std::coroutine_handle<> handle) const {
+  await_suspend(std::coroutine_handle<T> handle) const {
     waitPoint_.enqueue(handle);
     return Loop::getNext();
   }
@@ -71,7 +73,7 @@ void WaitPoint::releaseAll() {
   }
 }
 
-void WaitPoint::enqueue(std::coroutine_handle<> handle) {
+void WaitPoint::enqueue(CoroutineHandle handle) {
   waiters_.push_back(handle);
 }
 

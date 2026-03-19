@@ -13,6 +13,7 @@
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
 #include "uvco/stream.h"
+#include "uvco/cancellation_block.h"
 
 #include <array>
 #include <coroutine>
@@ -30,10 +31,11 @@ struct StreamBase::ShutdownAwaiter_ {
   static void onShutdown(uv_shutdown_t *req, uv_status status);
 
   bool await_ready();
-  bool await_suspend(std::coroutine_handle<> handle);
+  template<class T>
+  bool await_suspend(std::coroutine_handle<T> handle);
   void await_resume();
 
-  std::coroutine_handle<> handle_;
+  CoroutineHandle handle_;
   std::optional<uv_status> status_;
 };
 
@@ -43,7 +45,8 @@ struct StreamBase::InStreamAwaiter_ {
   ~InStreamAwaiter_();
 
   bool await_ready();
-  bool await_suspend(std::coroutine_handle<> handle);
+  template<class T>
+  bool await_suspend(std::coroutine_handle<T> handle);
   size_t await_resume();
 
   void start_read();
@@ -57,7 +60,7 @@ struct StreamBase::InStreamAwaiter_ {
   StreamBase &stream_;
   std::span<char> buffer_;
   std::optional<ssize_t> status_;
-  std::coroutine_handle<> handle_;
+  CoroutineHandle handle_;
 };
 
 struct StreamBase::OutStreamAwaiter_ {
@@ -65,12 +68,13 @@ struct StreamBase::OutStreamAwaiter_ {
   ~OutStreamAwaiter_();
 
   bool await_ready();
-  bool await_suspend(std::coroutine_handle<> handle);
+  template<class T>
+  bool await_suspend(std::coroutine_handle<T> handle);
   uv_status await_resume();
 
   static void onOutStreamWrite(uv_write_t *write, uv_status status);
 
-  std::coroutine_handle<> handle_;
+  CoroutineHandle handle_;
   std::optional<uv_status> status_;
 
   // State necessary for both immediate and delayed writing.
@@ -157,7 +161,11 @@ Promise<void> StreamBase::writeVectored(std::span<IoVec> bufs) {
     throw UvcoException{
         status, "StreamBase::writeVectored() encountered error in uv_write"};
   }
-  status = co_await awaiter;
+  {
+    CancellationBlock block;
+    status = co_await awaiter;
+    co_await block;
+  }
   if (status < 0) {
     throw UvcoException{
         status,
@@ -178,17 +186,17 @@ Promise<void> StreamBase::shutdown() {
 }
 
 void StreamBase::close() {
-  if (stream_ != nullptr) {
+  if (stream_) {
     closeHandle(stream_.release());
   }
-  if (reader_ != nullptr) {
-    std::coroutine_handle<> reader = reader_;
-    reader_ = nullptr;
+  if (reader_) {
+    auto reader = reader_;
+    reader_ = {};
     reader.resume();
   }
-  if (writer_ != nullptr) {
-    std::coroutine_handle<> writer = writer_;
-    writer_ = nullptr;
+  if (writer_) {
+    auto writer = writer_;
+    writer_ = {};
     writer.resume();
   }
 }
@@ -203,7 +211,7 @@ StreamBase::InStreamAwaiter_::~InStreamAwaiter_() {
   if (stream_.stream_ != nullptr) {
     resetData(&stream_.stream());
   }
-  stream_.reader_ = nullptr;
+  stream_.reader_ = {};
 }
 
 bool StreamBase::InStreamAwaiter_::await_ready() {
@@ -217,8 +225,9 @@ bool StreamBase::InStreamAwaiter_::await_ready() {
   return status_.has_value();
 }
 
+template<class T>
 bool StreamBase::InStreamAwaiter_::await_suspend(
-    std::coroutine_handle<> handle) {
+    std::coroutine_handle<T> handle) {
   BOOST_ASSERT(dataIsNull(&stream_.stream()));
   setData(&stream_.stream(), this);
   handle_ = handle;
@@ -232,7 +241,7 @@ size_t StreamBase::InStreamAwaiter_::await_resume() {
     return 0;
   }
   BOOST_ASSERT(status_);
-  stream_.reader_ = nullptr;
+  stream_.reader_ = {};
   if (status_ && *status_ == UV_EOF) {
     return 0;
   }
@@ -282,7 +291,7 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
 
   if (awaiter->handle_) {
     Loop::enqueue(awaiter->handle_);
-    awaiter->handle_ = nullptr;
+    awaiter->handle_ = {};
   }
   setData(stream, (void *)nullptr);
 }
@@ -291,7 +300,7 @@ StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream)
     : write_{}, stream_{stream} {}
 
 StreamBase::OutStreamAwaiter_::~OutStreamAwaiter_() {
-  stream_.writer_ = nullptr;
+  stream_.writer_ = {};
 }
 
 bool StreamBase::OutStreamAwaiter_::await_ready() {
@@ -299,8 +308,9 @@ bool StreamBase::OutStreamAwaiter_::await_ready() {
   return false;
 }
 
+template<class T>
 bool StreamBase::OutStreamAwaiter_::await_suspend(
-    std::coroutine_handle<> handle) {
+    std::coroutine_handle<T> handle) {
   BOOST_ASSERT(dataIsNull(&write_));
   setData(&write_, this);
   handle_ = handle;
@@ -316,7 +326,7 @@ uv_status StreamBase::OutStreamAwaiter_::await_resume() {
     return UV_ECANCELED;
   }
   BOOST_ASSERT(status_);
-  stream_.writer_ = nullptr;
+  stream_.writer_ = {};
   setData(&write_, (void *)nullptr);
   return *status_;
 }
@@ -328,14 +338,15 @@ void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
   awaiter->status_ = status;
   BOOST_ASSERT(awaiter->handle_);
   Loop::enqueue(awaiter->handle_);
-  awaiter->handle_ = nullptr;
+  awaiter->handle_ = {};
   setData(write, (void *)nullptr);
 }
 
 bool StreamBase::ShutdownAwaiter_::await_ready() { return false; }
 
+template<class T>
 bool StreamBase::ShutdownAwaiter_::await_suspend(
-    std::coroutine_handle<> handle) {
+    std::coroutine_handle<T> handle) {
   BOOST_ASSERT(!handle_);
   handle_ = handle;
   return true;
@@ -354,7 +365,7 @@ void StreamBase::ShutdownAwaiter_::onShutdown(uv_shutdown_t *req,
   awaiter->status_ = status;
   if (awaiter->handle_) {
     Loop::enqueue(awaiter->handle_);
-    awaiter->handle_ = nullptr;
+    awaiter->handle_ = {};
   }
 }
 

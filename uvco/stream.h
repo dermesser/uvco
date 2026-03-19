@@ -142,8 +142,8 @@ private:
   std::unique_ptr<uv_stream_t, UvHandleDeleter> stream_;
 
   // Currently suspended readers/writers to be notified on close().
-  std::coroutine_handle<> reader_;
-  std::coroutine_handle<> writer_;
+  CoroutineHandle reader_;
+  CoroutineHandle writer_;
 };
 
 /// A stream referring to stdin/stdout/stderr. Should be created using one of

@@ -45,12 +45,13 @@ struct Udp::RecvAwaiter_ {
   ~RecvAwaiter_() = default;
 
   [[nodiscard]] bool await_ready() const;
-  bool await_suspend(std::coroutine_handle<> handle);
+  template<class T>
+  bool await_suspend(std::coroutine_handle<T> handle);
   std::optional<std::pair<std::string, AddressHandle>> await_resume();
 
   uv_udp_t &udp_;
   BoundedQueue<QueueItem_> buffer_;
-  std::optional<std::coroutine_handle<>> handle_;
+  std::optional<CoroutineHandle> handle_;
   bool stop_receiving_ = true;
 };
 
@@ -63,11 +64,12 @@ struct Udp::SendAwaiter_ {
   ~SendAwaiter_() { resetData(&req_); }
 
   [[nodiscard]] bool await_ready() const;
-  bool await_suspend(std::coroutine_handle<> h);
+  template<class T>
+  bool await_suspend(std::coroutine_handle<T> h);
   int await_resume();
 
   uv_udp_send_t &req_;
-  std::optional<std::coroutine_handle<>> handle_;
+  std::optional<CoroutineHandle> handle_;
   std::optional<int> status_;
 };
 
@@ -294,7 +296,7 @@ void Udp::onReceiveOne(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
   // Only enqueues once; if this callback is called again, the receiver will
   // already have been resumed.
   if (awaiter->handle_) {
-    std::coroutine_handle<void> resumeHandle = *awaiter->handle_;
+    auto resumeHandle = *awaiter->handle_;
     awaiter->handle_.reset();
     Loop::enqueue(resumeHandle);
   }
@@ -379,7 +381,8 @@ std::optional<AddressHandle> Udp::getPeername() const {
 Udp::RecvAwaiter_::RecvAwaiter_(uv_udp_t &udp, size_t queueSize)
     : udp_{udp}, buffer_{queueSize} {}
 
-bool Udp::RecvAwaiter_::await_suspend(std::coroutine_handle<> handle) {
+template<class T>
+bool Udp::RecvAwaiter_::await_suspend(std::coroutine_handle<T> handle) {
   BOOST_ASSERT(dataIsNull(&udp_));
   setData(&udp_, this);
   BOOST_ASSERT(!handle_);
@@ -412,7 +415,7 @@ void Udp::onSendDone(uv_udp_send_t *req, uv_status status) {
   }
   awaiter->status_ = status;
   if (awaiter->handle_) {
-    std::coroutine_handle<void> resumeHandle = *awaiter->handle_;
+    auto resumeHandle = *awaiter->handle_;
     awaiter->handle_.reset();
     Loop::enqueue(resumeHandle);
   }
@@ -420,7 +423,8 @@ void Udp::onSendDone(uv_udp_send_t *req, uv_status status) {
 
 bool Udp::SendAwaiter_::await_ready() const { return status_.has_value(); }
 
-bool Udp::SendAwaiter_::await_suspend(std::coroutine_handle<> handle) {
+template<class T>
+bool Udp::SendAwaiter_::await_suspend(std::coroutine_handle<T> handle) {
   setData(&req_, this);
   BOOST_ASSERT(!handle_);
   handle_ = handle;
