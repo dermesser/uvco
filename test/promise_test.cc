@@ -215,7 +215,8 @@ TYPED_TEST(RvalueCoroutineFixture, rvalueCoroutine) {
 
 struct YieldAwaiter_ {
   [[nodiscard]] static bool await_ready() noexcept { return false; }
-  bool await_suspend(std::coroutine_handle<> handle) noexcept {
+  template<class T>
+  bool await_suspend(std::coroutine_handle<T> handle) noexcept {
     Loop::enqueue(handle);
     return true;
   }

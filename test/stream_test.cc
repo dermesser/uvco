@@ -114,8 +114,8 @@ TEST(PipeTest, largeWriteRead) {
     auto [read, write] = pipe(loop);
 
     for (unsigned i = 0; i < 10; ++i) {
-      EXPECT_EQ(buffer.size(), co_await write.write(
-                                   std::string(buffer.data(), buffer.size())));
+      co_await write.write(
+          std::string(buffer.data(), buffer.size()));
     }
     write.close();
 

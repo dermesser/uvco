@@ -33,7 +33,7 @@ class IoVec {
   uv_buf_t buf_;
 public:
   template<class... Args>
-  IoVec(Args&&... args) {
+  constexpr IoVec(Args&&... args) {
     std::span<const char> buf(std::forward<Args>(args)...);
     buf_.base = (char*)buf.data();
     buf_.len = buf.size();
@@ -46,7 +46,7 @@ public:
   }
   constexpr const char *data() { return (const char *)buf_.base; }
   constexpr size_t size() { return buf_.len; }
-  operator std::span<const char> () const { return { buf_.base, buf_.len }; }
+  constexpr operator std::span<const char> () const { return { buf_.base, buf_.len }; }
 };
 
 /// A plain stream, permitting reading, writing, and closing.

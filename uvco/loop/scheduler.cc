@@ -20,7 +20,6 @@ static constexpr bool useSymmetricHandoff = true;
 void Scheduler::runAll() {
   while (!resumable_.empty()) {
     const auto next = getNextInner();
-    BOOST_ASSERT(next != nullptr && !((std::coroutine_handle<>)next).done());
     if constexpr (logSchedulerOperations) {
       fmt::print("Resuming coroutine {:x}\n", (uintptr_t)((std::coroutine_handle<>)next).address());
     }

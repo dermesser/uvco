@@ -106,8 +106,8 @@ TEST(HttpServerTest, invalidRequest) {
         EXPECT_TRUE(response.find("400 Bad Request") != std::string::npos);
 
         // Check what happens if we write to the (remotely) closed stream
-        EXPECT_LT(16, co_await stream.write(
-                          "GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n"));
+        co_await stream.write(
+            "GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n");
         EXPECT_EQ(0, co_await stream.read(buffer));
 
         stream.close();

@@ -66,7 +66,7 @@ public:
 
   Promise<void> broadcast(std::string_view from, std::string_view what) {
     const std::string message = fmt::format("{} says: {}", from, what);
-    std::vector<Promise<size_t>> promises;
+    std::vector<Promise<void>> promises;
     promises.reserve(clients_.size());
 
     for (const auto &clientPtr : clients_) {

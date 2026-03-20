@@ -31,12 +31,14 @@ class PromiseRefcounter_ {
     if (refs || weaks) return false;
     return true;
   }
-public:
+
+  friend class CoroutineHandle;
+  friend class PromiseRefcount;
   PromiseRefcounter_(decltype(deleter.fun) fun, decltype(deleter.data) data) {
     deleter.fun = fun;
     deleter.data = data;
   }
-
+public:
   size_t uses() { return refs; }
   size_t weak_uses() { return weaks; }
 
@@ -132,10 +134,11 @@ public:
   }
 
   bool operator==(std::nullptr_t) const {
-    return ref == nullptr;
+    return (!(ref && ref->uses())) || handle == nullptr;
   }
 
   bool operator==(const CoroutineHandle& other) const {
+    BOOST_ASSERT(ref != other.ref || handle == other.handle);
     return ref == other.ref;
   }
 
@@ -145,7 +148,7 @@ public:
   }
 
   operator bool () const {
-    return (ref && ref->uses());
+    return *this != nullptr;
   }
 
   /// Resume the coroutine, updating `RunningCoroutine` in the process.
@@ -212,14 +215,14 @@ void CoroutineHandle::resume() const {
 /// This forms a chain/tree of references, so that a CancellationBlock can
 /// block the destruction of the entire async call chain.
 class PromiseRefcount {
-public:
-  PromiseRefcounter_ *inner;
-
+  template<class T> friend class PromiseCore;
   template<class T>
   PromiseRefcount(T& obj) {
     inner = new PromiseRefcounter_(T::pref_deleter, &obj);
     inner->setParent(RunningCoroutine::get());
   }
+public:
+  PromiseRefcounter_ *inner;
 
   PromiseRefcount(const PromiseRefcount &) = delete;
   PromiseRefcount(PromiseRefcount &&) = delete;
