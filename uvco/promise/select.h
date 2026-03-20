@@ -79,7 +79,8 @@ public:
 
   /// Register the current coroutine to be resumed when one of the promises is
   /// ready.
-  std::coroutine_handle<> await_suspend(std::coroutine_handle<> handle) {
+  template<class T>
+  std::coroutine_handle<> await_suspend(std::coroutine_handle<T> handle) {
     std::apply(
         [handle](auto *...promise) {
           ((!promise->core()->stale() ? promise->core()->setHandle(handle)
@@ -129,7 +130,7 @@ private:
   }
 
   Tuple promises_;
-  std::coroutine_handle<> suspended_;
+  CoroutineHandle suspended_;
   bool resumed_ = false;
 };
 

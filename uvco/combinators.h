@@ -73,6 +73,44 @@ Promise<void> raceIgnore(Promise<PromiseTypes>... promises) {
   co_await selectSet;
 }
 
+/// Run a task in the background, without having to keep any promise handle
+/// around. If the promise throws an exception, the entire program will be
+/// terminated.
+template<typename T>
+void detach(Promise<T> task) {
+  Promise<void> *detachable = std::allocator<Promise<void>>().allocate(1);
+  std::coroutine_handle<> coro;
+  struct InitialSuspendAwaiter {
+    std::coroutine_handle<> *coro;
+    bool await_ready() { return false; }
+    bool await_suspend(std::coroutine_handle<> scoro) {
+      *coro = scoro;
+      return true;
+    }
+    void await_resume() {}
+    Promise<void> fire(Promise<void> *detachable, Promise<T> task) {
+      co_await *this;
+      try {
+        co_await task;
+      } catch(...) {
+        std::terminate();
+      }
+      struct DestroyAwaiter {
+        Promise<void> *detachable;
+        bool await_ready() { return false; }
+        bool await_suspend(std::coroutine_handle<>) {
+          delete detachable;
+          return true;
+        }
+        void await_resume() {}
+      } destroyer(detachable);
+      co_await destroyer;
+    }
+  } suspender(&coro);
+  std::construct_at(detachable, suspender.fire(detachable, std::move(task)));
+  coro.resume();
+}
+
 namespace detail {
 
 template <typename T> struct ReplaceVoid {
@@ -126,8 +164,8 @@ public:
   void releaseAll();
 
 private:
-  void enqueue(std::coroutine_handle<> handle);
-  std::deque<std::coroutine_handle<>> waiters_;
+  void enqueue(CoroutineHandle handle);
+  std::deque<CoroutineHandle> waiters_;
 };
 
 /// TaskSet handles the common case of maintaining a set of coroutines running

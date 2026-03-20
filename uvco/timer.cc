@@ -58,12 +58,13 @@ public:
   }
 
   bool await_ready() { return isReady(); }
-  std::coroutine_handle<> await_suspend(std::coroutine_handle<> handle) {
+  template<class T>
+  std::coroutine_handle<> await_suspend(std::coroutine_handle<T> handle) {
     handle_ = handle;
     return Loop::getNext();
   }
   [[nodiscard]] bool await_resume() {
-    handle_ = nullptr;
+    handle_ = {};
     return !stopped_;
   }
 
@@ -80,13 +81,13 @@ public:
   void resume() {
     if (handle_) {
       Loop::enqueue(handle_);
-      handle_ = nullptr;
+      handle_ = {};
     }
   }
 
 private:
   std::unique_ptr<uv_timer_t> timer_;
-  std::coroutine_handle<> handle_;
+  CoroutineHandle handle_;
   bool closed_ = false;
   bool stopped_ = false;
 };

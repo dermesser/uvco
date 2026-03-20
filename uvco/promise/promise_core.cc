@@ -13,7 +13,7 @@
 
 namespace uvco {
 
-void PromiseCore<void>::setHandle(std::coroutine_handle<> handle) {
+void PromiseCore<void>::setHandle(CoroutineHandle handle) {
   if (state_ != PromiseState::init) {
     throw UvcoException("PromiseCore is already awaited or has finished");
   }
@@ -22,7 +22,7 @@ void PromiseCore<void>::setHandle(std::coroutine_handle<> handle) {
   state_ = PromiseState::waitedOn;
 }
 
-bool PromiseCore<void>::isAwaited() const { return waitingHandle_ != nullptr; }
+bool PromiseCore<void>::isAwaited() const { return waitingHandle_; }
 bool PromiseCore<void>::ready() const { return exception_ || ready_; }
 bool PromiseCore<void>::stale() const {
   return state_ == PromiseState::finished && !ready();
@@ -31,9 +31,8 @@ bool PromiseCore<void>::stale() const {
 void PromiseCore<void>::resume() {
   if (waitingHandle_) {
     BOOST_ASSERT(state_ == PromiseState::waitedOn);
-    auto waitingHandle = waitingHandle_;
-    waitingHandle_ = nullptr;
-    Loop::enqueue(waitingHandle);
+    Loop::enqueue(std::move(waitingHandle_));
+    waitingHandle_ = {};
   } else {
     // If a coroutine returned immediately, or nobody is co_awaiting the result.
   }
@@ -51,7 +50,7 @@ void PromiseCore<void>::resetHandle() {
   BOOST_ASSERT((state_ == PromiseState::init) ||
                (state_ == PromiseState::waitedOn && waitingHandle_) ||
                (state_ == PromiseState::finished && !waitingHandle_));
-  waitingHandle_ = nullptr;
+  waitingHandle_ = {};
   if (state_ == PromiseState::waitedOn) {
     state_ = PromiseState::init;
   }

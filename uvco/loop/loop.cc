@@ -91,7 +91,7 @@ Scheduler &Loop::currentScheduler() {
   return defaultLoop->scheduler_;
 }
 
-void Loop::enqueue(std::coroutine_handle<> handle) {
+void Loop::enqueue(CoroutineHandle handle) {
   currentScheduler().enqueue(handle);
   // If any handles are present, ensure that uv_run returns from waiting for I/O
   // soon.
@@ -99,10 +99,20 @@ void Loop::enqueue(std::coroutine_handle<> handle) {
     uv_stop(defaultLoop->uvloop());
     defaultLoop->stopped_ = true;
   }
+
+  if constexpr (logSchedulerOperations) {
+    fmt::print("Enqueuing coroutine {:x}\n",
+               (uintptr_t)((std::coroutine_handle<>)handle).address());
+  }
 }
 
 void Loop::cancel(std::coroutine_handle<> handle) {
   currentScheduler().cancel(handle);
+
+  if constexpr (logSchedulerOperations) {
+    fmt::print("Cancelling coroutine {:x}\n",
+               (uintptr_t)((std::coroutine_handle<>)handle).address());
+  }
 }
 
 std::coroutine_handle<> Loop::getNext() { return currentScheduler().getNext(); }

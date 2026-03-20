@@ -8,6 +8,8 @@
 #include <coroutine>
 #include <deque>
 
+#include "uvco/promise/promise_refcount.h"
+
 namespace uvco {
 
 /// @addtogroup Scheduler
@@ -52,7 +54,7 @@ public:
   ~Scheduler();
 
   /// Schedule a coroutine for resumption.
-  void enqueue(std::coroutine_handle<> handle);
+  void enqueue(CoroutineHandle handle);
 
   void cancel(std::coroutine_handle<> handle);
 
@@ -79,9 +81,9 @@ public:
   [[nodiscard]] bool empty() const { return resumable_.empty(); }
 
 private:
-  std::coroutine_handle<> getNextInner();
+  CoroutineHandle getNextInner();
 
-  std::deque<std::coroutine_handle<>> resumable_;
+  std::deque<CoroutineHandle> resumable_;
 };
 
 } // namespace uvco

@@ -295,7 +295,8 @@ public:
   }
 
   /// Awaiter protocol: suspend the downloader coroutine.
-  bool await_suspend(std::coroutine_handle<> handle) noexcept {
+  template<class T>
+  bool await_suspend(std::coroutine_handle<T> handle) noexcept {
     BOOST_ASSERT(!downloaderHandle_);
     downloaderHandle_ = handle;
     return true;
@@ -382,7 +383,7 @@ private:
 
   std::string url_;
   std::optional<std::string> payload_;
-  std::optional<std::coroutine_handle<>> downloaderHandle_;
+  std::optional<CoroutineHandle> downloaderHandle_;
 
   // Misuse vector as deque for now.
   std::vector<std::string> chunks_;

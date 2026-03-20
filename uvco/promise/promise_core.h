@@ -4,6 +4,7 @@
 
 #include "uvco/exception.h"
 #include "uvco/loop/loop.h"
+#include "uvco/promise/promise_refcount.h"
 
 #include <boost/assert.hpp>
 #include <fmt/core.h>
@@ -55,7 +56,7 @@ public:
       : slot{std::move(value)}, state_{PromiseState::finished} {}
 
   /// Set the coroutine to be resumed once a result is ready.
-  virtual void setHandle(std::coroutine_handle<> handle) {
+  virtual void setHandle(CoroutineHandle handle) {
     if (state_ != PromiseState::init) {
       throw UvcoException("PromiseCore is already awaited or has finished");
     }
@@ -76,13 +77,13 @@ public:
                  (state_ == PromiseState::finished && !waitingHandle_) ||
                  (state_ == PromiseState::init && !waitingHandle_));
     if (state_ == PromiseState::waitedOn) {
-      waitingHandle_ = nullptr;
+      waitingHandle_ = {};
       state_ = PromiseState::init;
     }
   }
 
   /// Checks if a coroutine is waiting on a promise belonging to this core.
-  bool isAwaited() { return waitingHandle_ != nullptr; }
+  bool isAwaited() { return waitingHandle_; }
 
   /// Checks if a value is present in the slot.
   [[nodiscard]] bool ready() const { return slot.has_value(); }
@@ -100,9 +101,8 @@ public:
   void resume() {
     if (waitingHandle_) {
       BOOST_ASSERT(state_ == PromiseState::waitedOn);
-      const std::coroutine_handle<> resume = waitingHandle_;
-      waitingHandle_ = nullptr;
-      Loop::enqueue(resume);
+      Loop::enqueue(std::move(waitingHandle_));
+      waitingHandle_ = {};
     } else {
       // This occurs if no co_await has occured until resume. Either the
       // promise was not co_awaited, or the producing coroutine immediately
@@ -112,9 +112,14 @@ public:
   }
 
   void destroyCoroutine() {
-    if (coroutine_) {
-      Loop::cancel(coroutine_);
-      coroutine_.destroy();
+    refcount_.release();
+  }
+
+  static void pref_deleter(void *vself) {
+    PromiseCore *self = (PromiseCore*)vself;
+    if (self->coroutine_) {
+      Loop::cancel(self->coroutine_);
+      self->coroutine_.destroy();
     }
   }
 
@@ -129,10 +134,12 @@ protected:
   std::coroutine_handle<> coroutine_;
   /// Set to the coroutine awaiting this promise if state_ ==
   /// awaitedOn. May be nullptr.
-  std::coroutine_handle<> waitingHandle_;
+  CoroutineHandle waitingHandle_;
   static_assert(sizeof(std::coroutine_handle<>) <= sizeof(void *),
                 "coroutine_handle is unusually large");
   PromiseState state_ = PromiseState::init;
+  PromiseRefcount refcount_ = {*this};
+  friend class CoroutineHandle;
 };
 
 /// A `void` PromiseCore works like a normal `PromiseCore`, but with the
@@ -151,7 +158,7 @@ public:
   ~PromiseCore() = default;
 
   /// See `PromiseCore::set_resume`.
-  void setHandle(std::coroutine_handle<> handle);
+  void setHandle(CoroutineHandle handle);
 
   /// See `PromiseCore::resetHandle`.
   void resetHandle();
@@ -175,9 +182,14 @@ public:
   // invoked after coroutine completion (due to suspend_always returned from
   // final_suspend).
   void destroyCoroutine() {
-    if (coroutine_) {
-      Loop::cancel(coroutine_);
-      coroutine_.destroy();
+    refcount_.release();
+  }
+
+  static void pref_deleter(void *vself) {
+    PromiseCore *self = (PromiseCore*)vself;
+    if (self->coroutine_) {
+      Loop::cancel(self->coroutine_);
+      self->coroutine_.destroy();
     }
   }
 
@@ -190,8 +202,10 @@ public:
 
 private:
   std::coroutine_handle<> coroutine_;
-  std::coroutine_handle<> waitingHandle_;
+  CoroutineHandle waitingHandle_;
   PromiseState state_ = PromiseState::init;
+  PromiseRefcount refcount_ = {*this};
+  friend class CoroutineHandle;
 };
 
 /// @}

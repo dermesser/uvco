@@ -2,12 +2,12 @@
 
 #pragma once
 
+#include <type_traits>
 #include <uv.h>
+#include <coroutine>
 
 #include "uvco/exception.h"
 #include "uvco/loop/scheduler.h"
-
-#include <coroutine>
 
 namespace uvco {
 
@@ -37,7 +37,14 @@ public:
   [[nodiscard]] uv_loop_t *uvloop() const;
 
   // Enqueue a suspended coroutine_handle for later resumption.
-  static void enqueue(std::coroutine_handle<> handle);
+  static void enqueue(CoroutineHandle handle);
+
+  template<class T>
+    requires(std::is_same_v<T, void>)
+  static void enqueue(std::coroutine_handle<T>) {
+    static_assert(false, "Loop::enqueue() cannot accept a type-erased handle, define your await_suspend() as a templated function.");
+  }
+
   // Remove a handle from the event loop. Note: if the same handle is posted
   // again later, it may still be resumed.
   static void cancel(std::coroutine_handle<> handle);

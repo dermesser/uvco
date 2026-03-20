@@ -30,14 +30,15 @@ struct TcpClient::ConnectAwaiter_ {
   ~ConnectAwaiter_();
 
   [[nodiscard]] bool await_ready() const;
-  bool await_suspend(std::coroutine_handle<> handle);
+  template<class T>
+  bool await_suspend(std::coroutine_handle<T> handle);
   TcpStream await_resume();
 
   void onConnect(uv_status status);
 
   std::unique_ptr<uv_connect_t> req_;
   std::unique_ptr<uv_tcp_t> socket_;
-  std::coroutine_handle<> handle_;
+  CoroutineHandle handle_;
   std::optional<uv_status> status_;
 };
 
@@ -74,7 +75,8 @@ bool TcpClient::ConnectAwaiter_::await_ready() const {
   return status_.has_value();
 }
 
-bool TcpClient::ConnectAwaiter_::await_suspend(std::coroutine_handle<> handle) {
+template<class T>
+bool TcpClient::ConnectAwaiter_::await_suspend(std::coroutine_handle<T> handle) {
   BOOST_ASSERT(!handle_);
   handle_ = handle;
   return true;

@@ -6,6 +6,7 @@
 #include "uvco/loop/loop.h"
 #include "uvco/promise/promise.h"
 #include "uvco/promise/promise_core.h"
+#include "uvco/promise/promise_refcount.h"
 
 #include <coroutine>
 #include <exception>
@@ -39,7 +40,7 @@ public:
   /// In contrast to a `PromiseCore`, a finished
   /// multipromise core can be reset to the waiting state, in order to yield the
   /// next value, when the MultiPromise is `co_await`ed again.
-  void setHandle(std::coroutine_handle<> handle) override {
+  void setHandle(CoroutineHandle handle) override {
     // Once an external scheduler works, Promises will not be nested anymore
     // (resume called by resume down in the stack)
     //
@@ -65,9 +66,10 @@ public:
   void resumeGenerator() {
     BOOST_ASSERT(PromiseCore<T>::state_ != PromiseState::finished);
     if (suspended_) {
-      BOOST_ASSERT(coroutine_ != nullptr);
+      BOOST_ASSERT(coroutine_);
+      CoroutineHandle coro(coroutine_, PromiseCore<T>::refcount_.inner);
       suspended_ = false;
-      Loop::enqueue(coroutine_);
+      Loop::enqueue(coro);
     }
   }
 
@@ -88,12 +90,8 @@ public:
   /// Called by tje `MultiPromise` destructor and `MultiPromise::cancel()`.
   void cancelGenerator() {
     setTerminated();
-    if (coroutine_ != nullptr) {
-      const std::coroutine_handle<> coroutine = coroutine_;
-      coroutine_ = nullptr;
-      Loop::cancel(coroutine);
-      // Careful: within this function, this class' dtor is called!
-      coroutine.destroy();
+    if (coroutine_ != nullptr && !cancelled_) {
+      PromiseCore<T>::refcount_.release();
     }
   }
 
@@ -111,6 +109,7 @@ private:
   bool suspended_ = false;
   /// Set to true once the generator coroutine has returned or has been
   /// cancelled.
+  bool cancelled_ = false;
   bool terminated_ = false;
 };
 
@@ -223,8 +222,9 @@ protected:
     }
     /// Part of the coroutine protocol. Always returns `true`; stores the
     /// suspension handle in the MultiPromiseCore for later resumption.
+    template<class PT>
     [[nodiscard]] std::coroutine_handle<>
-    await_suspend(std::coroutine_handle<> handle) const {
+    await_suspend(std::coroutine_handle<PT> handle) const {
       if (core_ == nullptr) {
         return Loop::getNext();
       }
@@ -302,7 +302,9 @@ public:
   // Note: if suspend_always is chosen, we can better control when the
   // MultiPromise will be scheduled.
   std::suspend_never initial_suspend() noexcept {
-    core_.setRunning(std::coroutine_handle<Generator<T>>::from_promise(*this));
+    auto handle = std::coroutine_handle<Generator<T>>::from_promise(*this);
+    core_.setRunning(handle);
+    RunningCoroutine::set(handle);
     return {};
   }
 
@@ -356,6 +358,7 @@ private:
   };
 
   PromiseCore_ core_;
+  friend class CoroutineHandle;
 };
 
 /// @}

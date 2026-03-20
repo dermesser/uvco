@@ -31,7 +31,7 @@ TEST(LoopTest, createNestedLoopFails) {
 }
 
 TEST(LoopTest, noLoop) {
-  EXPECT_THROW({ Loop::enqueue(std::coroutine_handle<>{}); }, UvcoException);
+  EXPECT_THROW({ Loop::enqueue({}); }, UvcoException);
 }
 
 TEST(LoopTest, exceptionLeavesLoop) {
