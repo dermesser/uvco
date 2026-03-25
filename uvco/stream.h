@@ -80,13 +80,13 @@ public:
   /// NOTE: only one writer is allowed to be active at a time. If two writes
   /// are started simultaneously, the process will be aborted in Debug mode, or
   /// the first `write()` coroutine will not return in Release mode.
-  [[nodiscard]] Promise<size_t> write(std::string buf);
+  [[nodiscard]] Promise<void> write(std::string buf);
 
   /// The same as `write(std::string)`, but takes a borrowed buffer. `buf` MUST
   /// absolutely stay valid until the promise resolves. This means: co_await
   /// this method and call it with a stored buffer (not a function return value,
   /// for example).
-  [[nodiscard]] Promise<size_t> writeBorrowed(std::span<const char> buf);
+  [[nodiscard]] Promise<void> writeBorrowed(std::span<const char> buf);
 
   /// Shut down stream for writing. This is a half-close; the other side
   /// can still write. The result of `shutdown()` *must be `co_await`ed*.

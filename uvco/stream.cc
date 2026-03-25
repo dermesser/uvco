@@ -13,6 +13,7 @@
 #include "uvco/promise/promise.h"
 #include "uvco/run.h"
 #include "uvco/stream.h"
+#include "uvco/util.h"
 
 #include <array>
 #include <coroutine>
@@ -111,42 +112,39 @@ Promise<size_t> StreamBase::read(std::span<char> buffer) {
   co_return (co_await awaiter);
 }
 
-Promise<size_t> StreamBase::write(std::string buf) {
-  co_return (co_await writeBorrowed(std::span{buf}));
+Promise<void> StreamBase::write(std::string buf) {
+  co_await writeBorrowed(std::span{buf});
+  co_return;
 }
 
-Promise<size_t> StreamBase::writeBorrowed(std::span<const char> buffer) {
+Promise<void> StreamBase::writeBorrowed(std::span<const char> buffer) {
   OutStreamAwaiter_ awaiter{*this, buffer};
   std::array<uv_buf_t, 1> bufs{};
   bufs[0] = uv_buf_init(const_cast<char *>(buffer.data()), buffer.size());
 
-  uv_status status = uv_try_write(&stream(), bufs.data(), bufs.size());
-  if (status > 0) {
-    // Already done, nothing had to be queued.
-    co_return static_cast<size_t>(status);
-  }
-
-  status = uv_write(&awaiter.write_, &stream(), bufs.data(), bufs.size(),
-                    OutStreamAwaiter_::onOutStreamWrite);
+  const uv_status status =
+      uv_write(&awaiter.write_, &stream(), bufs.data(), bufs.size(),
+               OutStreamAwaiter_::onOutStreamWrite);
   if (status < 0) {
     throw UvcoException{
         status, "StreamBase::writeBorrowed() encountered error in uv_write"};
   }
-  status = co_await awaiter;
-  if (status < 0) {
+  const uv_status completionStatus = co_await awaiter;
+  if (completionStatus < 0) {
     throw UvcoException{
         status,
         "StreamBase::writeBorrowed() encountered error while awaiting write"};
   }
-  co_return static_cast<size_t>(status);
+  co_return;
 }
 
 Promise<void> StreamBase::shutdown() {
-  uv_shutdown_t shutdownReq;
+  auto shutdownReq = std::make_unique<uv_shutdown_t>();
   ShutdownAwaiter_ awaiter;
+  const OnExit _onExit{[req = shutdownReq.get()] { resetRequestData(req); }};
 
-  shutdownReq.data = &awaiter;
-  uv_shutdown(&shutdownReq, &stream(),
+  setRequestData(shutdownReq.get(), &awaiter);
+  uv_shutdown(shutdownReq.release(), &stream(),
               StreamBase::ShutdownAwaiter_::onShutdown);
   co_await awaiter;
   co_return;
@@ -325,14 +323,19 @@ bool StreamBase::ShutdownAwaiter_::await_suspend(
 
 void StreamBase::ShutdownAwaiter_::await_resume() {
   BOOST_ASSERT(status_);
-  if (status_ && *status_ != 0) {
+  if (status_ && status_.value() != 0) {
     throw UvcoException{*status_, "StreamBase::shutdown() encountered error"};
   }
 }
 
 void StreamBase::ShutdownAwaiter_::onShutdown(uv_shutdown_t *req,
                                               uv_status status) {
-  auto *awaiter = getRequestData<ShutdownAwaiter_>(req);
+  const std::unique_ptr<uv_shutdown_t> uniqueReq{req};
+  auto *awaiter = getRequestDataOrNull<ShutdownAwaiter_>(uniqueReq.get());
+  if (awaiter == nullptr) {
+    // shutdown coroutine was ancelled.
+    return;
+  }
   awaiter->status_ = status;
   if (awaiter->handle_) {
     Loop::enqueue(awaiter->handle_);

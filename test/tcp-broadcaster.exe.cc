@@ -11,14 +11,12 @@
 #include "uvco/name_resolution.h"
 #include "uvco/promise/multipromise.h"
 #include "uvco/promise/promise.h"
-#include "uvco/promise/select.h"
 #include "uvco/run.h"
 #include "uvco/stream.h"
 #include "uvco/tcp.h"
 #include "uvco/tcp_stream.h"
 
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -66,7 +64,7 @@ public:
 
   Promise<void> broadcast(std::string_view from, std::string_view what) {
     const std::string message = fmt::format("{} says: {}", from, what);
-    std::vector<Promise<size_t>> promises;
+    std::vector<Promise<void>> promises;
     promises.reserve(clients_.size());
 
     for (const auto &clientPtr : clients_) {
