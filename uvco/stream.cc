@@ -79,7 +79,9 @@ struct StreamBase::OutStreamAwaiter_ {
 
   // State necessary for both immediate and delayed writing.
   std::span<const char> buffer_;
-  uv_write_t write_{};
+  // Heap-allocated write request is not as efficient, but required to make this
+  // cancellation-safe.
+  std::unique_ptr<uv_write_t> write_;
   StreamBase &stream_;
 };
 
@@ -123,8 +125,12 @@ Promise<void> StreamBase::writeBorrowed(std::span<const char> buffer) {
   std::array<uv_buf_t, 1> bufs{};
   bufs[0] = uv_buf_init(const_cast<char *>(buffer.data()), buffer.size());
 
+  setData(awaiter.write_.get(), &awaiter);
+  const OnExit _onExit{
+      [write = awaiter.write_.get()] { resetRequestData(write); }};
+
   const uv_status status =
-      uv_write(&awaiter.write_, &stream(), bufs.data(), bufs.size(),
+      uv_write(awaiter.write_.release(), &stream(), bufs.data(), bufs.size(),
                OutStreamAwaiter_::onOutStreamWrite);
   if (status < 0) {
     throw UvcoException{
@@ -263,7 +269,8 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
 
 StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream,
                                                  std::span<const char> buffer)
-    : buffer_{buffer}, write_{}, stream_{stream} {}
+    : buffer_{buffer}, write_{std::make_unique<uv_write_t>()}, stream_{stream} {
+}
 
 StreamBase::OutStreamAwaiter_::~OutStreamAwaiter_() {
   stream_.writer_ = nullptr;
@@ -282,8 +289,6 @@ bool StreamBase::OutStreamAwaiter_::await_ready() {
 
 bool StreamBase::OutStreamAwaiter_::await_suspend(
     std::coroutine_handle<> handle) {
-  BOOST_ASSERT(dataIsNull(&write_));
-  setData(&write_, this);
   handle_ = handle;
   // For resumption during close.
   stream_.writer_ = handle;
@@ -298,13 +303,16 @@ uv_status StreamBase::OutStreamAwaiter_::await_resume() {
   }
   BOOST_ASSERT(status_);
   stream_.writer_ = nullptr;
-  setData(&write_, (void *)nullptr);
   return *status_;
 }
 
 void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
                                                      uv_status status) {
-  auto *awaiter = getRequestData<OutStreamAwaiter_>(write);
+  const std::unique_ptr<uv_write_t> req{write};
+  auto *awaiter = getRequestDataOrNull<OutStreamAwaiter_>(req.get());
+  if (awaiter == nullptr) {
+    return;
+  }
   BOOST_ASSERT(awaiter != nullptr);
   awaiter->status_ = status;
   BOOST_ASSERT(awaiter->handle_);
