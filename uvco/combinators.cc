@@ -110,7 +110,8 @@ private:
     // Wait for task to finish; do regular housekeeping; then mark current task
     // as ready for cleanup.
     try {
-      co_await task;
+      Promise<void> shortlivedTask{std::move(task)};
+      co_await shortlivedTask;
     } catch (const std::exception &e) {
       if (errorCallback_) {
         errorCallback_(taskId, std::current_exception());

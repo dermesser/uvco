@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <exception>
 #include <gtest/gtest.h>
+#include <memory>
 #include <stdexcept>
 #include <string_view>
 #include <tuple>
@@ -350,6 +351,30 @@ TEST(TaskSetTest, basic) {
     EXPECT_TRUE(taskSet->empty());
 
     EXPECT_TRUE(ran);
+
+    co_return;
+  };
+
+  run_loop(main);
+}
+
+TEST(TaskSetTest, taskPromiseLivesAsShortlyAsPossible) {
+  // Check that a submitted task is destroyed immediately after it has finished.
+  const auto main = [&](const Loop &loop) -> Promise<void> {
+    auto taskSet = TaskSet::create();
+    auto justForTheRefCount = std::make_shared<bool>();
+
+    {
+      taskSet->add(
+          [&loop]([[maybe_unused]] std::shared_ptr<bool> _forTheRefCount)
+              -> Promise<void> {
+            co_await sleep(loop, 1);
+          }(justForTheRefCount));
+      EXPECT_EQ(2, justForTheRefCount.use_count());
+    }
+
+    co_await taskSet->onEmpty();
+    EXPECT_EQ(1, justForTheRefCount.use_count());
 
     co_return;
   };

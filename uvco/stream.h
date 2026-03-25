@@ -80,6 +80,9 @@ public:
   /// NOTE: only one writer is allowed to be active at a time. If two writes
   /// are started simultaneously, the process will be aborted in Debug mode, or
   /// the first `write()` coroutine will not return in Release mode.
+  ///
+  /// WARNING: due to the interactions with libuv, writes cannot be cancelled
+  /// safely in general, as libuv itself doesn't allow cancelling writes.
   [[nodiscard]] Promise<void> write(std::string buf);
 
   /// The same as `write(std::string)`, but takes a borrowed buffer. `buf` MUST
