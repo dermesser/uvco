@@ -2,6 +2,7 @@
 #include <fmt/core.h>
 #include <gtest/gtest.h>
 
+#include "promise/multipromise.h"
 #include "test_util.h"
 
 #include "uvco/exception.h"
@@ -22,7 +23,7 @@ TEST(CurlTest, info) { fmt::print("curl: {}\n", curl_version()); }
 TEST(CurlTest, simpleDownload) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     Curl curl{loop};
-    auto req1 = curl.get("https://borgac.net/");
+    auto req1 = curl.get("https://lewinb.net/");
     auto req2 = curl.get("http://lewinb.net/");
 
     req2.setTimeoutMs(4000);
@@ -66,7 +67,7 @@ TEST(CurlTest, simpleDownloadCancelled0) {
 TEST(CurlTest, simpleDownloadCancelled1) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     Curl curl{loop};
-    auto req = curl.get("https://borgac.net/");
+    auto req = curl.get("https://lewinb.net/");
     co_return;
   };
 
@@ -76,7 +77,7 @@ TEST(CurlTest, simpleDownloadCancelled1) {
 TEST(CurlTest, simpleDownloadCancelled2) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     Curl curl{loop};
-    auto req = curl.get("https://borgac.net/");
+    auto req = curl.get("https://lewinb.net/");
     auto gen = req.start();
     co_await gen;
     co_return;
@@ -88,7 +89,7 @@ TEST(CurlTest, simpleDownloadCancelled2) {
 TEST(CurlTest, cancel1) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     Curl curl{loop};
-    CurlRequest req = curl.get("https://borgac.net/");
+    CurlRequest req = curl.get("https://lewinb.net/");
     MultiPromise<std::string> gen = req.start();
 
     EXPECT_TRUE((co_await gen).has_value());
@@ -103,7 +104,7 @@ TEST(CurlTest, cancel1) {
 TEST(CurlTest, cancel2) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     Curl curl{loop};
-    CurlRequest req = curl.get("https://borgac.net/");
+    CurlRequest req = curl.get("https://lewinb.net/");
     MultiPromise<std::string> gen = req.start();
 
     co_await curl.close();
@@ -144,13 +145,13 @@ TEST(CurlTest, connectionRefused) {
 
 TEST(CurlTest, sslVerifyFailed) {
   run_loop([](const Loop &loop) -> Promise<void> {
-    return provokeError(loop, "https://abc.borgac.net/");
+    return provokeError(loop, "https://abc.lewinb.net/");
   });
 }
 
 TEST(CurlTest, invalidHost) {
   run_loop([](const Loop &loop) -> Promise<void> {
-    return provokeError(loop, "https://borgac-evil-sibling.net/");
+    return provokeError(loop, "https://lewinb-evil-sibling.net/");
   });
 }
 
@@ -159,7 +160,7 @@ TEST(CurlTest, invalidPost) {
     Curl curl{loop};
     const std::vector<std::pair<std::string, std::string>> fields = {
         {"key1", "value1"}, {"key2", "value2"}};
-    auto req = curl.post("https://borgac.net/", fields);
+    auto req = curl.post("https://lewinb.net/", fields);
     auto gen = req.start();
 
     while (true) {

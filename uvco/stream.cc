@@ -18,6 +18,7 @@
 #include <array>
 #include <coroutine>
 #include <cstddef>
+#include <cstdio>
 #include <memory>
 #include <optional>
 #include <string>
