@@ -101,12 +101,12 @@ TEST(AsyncWorkTest, cancelledLate) {
 
   auto work = [&started]() -> void {
     started.store(true);
-    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    std::this_thread::sleep_for(std::chrono::milliseconds{25});
   };
 
   auto setup = [&](const Loop &loop) -> Promise<void> {
     auto p = submitWork<void>(loop, work);
-    co_await sleep(loop, 1);
+    co_await sleep(loop, 10);
     co_return;
   };
 
