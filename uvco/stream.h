@@ -82,7 +82,12 @@ public:
   /// the first `write()` coroutine will not return in Release mode.
   ///
   /// WARNING: due to the interactions with libuv, writes cannot be cancelled
-  /// safely in general, as libuv itself doesn't allow cancelling writes.
+  /// safely in general, as libuv itself doesn't allow cancelling writes. You
+  /// can make writes safe by using a TaskSet that you don't drop:
+  /// `taskSet.add(stream.write(std::move(myBuffer)));`
+  /// This will ensure that the write can run to completion, at the cost of
+  /// giving up your buffer (because the buffer must live at least as long as
+  /// the write operation).
   [[nodiscard]] Promise<void> write(std::string buf);
 
   /// The same as `write(std::string)`, but takes a borrowed buffer. `buf` MUST
