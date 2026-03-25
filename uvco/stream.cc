@@ -126,8 +126,11 @@ Promise<void> StreamBase::writeBorrowed(std::span<const char> buffer) {
   bufs[0] = uv_buf_init(const_cast<char *>(buffer.data()), buffer.size());
 
   setData(awaiter.write_.get(), &awaiter);
-  const OnExit _onExit{
-      [write = awaiter.write_.get()] { resetRequestData(write); }};
+  const OnExit _onExit{[write = awaiter.write_.get(), &awaiter] {
+    if (awaiter.handle_) {
+      resetRequestData(write);
+    }
+  }};
 
   const uv_status status =
       uv_write(awaiter.write_.release(), &stream(), bufs.data(), bufs.size(),
@@ -148,7 +151,11 @@ Promise<void> StreamBase::writeBorrowed(std::span<const char> buffer) {
 Promise<void> StreamBase::shutdown() {
   auto shutdownReq = std::make_unique<uv_shutdown_t>();
   ShutdownAwaiter_ awaiter;
-  const OnExit _onExit{[req = shutdownReq.get()] { resetRequestData(req); }};
+  const OnExit _onExit{[req = shutdownReq.get(), &awaiter] {
+    if (awaiter.handle_) {
+      resetRequestData(req);
+    }
+  }};
 
   setRequestData(shutdownReq.get(), &awaiter);
   uv_shutdown(shutdownReq.release(), &stream(),
