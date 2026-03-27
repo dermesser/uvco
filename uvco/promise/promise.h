@@ -65,7 +65,6 @@ public:
   Promise(Promise<T> &&other) noexcept : core_{other.core_} {
     other.core_ = nullptr;
   }
-  /// A promise can be copied at low cost.
   Promise &operator=(const Promise<T> &other) = delete;
   Promise &operator=(Promise<T> &&other) noexcept {
     if (this == &other) {
@@ -78,7 +77,6 @@ public:
     other.core_ = nullptr;
     return *this;
   }
-  // A promise can be copied at low cost.
   Promise(const Promise<T> &other) = delete;
   ~Promise() {
     if (core_ != nullptr) {
