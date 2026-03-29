@@ -63,16 +63,21 @@ struct StreamBase::InStreamAwaiter_ {
 };
 
 struct StreamBase::OutStreamAwaiter_ {
-  OutStreamAwaiter_(StreamBase &stream, std::span<const char> buffer);
+  OutStreamAwaiter_(StreamBase &stream, std::string buffer);
   ~OutStreamAwaiter_();
-
-  [[nodiscard]] std::array<uv_buf_t, 1> prepare_buffers() const;
 
   bool await_ready();
   bool await_suspend(std::coroutine_handle<> handle);
   uv_status await_resume();
 
   static void onOutStreamWrite(uv_write_t *write, uv_status status);
+
+  // A libuv write object with associated buffer, which may outlive
+  // the this awaiter instance.
+  struct UvWriteWithBuffer {
+    uv_write_t write;
+    std::string buffer;
+  };
 
   std::coroutine_handle<> handle_;
   std::optional<uv_status> status_;
@@ -81,7 +86,7 @@ struct StreamBase::OutStreamAwaiter_ {
   std::span<const char> buffer_;
   // Heap-allocated write request is not as efficient, but required to make this
   // cancellation-safe.
-  std::unique_ptr<uv_write_t> write_;
+  std::unique_ptr<UvWriteWithBuffer> write_;
   StreamBase &stream_;
 };
 
@@ -116,14 +121,10 @@ Promise<size_t> StreamBase::read(std::span<char> buffer) {
 }
 
 Promise<void> StreamBase::write(std::string buf) {
-  co_await writeBorrowed(std::span{buf});
-  co_return;
-}
-
-Promise<void> StreamBase::writeBorrowed(std::span<const char> buffer) {
-  OutStreamAwaiter_ awaiter{*this, buffer};
+  OutStreamAwaiter_ awaiter{*this, std::move(buf)};
   std::array<uv_buf_t, 1> bufs{};
-  bufs[0] = uv_buf_init(const_cast<char *>(buffer.data()), buffer.size());
+  bufs[0] = uv_buf_init(const_cast<char *>(awaiter.write_->buffer.data()),
+                        awaiter.write_->buffer.size());
 
   setData(awaiter.write_.get(), &awaiter);
   const OnExit _onExit{[write = awaiter.write_.get(), &awaiter] {
@@ -133,17 +134,16 @@ Promise<void> StreamBase::writeBorrowed(std::span<const char> buffer) {
   }};
 
   const uv_status status =
-      uv_write(awaiter.write_.release(), &stream(), bufs.data(), bufs.size(),
-               OutStreamAwaiter_::onOutStreamWrite);
+      uv_write((uv_write_t *)(awaiter.write_.release()), &stream(), bufs.data(),
+               bufs.size(), OutStreamAwaiter_::onOutStreamWrite);
   if (status < 0) {
-    throw UvcoException{
-        status, "StreamBase::writeBorrowed() encountered error in uv_write"};
+    throw UvcoException{status,
+                        "StreamBase::write() encountered error in uv_write"};
   }
   const uv_status completionStatus = co_await awaiter;
   if (completionStatus < 0) {
     throw UvcoException{
-        status,
-        "StreamBase::writeBorrowed() encountered error while awaiting write"};
+        status, "StreamBase::write() encountered error while awaiting write"};
   }
   co_return;
 }
@@ -275,18 +275,14 @@ void StreamBase::InStreamAwaiter_::onInStreamRead(uv_stream_t *stream,
 }
 
 StreamBase::OutStreamAwaiter_::OutStreamAwaiter_(StreamBase &stream,
-                                                 std::span<const char> buffer)
-    : buffer_{buffer}, write_{std::make_unique<uv_write_t>()}, stream_{stream} {
+                                                 std::string buffer)
+    : buffer_{buffer}, write_{std::make_unique<UvWriteWithBuffer>()},
+      stream_{stream} {
+  write_->buffer = std::move(buffer);
 }
 
 StreamBase::OutStreamAwaiter_::~OutStreamAwaiter_() {
   stream_.writer_ = nullptr;
-}
-
-std::array<uv_buf_t, 1> StreamBase::OutStreamAwaiter_::prepare_buffers() const {
-  std::array<uv_buf_t, 1> bufs{};
-  bufs[0] = uv_buf_init(const_cast<char *>(buffer_.data()), buffer_.size());
-  return bufs;
 }
 
 bool StreamBase::OutStreamAwaiter_::await_ready() {
@@ -315,7 +311,7 @@ uv_status StreamBase::OutStreamAwaiter_::await_resume() {
 
 void StreamBase::OutStreamAwaiter_::onOutStreamWrite(uv_write_t *write,
                                                      uv_status status) {
-  const std::unique_ptr<uv_write_t> req{write};
+  const std::unique_ptr<UvWriteWithBuffer> req{(UvWriteWithBuffer *)write};
   auto *awaiter = getRequestDataOrNull<OutStreamAwaiter_>(req.get());
   if (awaiter == nullptr) {
     return;

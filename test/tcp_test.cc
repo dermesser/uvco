@@ -22,7 +22,7 @@ Promise<void> echoReceived(TcpStream stream, bool &received, bool &responded) {
   std::optional<std::string> chunk = co_await stream.read();
   BOOST_ASSERT(chunk);
   received = true;
-  co_await stream.writeBorrowed(*chunk);
+  co_await stream.write(std::move(*chunk));
   responded = true;
   co_await stream.shutdown();
   stream.close();
@@ -107,7 +107,7 @@ Promise<void> serverLoop(MultiPromise<TcpStream> clients) {
 
     std::optional<std::string> chunk = co_await client.read();
     BOOST_ASSERT(chunk);
-    co_await client.writeBorrowed(*chunk);
+    co_await client.write(*chunk);
   }
 }
 

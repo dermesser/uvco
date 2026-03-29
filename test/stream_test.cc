@@ -114,7 +114,7 @@ TEST(PipeTest, largeWriteRead) {
     auto [read, write] = pipe(loop);
 
     for (unsigned i = 0; i < 10; ++i) {
-      co_await write.write(std::string(buffer.data(), buffer.size()));
+      co_await write.write(std::string{buffer.data(), buffer.size()});
     }
     write.close();
 
@@ -136,6 +136,41 @@ TEST(PipeTest, largeWriteRead) {
   run_loop(setup);
 }
 
+TEST(PipeTest, largeWriteCancelled) {
+  std::string buffer;
+  buffer.resize(1024 * 1024, 0);
+
+  {
+    std::ifstream urandom("/dev/urandom", std::ios::binary);
+    urandom.read(buffer.data(), buffer.size());
+  }
+
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    auto [read, write] = pipe(loop);
+
+    {
+      Promise<void> writePromise = write.write(std::move(buffer));
+      write.close();
+    }
+
+    [[maybe_unused]]
+    size_t bytesRead{};
+
+    while (true) {
+      // Read random chunk size.
+      auto chunk = co_await read.read(732);
+      if (!chunk.has_value()) {
+        break;
+      }
+      bytesRead += chunk->size();
+    }
+    BOOST_ASSERT(bytesRead > 0);
+    read.close();
+  };
+
+  run_loop(setup);
+}
+
 TEST(PipeTest, readIntoBuffer) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     auto [read, write] = pipe(loop);
@@ -147,6 +182,18 @@ TEST(PipeTest, readIntoBuffer) {
     EXPECT_EQ(std::string(buffer.data(), bytesRead), "Hello");
     read.close();
     write.close();
+  };
+  run_loop(setup);
+}
+
+TEST(PipeTest, fd) {
+  auto setup = [](const Loop &loop) -> Promise<void> {
+    auto [read, write] = pipe(loop);
+
+    const int rfd = read.fd();
+    const int wfd = write.fd();
+    EXPECT_TRUE(rfd - wfd == 1 || rfd - wfd == -1);
+    co_return;
   };
   run_loop(setup);
 }

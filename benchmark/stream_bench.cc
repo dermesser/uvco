@@ -12,7 +12,7 @@ void bmPipeReadWrite(benchmark::State &state) {
     const std::string data(256, 'a');
 
     for (auto _ : state) {
-      co_await in.writeBorrowed(data);
+      co_await in.write(data);
       EXPECT_EQ(data, co_await out.read());
     }
   });
@@ -27,7 +27,7 @@ void bmPipeReadWriteBuffer(benchmark::State &state) {
     std::string buffer(512, 0);
 
     for (auto _ : state) {
-      co_await in.writeBorrowed(data);
+      co_await in.write(data);
       EXPECT_EQ(data.size(), co_await out.read(buffer));
     }
   });

@@ -81,20 +81,11 @@ public:
   /// are started simultaneously, the process will be aborted in Debug mode, or
   /// the first `write()` coroutine will not return in Release mode.
   ///
-  /// WARNING: due to the interactions with libuv, writes cannot be cancelled
-  /// safely in general, as libuv itself doesn't allow cancelling writes. You
-  /// can make writes safe by using a TaskSet that you don't drop:
-  /// `taskSet.add(stream.write(std::move(myBuffer)));`
-  /// This will ensure that the write can run to completion, at the cost of
-  /// giving up your buffer (because the buffer must live at least as long as
-  /// the write operation).
+  /// WARNING: due to the interactions with libuv, writes cannot be cancelled.
+  /// That's why `write()` always takes ownership of a buffer to avoid
+  /// use-after-free issues. The safety comes at the cost of increased
+  /// allocations, obviously.
   [[nodiscard]] Promise<void> write(std::string buf);
-
-  /// The same as `write(std::string)`, but takes a borrowed buffer. `buf` MUST
-  /// absolutely stay valid until the promise resolves. This means: co_await
-  /// this method and call it with a stored buffer (not a function return value,
-  /// for example).
-  [[nodiscard]] Promise<void> writeBorrowed(std::span<const char> buf);
 
   /// Shut down stream for writing. This is a half-close; the other side
   /// can still write. The result of `shutdown()` *must be `co_await`ed*.

@@ -127,7 +127,7 @@ Promise<void> serverLoop(MultiPromise<UnixStream> clients) {
 
     std::optional<std::string> chunk = co_await client.read();
     BOOST_ASSERT(chunk);
-    co_await client.writeBorrowed(*chunk);
+    co_await client.write(*chunk);
     co_await client.shutdown();
     client.close();
   }
