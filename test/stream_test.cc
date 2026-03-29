@@ -171,6 +171,27 @@ TEST(PipeTest, largeWriteCancelled) {
   run_loop(setup);
 }
 
+TEST(PipeTest, largeWriteCancelledOnClosedPipe) {
+  std::string buffer;
+  buffer.resize(1024 * 1024, 0);
+
+  {
+    std::ifstream urandom("/dev/urandom", std::ios::binary);
+    urandom.read(buffer.data(), buffer.size());
+  }
+
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    {
+      auto [read, write] = pipe(loop);
+      Promise<void> writePromise = write.write(std::move(buffer));
+      write.close();
+    }
+    co_return;
+  };
+
+  run_loop(setup);
+}
+
 TEST(PipeTest, readIntoBuffer) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     auto [read, write] = pipe(loop);

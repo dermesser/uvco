@@ -61,6 +61,7 @@ Promise<void> &Promise<void>::operator=(Promise<void> &&other) noexcept {
 
 Promise<void>::~Promise() {
   if (core_ != nullptr) {
+    // Note: core_->exception_ may contain an ignored exception at this point.
     core_->destroyCoroutine();
   }
 }

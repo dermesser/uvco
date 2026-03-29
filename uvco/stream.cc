@@ -128,6 +128,8 @@ Promise<void> StreamBase::write(std::string buf) {
 
   setData(awaiter.write_.get(), &awaiter);
   const OnExit _onExit{[write = awaiter.write_.get(), &awaiter] {
+    // handle_ is reset by onOutStreamWrite callback. If it's non-null, it's
+    // because write() was cancelled.
     if (awaiter.handle_) {
       resetRequestData(write);
     }
@@ -141,6 +143,7 @@ Promise<void> StreamBase::write(std::string buf) {
                         "StreamBase::write() encountered error in uv_write"};
   }
   const uv_status completionStatus = co_await awaiter;
+  // may be UV_ECANCELED if the stream has been dropped.
   if (completionStatus < 0) {
     throw UvcoException{
         status, "StreamBase::write() encountered error while awaiting write"};
