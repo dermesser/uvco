@@ -60,4 +60,14 @@ void PromiseCore<void>::resetHandle() {
 void PromiseCore<void>::setRunning(std::coroutine_handle<> handle) {
   coroutine_ = handle;
 }
+
+void PromiseCore<void>::destroyCoroutine() {
+  if (coroutine_) {
+    if (state_ != PromiseState::finished) {
+      Loop::cancel(coroutine_);
+    }
+    coroutine_.destroy();
+  }
+}
+
 } // namespace uvco

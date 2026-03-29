@@ -113,7 +113,9 @@ public:
 
   void destroyCoroutine() {
     if (coroutine_) {
-      Loop::cancel(coroutine_);
+      if (state_ != PromiseState::finished) {
+        Loop::cancel(coroutine_);
+      }
       coroutine_.destroy();
     }
   }
@@ -174,12 +176,7 @@ public:
   // Destroy the coroutine state associated with this core. Must be routinely
   // invoked after coroutine completion (due to suspend_always returned from
   // final_suspend).
-  void destroyCoroutine() {
-    if (coroutine_) {
-      Loop::cancel(coroutine_);
-      coroutine_.destroy();
-    }
-  }
+  void destroyCoroutine();
 
   /// In a void promise, we only track *if* the coroutine has finished, because
   /// it doesn't return anything.
