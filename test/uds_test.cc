@@ -197,6 +197,18 @@ TEST(UdsTest, unixStreamFailConnect) {
   EXPECT_THROW({ run_loop(setup); }, UvcoException);
 }
 
+TEST(UdsTest, connectCancel) {
+  auto setup = [&](const Loop &loop) -> Promise<void> {
+    UnixStreamServer server{loop, testSocketPath};
+
+    Promise<void> serverHandler = serverLoop(server.listen());
+    UnixStreamClient client{loop};
+    client.connect(testSocketPath);
+    co_return;
+  };
+  run_loop(setup);
+}
+
 TEST(UdsTest, unixStreamListenerStop) {
   auto setup = [](const Loop &loop) -> Promise<void> {
     UnixStreamServer server{loop, testSocketPath};

@@ -126,7 +126,7 @@ Promise<void> StreamBase::write(std::string buf) {
   bufs[0] = uv_buf_init(const_cast<char *>(awaiter.write_->buffer.data()),
                         awaiter.write_->buffer.size());
 
-  setData(awaiter.write_.get(), &awaiter);
+  setRequestData(awaiter.write_.get(), &awaiter);
   const OnExit _onExit{[write = awaiter.write_.get(), &awaiter] {
     // handle_ is reset by onOutStreamWrite callback. If it's non-null, it's
     // because write() was cancelled.
