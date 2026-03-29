@@ -92,7 +92,8 @@ Promise<UnixStream> UnixStreamClient::connect(std::string_view path) {
                         "UnixStreamClient::connect() failed immediately");
   }
 #else
-  uv_pipe_connect(&request_, pipe_.get(), path_.data(), onConnect);
+  uv_pipe_connect(connect.request_.get(), connect.pipe_.get(), path.data(),
+                  ConnectAwaiter_::onConnect);
 #endif
 
   std::optional<UvcoException> maybeError;
